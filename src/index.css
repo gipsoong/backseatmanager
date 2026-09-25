@@ -10,18 +10,29 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #151714;
     --fg: #e8e8e3;
     --muted: #9a9e96;
     --line: #2d302b;
     --accent: #7fb88d;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #151714;
+  --fg: #e8e8e3;
+  --muted: #9a9e96;
+  --line: #2d302b;
+  --accent: #7fb88d;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   background: var(--bg);
+  color: var(--fg);
 }
 
 main {
