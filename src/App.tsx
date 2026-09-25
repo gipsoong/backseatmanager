@@ -1,74 +1,52 @@
-import { useState } from 'react'
-import { type MatchState, randomTeam, runMatch } from './engine/index.ts'
+import { useMemo, useState } from 'react'
+import { randomTeam } from './engine/index.ts'
+import { MatchViewer } from './viewer/MatchViewer.tsx'
+import { Timeline } from './viewer/timeline.ts'
 
-/**
- * Placeholder shell: runs a whole match through the headless engine and shows the result.
- * The match viewer (pitch, playback, commentary) is the next milestone.
- */
+const randomSeed = (): number => Math.floor(Math.random() * 100_000)
+
 export default function App() {
   const [seed, setSeed] = useState(1)
-  const [match, setMatch] = useState<MatchState | null>(null)
+  const [draft, setDraft] = useState('1')
+  const timeline = useMemo(() => new Timeline(randomTeam(seed * 2 + 1), randomTeam(seed * 2 + 2), seed), [seed])
+  const [home, away] = timeline.state.teams
 
-  const play = () => {
-    setMatch(runMatch(randomTeam(seed * 2 + 1), randomTeam(seed * 2 + 2), { seed }))
+  const load = (s: number): void => {
+    setSeed(s)
+    setDraft(String(s))
   }
 
   return (
     <main>
-      <h1>Matchday</h1>
-      <div className="controls">
-        <label>
-          Seed <input type="number" value={seed} onChange={(e) => setSeed(Number(e.target.value))} />
-        </label>
-        <button onClick={play}>Simulate match</button>
-      </div>
-      {match && <Result match={match} />}
+      <header className="top">
+        <div className="fixture">
+          <p className="eyebrow">Matchday</p>
+          <h1>
+            {home.name} <span className="v">v</span> {away.name}
+          </h1>
+          <p className="meta">
+            {home.formation}, {home.block} block · {away.formation}, {away.block} block
+          </p>
+        </div>
+        <form
+          className="picker"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const n = Number(draft)
+            if (Number.isInteger(n) && n >= 0) load(n)
+          }}
+        >
+          <label htmlFor="seed">Match no.</label>
+          <input id="seed" inputMode="numeric" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <button type="submit" className="ghost">
+            Load
+          </button>
+          <button type="button" onClick={() => load(randomSeed())}>
+            New match
+          </button>
+        </form>
+      </header>
+      <MatchViewer key={seed} timeline={timeline} />
     </main>
-  )
-}
-
-function Result({ match }: { match: MatchState }) {
-  const [home, away] = match.teams
-  const name = (idx: number) => match.players[idx].def.name
-  const goals = match.events.filter((e) => e.type === 'goal')
-  const [h, a] = match.stats
-  const possession = Math.round((100 * h.possessionTicks) / (h.possessionTicks + a.possessionTicks || 1))
-  const rows: [string, string | number, string | number][] = [
-    ['Possession', `${possession}%`, `${100 - possession}%`],
-    ['Shots', h.shots, a.shots],
-    ['On target', h.shotsOnTarget, a.shotsOnTarget],
-    ['xG', h.xg.toFixed(2), a.xg.toFixed(2)],
-    ['Passes', h.passes, a.passes],
-    ['Fouls', h.fouls, a.fouls],
-    ['Yellow cards', h.yellowCards, a.yellowCards],
-  ]
-  return (
-    <section>
-      <p className="score">
-        {home.name} {match.score[0]} – {match.score[1]} {away.name}
-      </p>
-      <ul className="goals">
-        {goals.map((g) =>
-          g.type === 'goal' ? (
-            <li key={g.tick}>
-              {g.clock} {name(g.scorerIdx)}
-              {g.ownGoal ? ' (og)' : ''} ({match.teams[g.team].shortName})
-              {g.assistIdx !== null ? `, assist ${name(g.assistIdx)}` : ''}
-            </li>
-          ) : null,
-        )}
-      </ul>
-      <table>
-        <tbody>
-          {rows.map(([label, x, y]) => (
-            <tr key={label}>
-              <td>{x}</td>
-              <th>{label}</th>
-              <td>{y}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
   )
 }

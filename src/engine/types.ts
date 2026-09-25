@@ -33,9 +33,17 @@ export interface PlayerDef {
   traits: Traits
 }
 
+/** Shirt colours. `family` is used to spot clashes between two kits. */
+export interface Kit {
+  shirt: string
+  number: string
+  family: string
+}
+
 export interface TeamDef {
   name: string
   shortName: string
+  kit: Kit
   formation: Formation
   block: Block
   /** Exactly 11, in the formation's slot order (GK first). */

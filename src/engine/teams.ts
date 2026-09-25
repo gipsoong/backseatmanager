@@ -1,5 +1,5 @@
 import { Rng } from './rng.ts'
-import type { Attributes, Block, Formation, PlayerDef, Role, Slot, TeamDef } from './types.ts'
+import type { Attributes, Block, Formation, Kit, PlayerDef, Role, Slot, TeamDef } from './types.ts'
 
 const s = (role: Role, depth: number, y: number, attackDepth = 0): Slot => ({ role, depth, y, attackDepth })
 
@@ -32,6 +32,19 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('W', 0.85, 10, 0.1),
   ],
 }
+
+/** No green shirts: they'd vanish against the pitch. */
+export const KITS: Kit[] = [
+  { shirt: '#1f3a68', number: '#ffffff', family: 'blue' },
+  { shirt: '#7a1f2b', number: '#f1dfb0', family: 'red' },
+  { shirt: '#c8202f', number: '#ffffff', family: 'red' },
+  { shirt: '#f2f2ee', number: '#1b1f1c', family: 'white' },
+  { shirt: '#f0c330', number: '#1b1f1c', family: 'yellow' },
+  { shirt: '#79b4e0', number: '#10263d', family: 'blue' },
+  { shirt: '#232527', number: '#f2f2ee', family: 'black' },
+  { shirt: '#e8742a', number: '#1b1f1c', family: 'orange' },
+  { shirt: '#5b2a86', number: '#ffffff', family: 'purple' },
+]
 
 const FIRST = ['Alex', 'Ben', 'Carlos', 'Dani', 'Emre', 'Felix', 'Gabi', 'Hugo', 'Ivan', 'Jonas', 'Kofi', 'Luca', 'Marco', 'Nico', 'Omar', 'Pau', 'Rui', 'Sami', 'Theo', 'Yann']
 const LAST = ['Adler', 'Baptiste', 'Costa', 'Doyle', 'Eriksen', 'Ferreira', 'Grant', 'Haas', 'Iversen', 'Jansen', 'Keane', 'Lindqvist', 'Moreau', 'Novak', 'Okafor', 'Pereira', 'Quinn', 'Rossi', 'Silva', 'Varga', 'Walsh', 'Young']
@@ -81,6 +94,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
   return {
     name,
     shortName: name.slice(0, 3).toUpperCase(),
+    kit: rng.pick(KITS),
     formation: f,
     block: block ?? rng.pick(['low', 'mid', 'high'] as const),
     players,

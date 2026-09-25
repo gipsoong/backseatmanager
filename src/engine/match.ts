@@ -156,11 +156,16 @@ function emptyBall() {
 }
 
 export function clockString(s: MatchState): string {
-  const elapsed = s.tick - s.halfStartTick
-  const base = (s.half - 1) * (s.halfTicks / TICKS_PER_MINUTE)
-  if (elapsed < s.halfTicks) return `${Math.floor(base + elapsed / TICKS_PER_MINUTE) + 1}'`
-  const extra = Math.floor((elapsed - s.halfTicks) / TICKS_PER_MINUTE) + 1
-  return `${base + s.halfTicks / TICKS_PER_MINUTE}+${extra}'`
+  return formatClock(s.half, s.tick - s.halfStartTick, s.halfTicks)
+}
+
+/** Broadcast clock ("23'", "45+2'") for a tick count into a half. */
+export function formatClock(half: 1 | 2, elapsedTicks: number, halfTicks: number): string {
+  const halfMinutes = halfTicks / TICKS_PER_MINUTE
+  const base = (half - 1) * halfMinutes
+  if (elapsedTicks < halfTicks) return `${Math.floor(base + elapsedTicks / TICKS_PER_MINUTE) + 1}'`
+  const extra = Math.floor((elapsedTicks - halfTicks) / TICKS_PER_MINUTE) + 1
+  return `${base + halfMinutes}+${extra}'`
 }
 
 function emit(s: MatchState, out: MatchEvent[], e: EventBody): void {

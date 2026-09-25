@@ -139,6 +139,9 @@ pulling the repo.
     tests that the harness itself catches injected faults.
 - `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
   built-in TypeScript stripping (hence `.ts` import extensions throughout).
-- `src/App.tsx` — placeholder shell that runs a match and shows the result.
+- `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and
+  records packed frames; `pitch.ts` draws on canvas; `commentary.ts` turns events into lines;
+  `MatchViewer.tsx` is the UI. The viewer only reads engine output; it never feeds back into it.
+- `src/App.tsx` — fixture header and match picker around the viewer.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
