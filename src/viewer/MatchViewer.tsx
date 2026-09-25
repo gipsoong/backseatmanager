@@ -12,10 +12,13 @@ const SPEEDS = [1, 2, 4] as const
 const SIM_BUDGET_MS = 6
 /** Ticks the net keeps moving after a goal. */
 const RIPPLE_TICKS = 18
-/** Between highlights: match ticks per wall-clock second (2.5 match minutes a second). */
-const FAST_FORWARD_TICKS_PER_SECOND = 1500
-/** Don't fast-forward closer than this to the end of what's simulated, or a moment could be skipped. */
-const LOOKAHEAD_TICKS = 150
+/**
+ * Between highlights we cut, like a TV highlights package: fade to the grass, roll the clock on
+ * to the next moment (the skipped play still happens; commentary and stats catch up), fade in.
+ */
+const CUT_FADE_MS = 350
+const CUT_ROLL_MS = 900
+const ease = (x: number): number => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2)
 const MODES: [ViewMode, string][] = [
   ['full', 'Full match'],
   ['key', 'Key moments'],
@@ -32,7 +35,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1)
   const [mode, setMode] = useState<ViewMode>('full')
-  const [fastForward, setFastForward] = useState(false)
+  const [cutTo, setCutTo] = useState<string | null>(null)
   const [showRoles, setShowRoles] = useState(false)
   const [tab, setTab] = useState<Tab>('commentary')
   const [tick, setTick] = useState(0)
@@ -42,6 +45,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const pitchCache = useRef<HTMLCanvasElement | null>(null)
+  const coverRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef(viewFor(600, 1))
   // Values the animation loop reads without restarting.
   const live = useRef({ playing, speed, showRoles, mode })
@@ -81,7 +85,11 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     let lastRecordedUpdate = 0
     let windows: [number, number][] = []
     let windowsFor = { events: -1, mode: '' }
-    let wasFastForwarding = false
+    // A cut in progress: when it started, where from, and where to (null until the next moment is known).
+    let cut: { started: number; from: number; to: number | null } | null = null
+    const cover = (opacity: number): void => {
+      if (coverRef.current) coverRef.current.style.opacity = String(opacity)
+    }
     const loop = (now: number): void => {
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
@@ -93,25 +101,47 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         windowsFor = { events: events.length, mode: view }
       }
 
-      let ff = false
+      if (view === 'full' && cut) {
+        cut = null
+        cover(0)
+        setCutTo(null)
+      }
+      if (!isPlaying && cut) cut.started += dt * 1000 // a paused cut stays where it is
       if (isPlaying) {
         let ph = playhead.current
-        const w = view === 'full' ? null : windowAt(windows, ph)
-        if (!w || w.inside) {
-          ph += dt * rate * TICKS_PER_SECOND_AT_1X
+        if (!cut && view !== 'full' && !windowAt(windows, ph).inside) {
+          cut = { started: now, from: ph, to: null }
+          setCutTo('')
+        }
+        if (cut) {
+          if (cut.to === null) {
+            const next = windowAt(windows, cut.from).next
+            cut.to = next ? next[0] : timeline.done ? timeline.lastTick : null
+            if (cut.to !== null) setCutTo(timeline.clockAt(cut.to))
+          }
+          const e = now - cut.started
+          if (e < CUT_FADE_MS) {
+            cover(e / CUT_FADE_MS)
+          } else if (cut.to === null) {
+            cut.started = now - CUT_FADE_MS // hold on the cover until the engine reaches the next moment
+            cover(1)
+          } else if (e < CUT_FADE_MS + CUT_ROLL_MS) {
+            cover(1)
+            ph = cut.from + (cut.to - cut.from) * ease((e - CUT_FADE_MS) / CUT_ROLL_MS)
+          } else if (e < 2 * CUT_FADE_MS + CUT_ROLL_MS) {
+            ph = cut.to
+            cover(1 - (e - CUT_FADE_MS - CUT_ROLL_MS) / CUT_FADE_MS)
+          } else {
+            ph = cut.to
+            cut = null
+            cover(0)
+            setCutTo(null)
+          }
         } else {
-          // Off camera: the match still plays in full, we just skim through it.
-          ff = true
-          ph += dt * FAST_FORWARD_TICKS_PER_SECOND
-          if (w.next && ph >= w.next[0]) ph = w.next[0]
-          if (!timeline.done) ph = Math.min(ph, Math.max(playhead.current, timeline.lastTick - LOOKAHEAD_TICKS))
+          ph += dt * rate * TICKS_PER_SECOND_AT_1X
         }
         playhead.current = Math.min(ph, timeline.lastTick)
-        if (timeline.done && playhead.current >= timeline.lastTick) setPlaying(false)
-      }
-      if (ff !== wasFastForwarding) {
-        wasFastForwarding = ff
-        setFastForward(ff)
+        if (timeline.done && playhead.current >= timeline.lastTick && !cut) setPlaying(false)
       }
 
       const t = Math.floor(playhead.current)
@@ -163,6 +193,14 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       <div className="stage">
         <div className="pitch-wrap" ref={wrapRef} style={{ aspectRatio: `${1 / PITCH_ASPECT}` }}>
           <canvas ref={canvasRef} aria-label={`${home.name} against ${away.name}`} />
+          <div className="cut-cover" ref={coverRef} aria-hidden={cutTo === null}>
+            {cutTo !== null && (
+              <p className="cut-caption">
+                {cutTo && <span className="cut-clock">{cutTo}</span>}
+                <span className="cut-label">{mode === 'goals' ? 'Goals' : 'Key moments'}</span>
+              </p>
+            )}
+          </div>
           <div className="scorebug">
             <span className="swatch" style={{ background: kits[0].shirt }} />
             <span className="abbr">{home.shortName}</span>
@@ -173,11 +211,6 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
             <span className="swatch" style={{ background: kits[1].shirt }} />
             <span className="clock">{status ?? timeline.clockAt(tick)}</span>
           </div>
-          {fastForward && (
-            <div className="ff-chip" aria-live="polite">
-              <FastForwardIcon /> Skipping to the next {mode === 'goals' ? 'goal' : 'moment'}
-            </div>
-          )}
           {goalStrip && (
             <div className="goal-strip" key={goalStrip.tick}>
               <span className="swatch" style={{ background: kits[goalStrip.team].shirt }} />
@@ -351,14 +384,6 @@ function PlayIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
       <path d="M7 4.5v15l12.5-7.5z" fill="currentColor" />
-    </svg>
-  )
-}
-
-function FastForwardIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-      <path d="M3 5.5v13l9-6.5zM12 5.5v13l9-6.5z" fill="currentColor" />
     </svg>
   )
 }

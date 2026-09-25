@@ -282,20 +282,37 @@ h1 .v {
   }
 }
 
-.ff-chip {
+.cut-cover {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  background: var(--strip);
-  color: rgba(243, 245, 241, 0.85);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #22402b;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cut-caption {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  color: #f3f5f1;
   font-family: var(--display);
-  font-size: 0.95rem;
-  letter-spacing: 0.04em;
-  border-radius: 3px;
+}
+
+.cut-clock {
+  font-size: clamp(1.8rem, 6vw, 3rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cut-label {
+  font-size: 0.9rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(243, 245, 241, 0.65);
 }
 
 /* Playback controls */
