@@ -2,8 +2,8 @@
  * Runs a match through the engine a slice at a time and records every tick, so the viewer can
  * play back, pause and seek without the engine knowing anything about rendering.
  *
- * Frames are packed into one Float32Array: per tick, [ballX, ballY, ownerIdx (-1 = none)] then
- * [x, y] for each player (NaN when off the pitch).
+ * Frames are packed into one Float32Array: per tick, [ballX, ballY, ballZ, ownerIdx (-1 = none)]
+ * then [x, y] for each player (NaN when off the pitch). PLAYERS_AT is where the players start.
  */
 import {
   type MatchEvent,
@@ -16,6 +16,7 @@ import {
 } from '../engine/index.ts'
 
 const STATS_EVERY = 10
+export const PLAYERS_AT = 4
 
 export class Timeline {
   readonly state: MatchState
@@ -29,7 +30,7 @@ export class Timeline {
 
   constructor(home: TeamDef, away: TeamDef, seed: number) {
     this.state = createMatch(home, away, { seed })
-    this.stride = 3 + this.state.players.length * 2
+    this.stride = PLAYERS_AT + this.state.players.length * 2
     this.frames = new Float32Array(this.stride * 70_000)
     this.record()
   }
@@ -69,10 +70,11 @@ export class Timeline {
     const f = this.frames
     f[o] = s.ball.pos.x
     f[o + 1] = s.ball.pos.y
-    f[o + 2] = s.ball.ownerIdx ?? -1
+    f[o + 2] = s.ball.z
+    f[o + 3] = s.ball.ownerIdx ?? -1
     s.players.forEach((p, i) => {
-      f[o + 3 + i * 2] = p.onPitch ? p.pos.x : NaN
-      f[o + 4 + i * 2] = p.onPitch ? p.pos.y : NaN
+      f[o + PLAYERS_AT + i * 2] = p.onPitch ? p.pos.x : NaN
+      f[o + PLAYERS_AT + 1 + i * 2] = p.onPitch ? p.pos.y : NaN
     })
     if (s.tick % STATS_EVERY === 0) this.stats.push(structuredClone(s.stats))
     this.recorded = s.tick + 1
@@ -86,6 +88,11 @@ export class Timeline {
 
   /** Events with tick <= `tick`. Events are appended in tick order, so this is a prefix. */
   eventsUpTo(tick: number): MatchEvent[] {
+    return this.state.events.slice(0, this.indexAfter(tick))
+  }
+
+  /** Index of the first event with tick > `tick`. */
+  indexAfter(tick: number): number {
     const ev = this.state.events
     let lo = 0
     let hi = ev.length
@@ -94,7 +101,7 @@ export class Timeline {
       if (ev[mid].tick <= tick) lo = mid + 1
       else hi = mid
     }
-    return ev.slice(0, lo)
+    return lo
   }
 
   scoreAt(tick: number): [number, number] {

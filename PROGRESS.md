@@ -4,7 +4,29 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 ## Current milestone
 
-**2. Match viewer** — first pass done (session 2). **1. Engine core** is done apart from calibration.
+**2. Match viewer** — view modes and ball flight done (session 3). Engine calibrated to real ranges
+except corners and headers.
+
+## Done (session 3): ball height, calibration, view modes
+
+- Engine: the ball flies in 3D (`physics.ts`, shared by loop and AI predictions). Players can
+  only play a ball within reach height (header 2.4m, keeper's hands 2.8m in his box), so chipped
+  passes clear defenders, crosses are headed, shots go over or hit the bar. Crosses aimed at head
+  height; box runs (near post, far post, penalty spot) when the ball is wide in the final third;
+  keepers claim/punch crosses and parry wide; blocks keep going (corners).
+- Harness: touch height within reach, owned ball on the ground, goals under the bar, "out"
+  between the posts only over the bar, on-target flag matches the predicted height, kicks and
+  touches checked in order (a header is a touch then a kick).
+- `npm run calibrate -- [n]`: aggregate stats over n seeds vs real-football ranges. Latest (20):
+  goals 1.4, shots 13, on target 38%, xG 1.5, passes 600, pass 75%, fouls 12, yellows 1.9,
+  throw-ins 24, offsides 1.0, penalties 0.3/match — all in range. Still low: corners (~1.5 vs
+  4–6.5) and headed shots (~2% vs 10–25%). xG is the AI's chance model × 0.6 (`XG_CALIBRATION`).
+- Viewer: Full match / Key moments / Goals. Outside a moment's window (9s build-up, 4–7s after)
+  the playhead fast-forwards at 2.5 match-minutes per second, stopping exactly at the next
+  window and never running ahead of what's been simulated. Off-camera play is simulated in full.
+- Viewer: bigger ball drawn lifted above its shadow by its height; pass/shot/clearance lines
+  trace the ball's actual recorded path (dashed ground passes, dotted lofted balls, solid shots),
+  brighter where the ball has been, fading when the flight ends.
 
 ## Done (session 2): match viewer
 
@@ -37,28 +59,19 @@ Updated at the end of each session. Keep this short — current state, not a ful
 - Headless harness (`harness.ts`) + tests. `npm run sim -- <seed>` for a single match.
 - Minimal app shell that runs a match and shows score, scorers and stats.
 
-## Calibration snapshot (24 seeds, per team per match)
+## Calibration notes
 
-throw-ins are rare (players and ball carriers stay well inside the lines), goals ~2, shots ~15,
-on target ~70% (real ≈35%), xG ~3 (generous model), passes ~880 (real
-≈450), pass completion ~77%, fouls ~8, yellows ~1.4, corners ~0.1 (real ≈5), offsides ~1.
-Results can be lopsided (11–2 seen) because random team quality spreads widely.
-The system is sensitive: small AI changes swing goals 2×. Judge changes on aggregates over many
-seeds, not one match.
+The system is sensitive: small AI changes swing goals 2×. Judge every engine change with
+`npm run calibrate`, never on one match. Session 3's biggest wins came from diagnosing *why* a
+number was off (e.g. the pass-risk model rating an opponent already on the passing line as a
+coin flip; defenders heading their own team's chipped passes clear), not from turning knobs.
 
 ## In flight / next up
 
-0. **Viewer follow-ups**: key-moments / goals-only view modes (skip between events; the timeline
-   already makes this cheap), run indicators for players making runs (engine has `runUntil`,
-   not yet exported in frames), replays. Matches can go 10+ minutes with no incident because
-   the ball rarely goes out of play (see calibration), which makes full-match viewing slow.
-1. **Calibration pass** (before the viewer, or alongside it): add an aggregate-stats script
-   (~20 seeds) to `scripts/`, then target realistic ranges. Likely levers:
-   - Ball height: no aerial balls yet, so no crosses/headers/over-the-bar. This is why corners
-     are ~0 and on-target % is high. Add a height/lofted component to kicks, with the harness
-     checking that only a lofted ball can pass over a player.
-   - Pass tempo is too high (too many short passes): decision interval and pass selection.
-   - Narrow the random team quality spread.
+0. **Viewer follow-ups**: run indicators for players making runs (engine has `runUntil`, not yet
+   exported in frames), replays of goals from 2–3 angles, highlight windows shaded on the scrubber.
+1. **Calibration**: corners and headed shots (defenders under crosses should head behind more;
+   more crosses overall), key-moment density (some matches have no shot on target for 30+ min).
 2. Season loop, transfers/scouting, development/youth, polish (see CLAUDE.md).
 
 ## Open questions / decisions deferred
@@ -73,5 +86,6 @@ seeds, not one match.
 ## Notes for the next session
 
 - Read CLAUDE.md first, especially "the one lesson worth internalizing" and the repo layout.
-- `npm test` takes ~40s (six full matches through the harness, plus the viewer tests).
+- `npm test` takes ~40s (six full matches through the harness, plus the viewer tests);
+  `npm run calibrate` ~50s for 20 matches.
 - Commit and push before ending a session — history doesn't carry across devices.

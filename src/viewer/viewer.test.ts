@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createMatch, frameOf, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
-import { Timeline } from './timeline.ts'
+import { flightAt, highlightWindows, windowAt } from './highlights.ts'
+import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
 const home = randomTeam(SEED * 2 + 1)
@@ -19,11 +20,12 @@ describe('timeline', () => {
       const got = t.frame(tick)
       expect(got[0]).toBeCloseTo(want.ball.x, 3)
       expect(got[1]).toBeCloseTo(want.ball.y, 3)
-      expect(got[2]).toBe(want.ball.ownerIdx ?? -1)
+      expect(got[2]).toBeCloseTo(want.ball.z, 3)
+      expect(got[3]).toBe(want.ball.ownerIdx ?? -1)
       want.players.forEach((p, i) => {
-        if (!p.onPitch) return expect(got[3 + i * 2]).toBeNaN()
-        expect(got[3 + i * 2]).toBeCloseTo(p.x, 3)
-        expect(got[4 + i * 2]).toBeCloseTo(p.y, 3)
+        if (!p.onPitch) return expect(got[PLAYERS_AT + i * 2]).toBeNaN()
+        expect(got[PLAYERS_AT + i * 2]).toBeCloseTo(p.x, 3)
+        expect(got[PLAYERS_AT + 1 + i * 2]).toBeCloseTo(p.y, 3)
       })
       step(s)
     }
@@ -51,5 +53,42 @@ describe('commentary', () => {
 
   it('reads the same every time', () => {
     expect(buildCommentary(full.state, full.state.events)).toEqual(lines)
+  })
+})
+
+describe('view modes', () => {
+  const events = full.state.events
+  const goals = events.filter((e) => e.type === 'goal')
+
+  it('shows every goal, with build-up, in both highlight modes', () => {
+    for (const mode of ['key', 'goals'] as const) {
+      const windows = highlightWindows(events, mode)
+      for (const g of goals) {
+        expect(windowAt(windows, g.tick).inside).toBe(true)
+        expect(windowAt(windows, g.tick - 60).inside).toBe(true)
+      }
+    }
+  })
+
+  it('produces sorted, non-overlapping windows, fewer for goals only', () => {
+    const key = highlightWindows(events, 'key')
+    const goalsOnly = highlightWindows(events, 'goals')
+    for (const ws of [key, goalsOnly]) {
+      ws.forEach(([a, b], i) => {
+        expect(b).toBeGreaterThan(a)
+        if (i > 0) expect(a).toBeGreaterThan(ws[i - 1][1])
+      })
+    }
+    expect(goalsOnly.length).toBeLessThanOrEqual(key.length)
+    expect(highlightWindows(events, 'full')).toEqual([])
+  })
+
+  it('knows which kick is in the air', () => {
+    const i = events.findIndex((e) => e.type === 'shot')
+    const shot = events[i]
+    const at = full.indexAfter(shot.tick)
+    const flight = flightAt(events, at)
+    expect(flight?.kick).toBe(shot)
+    expect(flight?.end).toBeGreaterThanOrEqual(shot.tick)
   })
 })

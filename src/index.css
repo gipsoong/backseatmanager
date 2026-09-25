@@ -282,6 +282,22 @@ h1 .v {
   }
 }
 
+.ff-chip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--strip);
+  color: rgba(243, 245, 241, 0.85);
+  font-family: var(--display);
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+}
+
 /* Playback controls */
 
 .controls {
@@ -308,6 +324,7 @@ h1 .v {
 
 .segmented button {
   min-width: 44px;
+  padding: 0 10px;
   min-height: 40px;
   border: 0;
   background: transparent;
@@ -483,6 +500,11 @@ h1 .v {
   height: 8px;
   border-radius: 2px;
   align-self: center;
+}
+
+/* Outline team swatches so a white kit still shows on a light panel. */
+.commentary .dot:not([style*='transparent']) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 25%, transparent);
 }
 
 .line.goal .text {

@@ -131,16 +131,21 @@ pulling the repo.
   - `ai.ts` — intentions only: movement targets and what the carrier tries to do. It never
     decides an outcome.
   - `rules.ts` — positional conditions for taking restarts.
+  - `physics.ts` — ball flight (height, gravity, bounces). The loop and the AI's predictions both
+    step the ball with `advanceBall`, so predictions are exact.
   - `harness.ts` — `checkMatch()`: runs a match and checks every tick that reported outcomes
     match positions (speeds, possession reach, shot range, offside at the moment of the kick,
     penalty iff foul in the box, goals/outs on the lines, restart gating, no stalls). Its checks
     are written independently of the engine's rule code on purpose.
   - `engine.test.ts` — determinism, zero violations over full matches, loose stat bounds, and
     tests that the harness itself catches injected faults.
+- `scripts/calibrate.ts` — `npm run calibrate -- [n]`: aggregate stats over n seeds next to
+  real-football ranges. Use it for every engine tuning change.
 - `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
   built-in TypeScript stripping (hence `.ts` import extensions throughout).
 - `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and
   records packed frames; `pitch.ts` draws on canvas; `commentary.ts` turns events into lines;
+  `highlights.ts` decides what each view mode shows and which kick is in the air;
   `MatchViewer.tsx` is the UI. The viewer only reads engine output; it never feeds back into it.
 - `src/App.tsx` — fixture header and match picker around the viewer.
 

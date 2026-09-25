@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MatchEvent, TeamStats } from '../engine/index.ts'
 import { type Line, buildCommentary, surname } from './commentary.ts'
+import { type ViewMode, flightAt, highlightWindows, windowAt } from './highlights.ts'
 import { PITCH_ASPECT, drawFrame, drawPitch, fixtureKits, viewFor } from './pitch.ts'
 import type { Timeline } from './timeline.ts'
 
@@ -11,6 +12,15 @@ const SPEEDS = [1, 2, 4] as const
 const SIM_BUDGET_MS = 6
 /** Ticks the net keeps moving after a goal. */
 const RIPPLE_TICKS = 18
+/** Between highlights: match ticks per wall-clock second (2.5 match minutes a second). */
+const FAST_FORWARD_TICKS_PER_SECOND = 1500
+/** Don't fast-forward closer than this to the end of what's simulated, or a moment could be skipped. */
+const LOOKAHEAD_TICKS = 150
+const MODES: [ViewMode, string][] = [
+  ['full', 'Full match'],
+  ['key', 'Key moments'],
+  ['goals', 'Goals'],
+]
 
 type Tab = 'commentary' | 'stats'
 
@@ -21,6 +31,8 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
 
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1)
+  const [mode, setMode] = useState<ViewMode>('full')
+  const [fastForward, setFastForward] = useState(false)
   const [showRoles, setShowRoles] = useState(false)
   const [tab, setTab] = useState<Tab>('commentary')
   const [tick, setTick] = useState(0)
@@ -32,10 +44,10 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const pitchCache = useRef<HTMLCanvasElement | null>(null)
   const viewRef = useRef(viewFor(600, 1))
   // Values the animation loop reads without restarting.
-  const live = useRef({ playing, speed, showRoles })
+  const live = useRef({ playing, speed, showRoles, mode })
   useEffect(() => {
-    live.current = { playing, speed, showRoles }
-  }, [playing, speed, showRoles])
+    live.current = { playing, speed, showRoles, mode }
+  }, [playing, speed, showRoles, mode])
 
   // Size the canvas to its container and redraw the pitch at that size.
   useEffect(() => {
@@ -67,15 +79,41 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     let last = performance.now()
     let raf = 0
     let lastRecordedUpdate = 0
+    let windows: [number, number][] = []
+    let windowsFor = { events: -1, mode: '' }
+    let wasFastForwarding = false
     const loop = (now: number): void => {
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
       if (!timeline.done) timeline.advanceFor(SIM_BUDGET_MS)
-      const { playing: isPlaying, speed: rate, showRoles: roles } = live.current
+      const { playing: isPlaying, speed: rate, showRoles: roles, mode: view } = live.current
+      const events = timeline.state.events
+      if (windowsFor.events !== events.length || windowsFor.mode !== view) {
+        windows = highlightWindows(events, view)
+        windowsFor = { events: events.length, mode: view }
+      }
+
+      let ff = false
       if (isPlaying) {
-        playhead.current = Math.min(playhead.current + dt * rate * TICKS_PER_SECOND_AT_1X, timeline.lastTick)
+        let ph = playhead.current
+        const w = view === 'full' ? null : windowAt(windows, ph)
+        if (!w || w.inside) {
+          ph += dt * rate * TICKS_PER_SECOND_AT_1X
+        } else {
+          // Off camera: the match still plays in full, we just skim through it.
+          ff = true
+          ph += dt * FAST_FORWARD_TICKS_PER_SECOND
+          if (w.next && ph >= w.next[0]) ph = w.next[0]
+          if (!timeline.done) ph = Math.min(ph, Math.max(playhead.current, timeline.lastTick - LOOKAHEAD_TICKS))
+        }
+        playhead.current = Math.min(ph, timeline.lastTick)
         if (timeline.done && playhead.current >= timeline.lastTick) setPlaying(false)
       }
+      if (ff !== wasFastForwarding) {
+        wasFastForwarding = ff
+        setFastForward(ff)
+      }
+
       const t = Math.floor(playhead.current)
       setTick((prev) => (prev === t ? prev : t))
       if (now - lastRecordedUpdate > 250 || timeline.done) {
@@ -95,6 +133,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
           showRoles: roles,
           ripple: goal && age < 1 ? { x: goal.pos.x, y: goal.pos.y, age } : null,
           ballInNet: pending ? pending.pos : null,
+          flight: pending ? null : flightAt(events, upTo.length),
         })
       }
       raf = requestAnimationFrame(loop)
@@ -134,6 +173,11 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
             <span className="swatch" style={{ background: kits[1].shirt }} />
             <span className="clock">{status ?? timeline.clockAt(tick)}</span>
           </div>
+          {fastForward && (
+            <div className="ff-chip" aria-live="polite">
+              <FastForwardIcon /> Skipping to the next {mode === 'goals' ? 'goal' : 'moment'}
+            </div>
+          )}
           {goalStrip && (
             <div className="goal-strip" key={goalStrip.tick}>
               <span className="swatch" style={{ background: kits[goalStrip.team].shirt }} />
@@ -156,6 +200,13 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
             {SPEEDS.map((s) => (
               <button type="button" key={s} aria-pressed={speed === s} onClick={() => setSpeed(s)}>
                 {s}×
+              </button>
+            ))}
+          </div>
+          <div className="segmented modes" role="group" aria-label="What to watch">
+            {MODES.map(([m, label]) => (
+              <button type="button" key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
+                {label}
               </button>
             ))}
           </div>
@@ -300,6 +351,14 @@ function PlayIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
       <path d="M7 4.5v15l12.5-7.5z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function FastForwardIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+      <path d="M3 5.5v13l9-6.5zM12 5.5v13l9-6.5z" fill="currentColor" />
     </svg>
   )
 }

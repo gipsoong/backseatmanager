@@ -16,7 +16,8 @@ import {
   PITCH_WIDTH,
   type Role,
 } from '../engine/index.ts'
-import type { Timeline } from './timeline.ts'
+import type { MatchEvent } from '../engine/index.ts'
+import { PLAYERS_AT, type Timeline } from './timeline.ts'
 
 /** Metres of grass shown around the pitch (room for the goals). */
 const MARGIN = 3.5
@@ -42,6 +43,11 @@ export function viewFor(width: number, dpr: number): View {
 
 const px = (v: View, x: number): number => (x + MARGIN) * v.scale
 const py = (v: View, y: number): number => (y + MARGIN) * v.scale
+/** Screen y for something `z` metres up: a gentle lift, like a raised broadcast camera. */
+const HEIGHT_LIFT = 0.55
+const pyz = (v: View, y: number, z: number): number => py(v, y) - z * v.scale * HEIGHT_LIFT
+/** Ticks a finished pass or shot line takes to fade out. */
+const FLIGHT_FADE = 8
 
 const GRASS_A = '#3d6d47'
 const GRASS_B = '#437650'
@@ -116,6 +122,42 @@ export interface DrawOptions {
   ripple: { x: number; y: number; age: number } | null
   /** After a goal the engine re-spots the ball for kick-off; keep showing it in the net until then. */
   ballInNet: { x: number; y: number } | null
+  /** The kick in the air (or just finished), and when its flight ended. */
+  flight: { kick: Extract<MatchEvent, { type: 'pass' | 'shot' | 'clearance' }>; end: number | null } | null
+}
+
+/** Trace a kick's actual path from the recorded frames: brighter where the ball has been. */
+function drawFlight(ctx: CanvasRenderingContext2D, v: View, timeline: Timeline, playhead: number, opts: DrawOptions): void {
+  const f = opts.flight
+  if (!f || playhead < f.kick.tick) return
+  const end = Math.min(f.end ?? timeline.lastTick, timeline.lastTick)
+  const fade = playhead > end ? 1 - (playhead - end) / FLIGHT_FADE : 1
+  if (fade <= 0 || end <= f.kick.tick) return
+  const k = f.kick
+  const shot = k.type === 'shot'
+  const lofted = k.type === 'clearance' || (k.type === 'pass' && k.lofted)
+  const path = (from: number, to: number): void => {
+    ctx.beginPath()
+    for (let t = from; t <= to; t++) {
+      const fr = timeline.frame(t)
+      const x = px(v, fr[0])
+      const y = pyz(v, fr[1], fr[2])
+      if (t === from) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.stroke()
+  }
+  ctx.save()
+  ctx.lineCap = 'round'
+  ctx.lineWidth = shot ? 2 : 1.5
+  ctx.setLineDash(shot ? [] : lofted ? [1, 5] : [5, 5])
+  const colour = shot ? '255,238,200' : '255,255,255'
+  const now = Math.min(Math.floor(playhead), end)
+  ctx.strokeStyle = `rgba(${colour},${0.22 * fade})`
+  path(now, end)
+  ctx.strokeStyle = `rgba(${colour},${(shot ? 0.85 : 0.6) * fade})`
+  path(k.tick, now)
+  ctx.restore()
 }
 
 /** Draw both goals' nets; the scoring one bulges where the ball went in. */
@@ -170,6 +212,7 @@ export function drawFrame(
   ctx.drawImage(pitch, 0, 0)
   ctx.setTransform(v.dpr, 0, 0, v.dpr, 0, 0)
   drawNets(ctx, v, opts.ripple)
+  drawFlight(ctx, v, timeline, playhead, opts)
 
   const t0 = Math.floor(playhead)
   const a = timeline.frame(t0)
@@ -177,6 +220,7 @@ export function drawFrame(
   const f = playhead - t0
   // Don't slide across a jump (half-time repositioning, a restart spot).
   const mix = (i: number, maxJump: number): [number, number] => {
+    // (x, y) at i, i + 1 interpolated between the two ticks.
     const ax = a[i]
     const ay = a[i + 1]
     const bx = b[i]
@@ -190,7 +234,7 @@ export function drawFrame(
   const fontSize = Math.max(8, Math.round(r * 1.05))
 
   match.players.forEach((p, i) => {
-    const o = 3 + i * 2
+    const o = PLAYERS_AT + i * 2
     if (Number.isNaN(a[o])) return
     const [x, y] = mix(o, 3)
     const kit = p.slot.role === 'GK' ? opts.keeperKits[p.team] : opts.kits[p.team]
@@ -219,21 +263,25 @@ export function drawFrame(
   })
 
   let [bx, by] = mix(0, 4)
+  let bz = Number.isNaN(b[2]) ? a[2] : a[2] + (b[2] - a[2]) * f
   if (opts.ballInNet) {
     bx = opts.ballInNet.x + (opts.ballInNet.x < 1 ? -1.2 : 1.2)
     by = opts.ballInNet.y
+    bz = 0
   }
-  const br = Math.max(2.8, 0.42 * v.scale)
+  // Shadow on the grass, shrinking and fading as the ball climbs; the ball itself drawn lifted.
+  const br = Math.max(4, 0.62 * v.scale) * (1 + Math.min(bz, 8) * 0.05)
+  const shadowK = 1 / (1 + bz * 0.25)
   ctx.beginPath()
-  ctx.ellipse(px(v, bx) + br * 0.5, py(v, by) + br * 0.6, br, br * 0.7, 0, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(0,0,0,0.3)'
+  ctx.ellipse(px(v, bx) + br * 0.3, py(v, by) + br * 0.35, br * shadowK, br * 0.65 * shadowK, 0, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(0,0,0,${0.32 * shadowK})`
   ctx.fill()
   ctx.beginPath()
-  ctx.arc(px(v, bx), py(v, by), br, 0, Math.PI * 2)
+  ctx.arc(px(v, bx), pyz(v, by, bz), br, 0, Math.PI * 2)
   ctx.fillStyle = '#fbfbf7'
   ctx.fill()
   ctx.lineWidth = 1
-  ctx.strokeStyle = 'rgba(20,20,20,0.7)'
+  ctx.strokeStyle = 'rgba(20,20,20,0.75)'
   ctx.stroke()
 }
 
