@@ -3,7 +3,7 @@
  *   npm run calibrate -- [matches=20]
  * Judge engine tuning on these numbers, never on a single match.
  */
-import { randomTeam } from '../src/engine/index.ts'
+import { BOX_DEPTH, BOX_HALF_WIDTH, CENTER, randomTeam } from '../src/engine/index.ts'
 import { checkMatch } from '../src/engine/harness.ts'
 
 const n = Number(process.argv[2] ?? 20)
@@ -21,6 +21,7 @@ const TARGETS: Record<string, [number, number]> = {
   'yellow cards': [1.2, 2.5],
   'red cards': [0, 0.15],
   corners: [4, 6.5],
+  crosses: [8, 14],
   offsides: [1, 3],
   'throw-ins': [15, 25],
   'goal kicks': [5, 10],
@@ -28,6 +29,7 @@ const TARGETS: Record<string, [number, number]> = {
   'penalties (match)': [0.1, 0.4],
   'woodwork (match)': [0.2, 0.8],
   'biggest margin': [0, 5],
+  'longest dull spell (min)': [15, 35],
 }
 
 const got: Record<string, number> = {}
@@ -58,7 +60,22 @@ for (let seed = 1; seed <= n; seed++) {
     add('corners', t.corners)
     add('offsides', t.offsides)
   }
+  // Key moments as the viewer's Key moments mode sees them; the longest gap between them (or the
+  // ends of the match) is how long a viewer waits with nothing happening.
+  const moments = state.events
+    .filter((e) => e.type === 'goal' || (e.type === 'shot' && e.onTarget) || e.type === 'woodwork')
+    .map((e) => e.tick)
+  const marks = [0, ...moments, state.tick]
+  add('longest dull spell (min)', Math.max(...marks.slice(1).map((t, i) => t - marks[i])) / 600)
+  let half = 1
   for (const e of state.events) {
+    if (e.type === 'halfTime') half = 2
+    if (e.type === 'pass' && e.lofted) {
+      // A cross: in the air into the opponents' box from wide.
+      const attacksHigh = (state.players[e.byIdx].team === 0) === (half === 1)
+      const depth = attacksHigh ? 105 - e.target.x : e.target.x
+      if (depth < BOX_DEPTH && Math.abs(e.target.y - CENTER.y) < BOX_HALF_WIDTH && Math.abs(e.from.y - CENTER.y) > 12) add('crosses', 1)
+    }
     if (e.type === 'out' && e.award === 'throwIn') add('throw-ins', 1)
     if (e.type === 'out' && e.award === 'goalKick') add('goal kicks', 1)
     if (e.type === 'pass' && e.lofted) add('lofted', 1)
@@ -82,6 +99,7 @@ const results: Record<string, number> = {
   'yellow cards': perTeam('yellow cards'),
   'red cards': perTeam('red cards'),
   corners: perTeam('corners'),
+  crosses: perTeam('crosses'),
   offsides: perTeam('offsides'),
   'throw-ins': perTeam('throw-ins'),
   'goal kicks': perTeam('goal kicks'),
@@ -89,6 +107,7 @@ const results: Record<string, number> = {
   'penalties (match)': perMatch('penalties (match)'),
   'woodwork (match)': perMatch('woodwork (match)'),
   'biggest margin': biggest,
+  'longest dull spell (min)': perMatch('longest dull spell (min)'),
 }
 
 console.log(`${n} matches: ${scores.join(' ')}\n`)

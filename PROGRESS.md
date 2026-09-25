@@ -61,6 +61,24 @@ except corners and headers.
 
 ## Calibration notes
 
+Session 4 findings (read before the next tuning pass):
+- The session-3 baseline's healthy scoring was partly an illusion: ~half its goals were own goals
+  from chipped back-passes to the keeper (he "headed" them, mistimed, into his own net). Fixed by
+  never chipping to the keeper; keepers then saved too much (14% of on-target shots scored vs
+  ~30% real), fixed in `pSave`; xG factor re-fitted to 0.85.
+- Bug fixed: a player who missed a touch was barred from that kick forever, so a ball could stop
+  at two players' feet and sit there (harness `dead-loose-ball`).
+- Crosses/corners/headers are low for structural reasons, found with instrumentation:
+  1. A defender pressing within ~1m of the ball is within control reach of where a pass starts,
+     so the loop lets him cut out passes played *away* from him. Physically wrong, but fixing it
+     alone made possession far too safe (870 passes, few fouls) and destabilised everything.
+  2. The AI's pass-risk model treats every opponent as a potential chaser; the loop only sends the
+     best-placed one. A model mirroring the loop (passive "ball runs past him" + one chaser) is
+     more faithful, but again shifted the whole balance.
+  3. Box runners drift offside as defenders drop, so wingers correctly won't pass to them.
+  Tried together these made the match worse, so they were reverted. Next attempt: change one at a
+  time and re-balance pressing/tackling around it before moving on to the next.
+
 The system is sensitive: small AI changes swing goals 2×. Judge every engine change with
 `npm run calibrate`, never on one match. Session 3's biggest wins came from diagnosing *why* a
 number was off (e.g. the pass-risk model rating an opponent already on the passing line as a
@@ -70,8 +88,8 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 0. **Viewer follow-ups**: run indicators for players making runs (engine has `runUntil`, not yet
    exported in frames), replays of goals from 2–3 angles, highlight windows shaded on the scrubber.
-1. **Calibration**: corners and headed shots (defenders under crosses should head behind more;
-   more crosses overall), key-moment density (some matches have no shot on target for 30+ min).
+1. **Calibration**: crosses, corners and headed shots (see findings below); shots slightly low
+   (~9); longest dull spell ~40 min (Key moments' cuts hide it when watching).
 2. Season loop, transfers/scouting, development/youth, polish (see CLAUDE.md).
 
 ## Open questions / decisions deferred

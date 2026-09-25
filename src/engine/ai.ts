@@ -249,7 +249,8 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
 
     // In the air: only opponents under the ball where it's low enough to reach can cut it out,
     // and an aerial ball is harder to bring down.
-    if (d >= 18) {
+    // Nobody chips it back to their own keeper (he'd have to head it, next to his own goal).
+    if (d >= 18 && q.slot.role !== 'GK') {
       const T = loftTime(d)
       const { apex } = loft(d, T)
       let keepAir = 1

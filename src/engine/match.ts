@@ -85,7 +85,7 @@ import type {
   TeamStats,
 } from './types.ts'
 
-const XG_CALIBRATION = 0.6
+const XG_CALIBRATION = 0.85
 
 type EventBody = MatchEvent extends infer E ? (E extends MatchEvent ? Omit<E, 'tick' | 'clock'> : never) : never
 
@@ -448,7 +448,8 @@ function touchCandidates(s: MatchState, from: Vec, to: Vec, heightAt: (t: number
     if (!p.onPitch || s.tick < p.touchReadyAt) continue
     if (b.kick && !b.touchedSinceKick) {
       if (b.kick.byIdx === p.idx && s.tick - b.kick.tick < KICKER_IMMUNITY_TICKS) continue
-      if (b.kick.missedIdxs.includes(p.idx)) continue
+      // A missed attempt means the ball got past him; once it's slowed right down he can have another go.
+      if (b.kick.missedIdxs.includes(p.idx) && len(b.vel) > 3) continue
     }
     const t = closestT(from, to, p.pos)
     const d = dist(p.pos, lerp(from, to, t))
@@ -509,7 +510,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   if (isKeeper && (speed >= CONTROLLABLE_SPEED || k?.kind === 'shot') && fromOpponent) {
     const reach = reachOf(s, p)
     const off = dist(p.pos, contact) / reach
-    const pSave = clamp(0.97 - off * off * 0.55 - Math.max(0, speed - 24) / 25 + (attrs.keeping - 12) * 0.02, 0.05, 0.97)
+    const pSave = clamp(0.9 - off * off * 0.75 - Math.max(0, speed - 22) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.95)
     if (!rng.chance(pSave)) return miss()
     if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
       takePossession(s, p, contact, height, 'save', out)
