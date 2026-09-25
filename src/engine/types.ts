@@ -84,6 +84,8 @@ export type RestartType = 'kickoff' | 'throwIn' | 'goalKick' | 'corner' | 'freeK
 
 export interface Kick {
   kind: KickKind
+  /** In the air (chipped pass, cross, clearance) rather than along the ground. */
+  lofted: boolean
   byIdx: number
   team: Side
   tick: number
@@ -104,6 +106,9 @@ export interface Kick {
 export interface BallState {
   pos: Vec
   vel: Vec
+  /** Height above the grass (m) and vertical speed (m/s). */
+  z: number
+  vz: number
   ownerIdx: number | null
   lastTouchIdx: number | null
   /** Most recent kick; cleared of meaning once someone else touches the ball. */
@@ -147,18 +152,29 @@ interface EventBase {
 export type MatchEvent = EventBase &
   (
     | { type: 'restart'; restart: RestartType; team: Side; takerIdx: number; spot: Vec; forced: boolean }
-    | { type: 'pass'; byIdx: number; toIdx: number; from: Vec; target: Vec }
-    | { type: 'clearance'; byIdx: number; from: Vec; target: Vec }
-    | { type: 'shot'; byIdx: number; from: Vec; target: Vec; onTarget: boolean; xg: number; penalty: boolean }
-    | { type: 'possession'; idx: number; contact: Vec; via: 'control' | 'interception' | 'save' | 'restart' }
-    | { type: 'deflection'; idx: number; contact: Vec; kind: 'block' | 'parry' | 'miscontrol' | 'tackle' }
+    | { type: 'pass'; byIdx: number; toIdx: number; from: Vec; target: Vec; lofted: boolean; header: boolean }
+    | { type: 'clearance'; byIdx: number; from: Vec; target: Vec; header: boolean }
+    | {
+        type: 'shot'
+        byIdx: number
+        from: Vec
+        target: Vec
+        /** Predicted height as it reaches the goal line (over the bar if >= crossbar height). */
+        height: number
+        onTarget: boolean
+        xg: number
+        penalty: boolean
+        header: boolean
+      }
+    | { type: 'possession'; idx: number; contact: Vec; height: number; via: 'control' | 'interception' | 'save' | 'restart' }
+    | { type: 'deflection'; idx: number; contact: Vec; height: number; kind: 'block' | 'parry' | 'miscontrol' | 'header' }
     | { type: 'tackle'; byIdx: number; onIdx: number; pos: Vec; won: boolean }
     | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty' }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }
-    | { type: 'woodwork'; byIdx: number | null; pos: Vec }
-    | { type: 'out'; award: 'throwIn' | 'corner' | 'goalKick'; team: Side; pos: Vec }
-    | { type: 'goal'; team: Side; scorerIdx: number; assistIdx: number | null; ownGoal: boolean; pos: Vec }
+    | { type: 'woodwork'; byIdx: number | null; pos: Vec; height: number }
+    | { type: 'out'; award: 'throwIn' | 'corner' | 'goalKick'; team: Side; pos: Vec; height: number }
+    | { type: 'goal'; team: Side; scorerIdx: number; assistIdx: number | null; ownGoal: boolean; pos: Vec; height: number }
     | { type: 'halfTime' }
     | { type: 'fullTime' }
   )
@@ -200,6 +216,6 @@ export interface Frame {
   tick: number
   phase: Phase['kind']
   half: 1 | 2
-  ball: { x: number; y: number; vx: number; vy: number; ownerIdx: number | null }
+  ball: { x: number; y: number; z: number; vx: number; vy: number; ownerIdx: number | null }
   players: { x: number; y: number; onPitch: boolean }[]
 }

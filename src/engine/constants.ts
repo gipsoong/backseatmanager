@@ -27,3 +27,14 @@ export const KICKER_IMMUNITY_TICKS = 3
 export const RESTART_SPOT_TOLERANCE = 0.6
 /** If a restart's positional conditions aren't met by then, it's taken anyway (and flagged). */
 export const RESTART_TIMEOUT_TICKS = 300
+
+export const GRAVITY = 9.81
+export const CROSSBAR_HEIGHT = 2.44
+/** Highest ball a player can play: an outfield header, a keeper's hands inside his box. */
+export const HEADER_REACH = 2.4
+export const GK_HAND_REACH = 2.8
+/** Above this the ball is played with the head or chest rather than the feet. */
+export const AERIAL_HEIGHT = 1.0
+/** Fraction of vertical speed kept on a bounce; slower than this and it just rolls. */
+export const BOUNCE = 0.45
+export const MIN_BOUNCE_SPEED = 1.5

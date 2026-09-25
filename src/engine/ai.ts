@@ -10,7 +10,6 @@ import {
   CENTER_CIRCLE_RADIUS,
   GOAL_HALF_WIDTH,
   HALFWAY_X,
-
   PITCH_LENGTH,
   PITCH_WIDTH,
   type Vec,
@@ -30,12 +29,15 @@ import {
 import {
   BALL_FRICTION,
   CONTROL_RADIUS,
-  DT,
+    DT,
   GK_EXTRA_REACH,
+  GK_HAND_REACH,
   GK_REACTION_TICKS,
+  HEADER_REACH,
   MAX_SHOT_DISTANCE,
   PASS_ARRIVAL_SPEED,
 } from './constants.ts'
+import { type BallMotion, advanceBall, loft, loftHeightAt, loftTime } from './physics.ts'
 import type { MatchState, PlayerState, Restart, Side } from './types.ts'
 
 // ---------------------------------------------------------------------------
@@ -54,11 +56,20 @@ export const opponentsOf = (s: MatchState, team: Side): PlayerState[] =>
 export const goalkeeperOf = (s: MatchState, team: Side): PlayerState | undefined =>
   s.players.find((p) => p.onPitch && p.team === team && p.slot.role === 'GK')
 
-export function reachOf(s: MatchState, p: PlayerState): number {
-  if (p.slot.role !== 'GK') return CONTROL_RADIUS
+const keeperInOwnBox = (s: MatchState, p: PlayerState): boolean => {
+  if (p.slot.role !== 'GK') return false
   const a = af(s, p.team, p.pos)
-  const inOwnBox = a.x <= BOX_DEPTH && Math.abs(a.y - CENTER.y) <= BOX_HALF_WIDTH
-  return inOwnBox ? CONTROL_RADIUS + (GK_EXTRA_REACH * p.def.attrs.keeping) / 20 : CONTROL_RADIUS
+  return a.x <= BOX_DEPTH && Math.abs(a.y - CENTER.y) <= BOX_HALF_WIDTH
+}
+
+/** How far sideways a player can reach the ball. */
+export function reachOf(s: MatchState, p: PlayerState): number {
+  return keeperInOwnBox(s, p) ? CONTROL_RADIUS + (GK_EXTRA_REACH * p.def.attrs.keeping) / 20 : CONTROL_RADIUS
+}
+
+/** How high a player can reach the ball: a header, or a keeper's hands in his own box. */
+export function reachHeightOf(s: MatchState, p: PlayerState): number {
+  return keeperInOwnBox(s, p) ? GK_HAND_REACH : HEADER_REACH
 }
 
 // ---------------------------------------------------------------------------
@@ -86,25 +97,23 @@ export function offsidePositions(s: MatchState, kicker: PlayerState, ballPos: Ve
 // ---------------------------------------------------------------------------
 // Ball prediction
 
-/** Future ball positions, one per tick, using the same physics as the match loop. */
-export function ballPath(pos: Vec, vel: Vec, ticks = 40): Vec[] {
-  const out = [pos]
-  let p = pos
-  let v = vel
+export type BallPoint = Vec & { z: number }
+
+/** Future ball positions (with height), one per tick, using the same physics as the match loop. */
+export function ballPath(b: BallMotion, ticks = 40): BallPoint[] {
+  const out: BallPoint[] = [{ ...b.pos, z: b.z }]
+  let m = b
   for (let k = 1; k <= ticks; k++) {
-    const sp = len(v)
-    if (sp > 1e-3) {
-      p = add(p, scale(v, DT))
-      v = scale(v, Math.max(0, sp - BALL_FRICTION * DT) / sp)
-    }
-    out.push(p)
+    m = advanceBall(m)
+    out.push({ ...m.pos, z: m.z })
   }
   return out
 }
 
-/** Earliest tick at which `pl` could reach the ball along `path`, and where. */
-export function interceptOf(pl: PlayerState, path: Vec[], reach: number): { ticks: number; point: Vec } {
+/** Earliest tick at which `pl` could reach the ball along `path` (low enough to play), and where. */
+export function interceptOf(pl: PlayerState, path: BallPoint[], reach: number, reachHeight: number): { ticks: number; point: Vec } {
   for (let k = 0; k < path.length; k++) {
+    if (path[k].z > reachHeight) continue
     if (dist(pl.pos, path[k]) - reach <= pl.maxSpeed * k * DT * 0.9) return { ticks: k, point: path[k] }
   }
   const end = path[path.length - 1]
@@ -139,6 +148,12 @@ const POSSESSION_VALUE = 0.03
 /** Cost of losing the ball at a: the value of keeping it, plus what the opponent could do from there. */
 const lossCost = (a: Vec): number => POSSESSION_VALUE + threat(vec(PITCH_LENGTH - a.x, PITCH_WIDTH - a.y))
 
+/**
+ * Chance an opponent cuts a pass out, from how much later than the ball (s) he can reach its path.
+ * Already there (margin <= 0) is close to certain; a few tenths of a second behind, unlikely.
+ */
+const interceptChance = (margin: number): number => 0.95 / (1 + Math.exp((margin - 0.15) * 10))
+
 function nearestDist(ps: PlayerState[], p: Vec): number {
   let best = Infinity
   for (const o of ps) best = Math.min(best, dist(o.pos, p))
@@ -149,8 +164,8 @@ function nearestDist(ps: PlayerState[], p: Vec): number {
 // Ball-carrier decisions
 
 export type Action =
-  | { kind: 'shot'; target: Vec; xg: number }
-  | { kind: 'pass'; toIdx: number; target: Vec }
+  | { kind: 'shot'; target: Vec; xg: number; height: number }
+  | { kind: 'pass'; toIdx: number; target: Vec; lofted: boolean }
   | { kind: 'clearance'; target: Vec }
   | { kind: 'dribble'; target: Vec }
   | { kind: 'hold' }
@@ -208,9 +223,13 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
     const d = dist(ball, target)
     if (d > opts.maxPass) continue
     if (offside.has(q.idx) && rng.chance(0.4 + (attrs.passing + attrs.composure) / 80)) continue
-    const { speed } = passKinematics(d)
+    const ta = af(s, p.team, target)
+    const space = clamp(nearestDist(opps, target) / 6, 0.5, 1.1)
+    const value = threat(ta) * space + POSSESSION_VALUE
+    const misplace = ((21 - attrs.passing) / 20) * (d / 40) * 0.25
 
-    // Can an opponent get to the ball's path before the ball does?
+    // Along the ground: can an opponent get to the ball's path before the ball does?
+    const { speed } = passKinematics(d)
     let keep = 1
     for (const o of opps) {
       const t = closestT(ball, target, o.pos)
@@ -219,23 +238,45 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       const tBall = (speed - Math.sqrt(Math.max(speed * speed - 2 * BALL_FRICTION * db, 0))) / BALL_FRICTION
       // Matches how the loop resolves it: anyone who can get within reach of the path first gets a touch.
       const tOpp = Math.max(0, dist(o.pos, c) - reachOf(s, o)) / o.maxSpeed
-      keep *= 1 - 0.85 / (1 + Math.exp((tOpp - tBall) * 10))
+      keep *= 1 - interceptChance(tOpp - tBall)
     }
-    const misplace = ((21 - attrs.passing) / 20) * (d / 40) * 0.25
     const risk = clamp(1 - keep + misplace, 0, 1)
-    const ta = af(s, p.team, target)
-    const space = clamp(nearestDist(opps, target) / 6, 0.5, 1.1)
-    const u = (1 - risk) * (threat(ta) * space + POSSESSION_VALUE) - risk * loss + rng.gauss() * 0.002
+    const u = (1 - risk) * value - risk * loss + rng.gauss() * 0.002
     if (u > bestU) {
       bestU = u
-      best = { kind: 'pass', toIdx: q.idx, target }
+      best = { kind: 'pass', toIdx: q.idx, target, lofted: false }
+    }
+
+    // In the air: only opponents under the ball where it's low enough to reach can cut it out,
+    // and an aerial ball is harder to bring down.
+    if (d >= 18) {
+      const T = loftTime(d)
+      const { apex } = loft(d, T)
+      let keepAir = 1
+      for (const o of opps) {
+        const t = closestT(ball, target, o.pos)
+        if (loftHeightAt(apex, t) > reachHeightOf(s, o)) continue
+        const c = lerp(ball, target, t)
+        const tOpp = Math.max(0, dist(o.pos, c) - reachOf(s, o)) / o.maxSpeed
+        keepAir *= 1 - interceptChance(tOpp - t * T)
+      }
+      const riskAir = clamp(1 - keepAir + misplace * 1.5 + 0.12, 0, 1)
+      // A ball into the box is worth more than the header alone: knock-downs, second balls, corners.
+      const intoBox = ta.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(ta.y - CENTER.y) < BOX_HALF_WIDTH
+      const uAir = (1 - riskAir) * value * (intoBox ? 2.5 : 1) - riskAir * loss + rng.gauss() * 0.002
+      if (uAir > bestU) {
+        bestU = uAir
+        best = { kind: 'pass', toIdx: q.idx, target, lofted: true }
+      }
     }
   }
 
   // Dribble: carry towards goal, bending away from the nearest opponent.
   if (opts.allowDribble) {
-    // Towards goal; cut inside once near the byline.
-    const aim = vec(Math.min(a.x + 12, PITCH_LENGTH - 6), a.y + (CENTER.y - a.y) * (a.x > 80 ? 0.6 : 0.1))
+    // Towards goal. Wide players go down the line to the byline; everyone else cuts in near goal.
+    const wide = ['W', 'WM', 'FB'].includes(p.slot.role) && Math.abs(a.y - CENTER.y) > 14
+    const cutIn = wide ? (a.x > PITCH_LENGTH - 8 ? 0.6 : 0) : a.x > 80 ? 0.6 : 0.1
+    const aim = vec(Math.min(a.x + 12, PITCH_LENGTH - 3), a.y + (CENTER.y - a.y) * cutIn)
     let dir = norm(sub(aim, a))
     let nearest: PlayerState | null = null
     for (const o of opps) if (!nearest || dist(o.pos, p.pos) < dist(nearest.pos, p.pos)) nearest = o
@@ -269,16 +310,20 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       const side = gy > CENTER.y ? -1 : 1
       const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * rng.range(0.5, 1)
       const dGoal = dist(a, vec(PITCH_LENGTH, CENTER.y))
-      const sigma = ((26 - attrs.shooting) / 20) * (1.2 + dGoal * 0.25)
+      const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28)
       const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
-      return { kind: 'shot', target, xg: q }
+      // Height as it reaches the line: aimed under the bar, with error growing with distance.
+      const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.8)
+      return { kind: 'shot', target, xg: q, height }
     }
   }
 
   // Under pressure deep in our own half with nothing on (or a keeper with it in his hands): get rid of it.
   const keeper = p.slot.role === 'GK'
   if (best.kind !== 'pass' && a.x < 30 && (keeper || nearestDist(opps, p.pos) < 3)) {
-    return { kind: 'clearance', target: wf(s, p.team, vec(a.x + rng.range(35, 50), rng.range(10, 58))) }
+    // Long and often towards a touchline: safety first.
+    const y = rng.chance(0.85) ? rng.range(10, 58) : rng.chance(0.5) ? rng.range(-4, 8) : rng.range(60, 72)
+    return { kind: 'clearance', target: wf(s, p.team, vec(a.x + rng.range(35, 55), y)) }
   }
   return best
 }
@@ -317,6 +362,8 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   const y = CENTER.y + (p.slot.y - CENTER.y) * widthK + (b.y - CENTER.y) * (inPossession ? 0.2 : 0.4)
 
   let target = vec(x, y)
+  const run = inPossession ? boxRun(s, p, b) : null
+  if (run) return wf(s, team, run)
   if (inPossession) {
     // Get free: step away from the nearest opponent to offer a clear pass.
     const opps = opponentsOf(s, team).map((o) => af(s, team, o.pos))
@@ -328,6 +375,29 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     else target = vec(Math.min(target.x, line - 0.7), target.y)
   }
   return wf(s, team, vec(clamp(target.x, 3, PITCH_LENGTH - 3), clamp(target.y, 2, PITCH_WIDTH - 2)))
+}
+
+/**
+ * Ball wide in the final third with a teammate on it: attack the box. Striker to the near post,
+ * far-side winger to the far post, the most advanced midfielder to the penalty spot. With the
+ * ball this deep they're onside anywhere goal-side of it.
+ */
+function boxRun(s: MatchState, p: PlayerState, b: Vec): Vec | null {
+  const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
+  if (!owner || owner.team !== p.team || owner.idx === p.idx) return null
+  if (b.x < 75 || Math.abs(b.y - CENTER.y) < 12) return null
+  const side = Math.sign(b.y - CENTER.y)
+  const line = offsideLine(s, p.team, s.ball.pos) - 0.5
+  const spot = (x: number, y: number): Vec => vec(Math.min(x, line), y)
+  const role = p.slot.role
+  if (role === 'ST') return spot(PITCH_LENGTH - 6, CENTER.y + side * (p.slot.y > CENTER.y === side > 0 ? 3 : -2))
+  if ((role === 'W' || role === 'WM') && Math.sign(p.slot.y - CENTER.y) === -side) return spot(PITCH_LENGTH - 7, CENTER.y - side * 5)
+  if (role === 'CM') {
+    const cms = teammatesOf(s, p.team).filter((q) => q.slot.role === 'CM')
+    const furthest = cms.reduce((m, q) => (q.slot.depth + q.slot.attackDepth > m.slot.depth + m.slot.attackDepth ? q : m))
+    if (furthest.idx === p.idx) return spot(PITCH_LENGTH - 12, CENTER.y - side)
+  }
+  return null
 }
 
 /** Keeper stands on the line between ball and goal centre, stepping out as the ball approaches. */
@@ -358,8 +428,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   // Loose ball: the quickest player from each team goes for it.
   if (!owner) {
     if (chasers.has(p.idx)) {
-      const path = ballPath(ball.pos, ball.vel)
-      return { target: interceptOf(p, path, reachOf(s, p)).point, urgency: 1 }
+      const path = ballPath(ball)
+      return { target: interceptOf(p, path, reachOf(s, p), reachHeightOf(s, p)).point, urgency: 1 }
     }
     if (p.slot.role === 'GK') return { target: keeperShotTarget(s, p) ?? shapeTarget(s, p, false), urgency: 1 }
     const lastTeam = ball.lastTouchIdx === null ? null : s.players[ball.lastTouchIdx].team
@@ -412,7 +482,7 @@ function keeperShotTarget(s: MatchState, gk: PlayerState): Vec | null {
   const k = s.ball.kick
   if (!k || k.kind !== 'shot' || k.team === gk.team || s.ball.touchedSinceKick) return null
   if (s.tick - k.tick < GK_REACTION_TICKS) return gk.pos
-  const path = ballPath(s.ball.pos, s.ball.vel, 30)
+  const path = ballPath(s.ball, 30)
   const ga = af(s, gk.team, gk.pos)
   let best = path[path.length - 1]
   for (const bp of path) {
@@ -445,12 +515,12 @@ export function pickChasers(s: MatchState): Map<number, number> {
     if (gk && dist(owner.pos, wf(s, gk.team, vec(0, CENTER.y))) < 14) out.set(gk.idx, 0)
     return out
   }
-  const path = ballPath(ball.pos, ball.vel)
+  const path = ballPath(ball)
   for (const team of [0, 1] as const) {
     let best: PlayerState | null = null
     let bestT = Infinity
     for (const p of teammatesOf(s, team)) {
-      const ic = interceptOf(p, path, reachOf(s, p))
+      const ic = interceptOf(p, path, reachOf(s, p), reachHeightOf(s, p))
       if (p.slot.role === 'GK') {
         const ia = af(s, team, ic.point)
         if (ia.x > BOX_DEPTH || Math.abs(ia.y - CENTER.y) > BOX_HALF_WIDTH) continue
@@ -477,7 +547,7 @@ export function maybeStartRuns(s: MatchState): void {
   for (const p of teammatesOf(s, owner.team)) {
     if (p.idx === owner.idx || p.runUntil > s.tick) continue
     if (p.slot.role !== 'ST' && p.slot.role !== 'W' && p.slot.role !== 'WM') continue
-    const chance = 0.003 + (p.def.attrs.positioning / 20) * 0.003
+    const chance = 0.005 + (p.def.attrs.positioning / 20) * 0.004
     if (s.rng.chance(chance)) p.runUntil = s.tick + s.rng.int(20, 40)
   }
 }

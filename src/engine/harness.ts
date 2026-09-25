@@ -23,9 +23,12 @@ import {
 } from './geometry.ts'
 import {
   CONTROL_RADIUS,
+  CROSSBAR_HEIGHT,
   DRIBBLE_OFFSET,
   DT,
   GK_EXTRA_REACH,
+  GK_HAND_REACH,
+  HEADER_REACH,
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
   MAX_SHOT_DISTANCE,
@@ -112,11 +115,11 @@ export function checkMatch(
     }
     const half = C.half
     const team = (i: number): Side => s.players[i].team
-    const reach = (i: number, pos: Vec): number => {
-      const p = s.players[i]
-      if (p.slot.role !== 'GK' || !inBox(pos, ownGoalX(p.team, half))) return CONTROL_RADIUS
-      return CONTROL_RADIUS + (GK_EXTRA_REACH * p.def.attrs.keeping) / 20
-    }
+    const keeperInBox = (i: number, pos: Vec): boolean => s.players[i].slot.role === 'GK' && inBox(pos, ownGoalX(team(i), half))
+    const reach = (i: number, pos: Vec): number =>
+      keeperInBox(i, pos) ? CONTROL_RADIUS + (GK_EXTRA_REACH * s.players[i].def.attrs.keeping) / 20 : CONTROL_RADIUS
+    const reachHeight = (i: number, pos: Vec): number => (keeperInBox(i, pos) ? GK_HAND_REACH : HEADER_REACH)
+    const UNDER_BAR = CROSSBAR_HEIGHT - 0.11
     const restartEv = events.find((e) => e.type === 'restart')
 
     // --- Movement: nobody teleports or outruns their top speed.
@@ -130,9 +133,11 @@ export function checkMatch(
     if (C.ball.x < -EPS || C.ball.x > PITCH_LENGTH + EPS || C.ball.y < -EPS || C.ball.y > PITCH_WIDTH + EPS) {
       v('ball-bounds', `ball at ${fmt(C.ball)}`)
     }
+    if (C.ball.z < 0) v('ball-height', `ball below the grass (${C.ball.z.toFixed(2)})`)
     if (C.ball.ownerIdx !== null) {
       const d = dist(C.ball, C.players[C.ball.ownerIdx])
       if (d > DRIBBLE_OFFSET + EPS) v('ball-owner', `ball ${d.toFixed(2)}m from owner ${C.ball.ownerIdx}`)
+      if (C.ball.z !== 0) v('ball-owner', `owned ball ${C.ball.z.toFixed(2)}m in the air`)
     }
 
     // --- Possession only changes hands to someone actually at the ball.
@@ -145,15 +150,40 @@ export function checkMatch(
       const d = dist(C.players[e.idx], e.contact)
       if (d > reach(e.idx, C.players[e.idx]) + EPS) v('touch-reach', `${e.type} by ${e.idx} at ${d.toFixed(2)}m from the ball`)
       if (dist(P.ball, e.contact) > BALL_STEP) v('touch-path', `${e.type} contact ${fmt(e.contact)} not on the ball's path from ${fmt(P.ball)}`)
+      if (e.height > reachHeight(e.idx, C.players[e.idx]) + EPS) v('touch-height', `${e.type} by ${e.idx} with the ball ${e.height.toFixed(2)}m up`)
     }
 
-    // --- Kicks: the kicker had the ball, and shots come from shooting range.
+    // --- Kicks and touches, in the order they happened (a header is a touch and then a kick).
+    // Offside is called if and only if the first player to touch a kick was offside when it was played.
     for (const e of events) {
+      if (e.type === 'tackle' || e.type === 'goal' || e.type === 'out' || e.type === 'foul') pending = null
+
+      if (e.type === 'possession' || e.type === 'deflection' || e.type === 'offside') {
+        const pk = pending as PendingKick | null
+        if (!pk) continue
+        const was = pk.offside.has(e.idx)
+        if (e.type === 'offside' && !was) v('offside-wrong', `player ${e.idx} flagged offside but was onside at tick ${pk.tick}`)
+        if (e.type !== 'offside' && was) v('offside-missed', `player ${e.idx} played the ball from an offside position (kick at ${pk.tick})`)
+        if (e.type === 'offside' && e.kickTick !== pk.tick) v('offside-kick', `offside refers to kick ${e.kickTick}, last kick was ${pk.tick}`)
+        pending = null
+        continue
+      }
+
       if (e.type !== 'pass' && e.type !== 'shot' && e.type !== 'clearance') continue
+      // Kicks from the feet are decided at the start of the tick (previous frame); headers happen
+      // when the ball arrives, after everyone has moved (this frame).
+      const at = e.header ? C : P
       const byRestart = restartEv?.type === 'restart' && restartEv.takerIdx === e.byIdx
-      if (!byRestart && P.ball.ownerIdx !== e.byIdx) v('kick-owner', `${e.type} by ${e.byIdx} who didn't have the ball`)
-      const d = dist(P.players[e.byIdx], e.from)
-      if (d > (byRestart ? 1.0 : DRIBBLE_OFFSET) + EPS) v('kick-origin', `${e.type} from ${d.toFixed(2)}m away from the kicker`)
+      if (e.header) {
+        const headed = events.some((h) => h.type === 'deflection' && h.kind === 'header' && h.idx === e.byIdx)
+        if (!headed) v('kick-owner', `headed ${e.type} by ${e.byIdx} without a header`)
+        const d = dist(C.players[e.byIdx], e.from)
+        if (d > reach(e.byIdx, C.players[e.byIdx]) + EPS) v('kick-origin', `header from ${d.toFixed(2)}m away`)
+      } else {
+        if (!byRestart && P.ball.ownerIdx !== e.byIdx) v('kick-owner', `${e.type} by ${e.byIdx} who didn't have the ball`)
+        const d = dist(P.players[e.byIdx], e.from)
+        if (d > (byRestart ? 1.0 : DRIBBLE_OFFSET) + EPS) v('kick-origin', `${e.type} from ${d.toFixed(2)}m away from the kicker`)
+      }
       if (e.type === 'shot') {
         const goal = { x: oppGoalX(team(e.byIdx), half), y: CENTER.y }
         const range = restartEv?.type === 'restart' && restartEv.restart === 'freeKick' ? MAX_FREE_KICK_SHOT_DISTANCE : MAX_SHOT_DISTANCE
@@ -163,42 +193,31 @@ export function checkMatch(
         const t = (goal.x - e.from.x) / (e.target.x - e.from.x)
         const yAtLine = e.from.y + (e.target.y - e.from.y) * t
         const between = Math.abs(yAtLine - CENTER.y) < GOAL_HALF_WIDTH - 0.11
-        if (between !== e.onTarget) v('shot-on-target', `onTarget=${e.onTarget} but line crosses at y=${yAtLine.toFixed(2)}`)
+        if ((between && e.height < UNDER_BAR) !== e.onTarget) {
+          v('shot-on-target', `onTarget=${e.onTarget} but it crosses at y=${yAtLine.toFixed(2)}, height ${e.height.toFixed(2)}`)
+        }
       }
       if (e.type === 'pass') {
         if (team(e.toIdx) !== team(e.byIdx) || !C.players[e.toIdx].onPitch) v('pass-receiver', `pass to ${e.toIdx}`)
-        if (dist(e.from, e.target) > 55) v('pass-length', `pass of ${dist(e.from, e.target).toFixed(1)}m`)
+        if (dist(e.from, e.target) > 65) v('pass-length', `pass of ${dist(e.from, e.target).toFixed(1)}m`)
       }
 
-      // Offside positions at the moment of the kick, computed from the previous frame.
-      const exempt = restartEv?.type === 'restart' && ['throwIn', 'corner', 'goalKick'].includes(restartEv.restart)
+      // Offside positions at the moment of the kick.
+      const exempt = !e.header && restartEv?.type === 'restart' && ['throwIn', 'corner', 'goalKick'].includes(restartEv.restart)
       const kt = team(e.byIdx)
       const oppXs = s.players
         .map((p, i) => ({ p, i }))
-        .filter(({ p, i }) => p.team !== kt && P.players[i].onPitch)
-        .map(({ i }) => attackX(P.players[i].x, kt, half))
+        .filter(({ p, i }) => p.team !== kt && at.players[i].onPitch)
+        .map(({ i }) => attackX(at.players[i].x, kt, half))
         .sort((a, b) => b - a)
       const line = Math.max(oppXs[1] ?? 0, attackX(e.from.x, kt, half), HALFWAY_X)
       const offside = new Set<number>()
       if (!exempt) {
         s.players.forEach((p, i) => {
-          if (p.team === kt && i !== e.byIdx && P.players[i].onPitch && attackX(P.players[i].x, kt, half) > line + EPS) offside.add(i)
+          if (p.team === kt && i !== e.byIdx && at.players[i].onPitch && attackX(at.players[i].x, kt, half) > line + EPS) offside.add(i)
         })
       }
       pending = { tick: s.tick, team: kt, offside }
-    }
-
-    // --- Offside is called if and only if the first player to touch the kick was offside when it was played.
-    for (const e of events) {
-      if (e.type === 'tackle' || e.type === 'goal' || e.type === 'out' || e.type === 'foul') pending = null
-      if (e.type !== 'possession' && e.type !== 'deflection' && e.type !== 'offside') continue
-      const pk = pending as PendingKick | null
-      if (!pk) continue
-      const was = pk.offside.has(e.idx)
-      if (e.type === 'offside' && !was) v('offside-wrong', `player ${e.idx} flagged offside but was onside at tick ${pk.tick}`)
-      if (e.type !== 'offside' && was) v('offside-missed', `player ${e.idx} played the ball from an offside position (kick at ${pk.tick})`)
-      if (e.type === 'offside' && e.kickTick !== pk.tick) v('offside-kick', `offside refers to kick ${e.kickTick}, last kick was ${pk.tick}`)
-      pending = null
     }
 
     // --- Fouls: the fouler was close enough; penalty iff the foul was in his own box.
@@ -222,6 +241,7 @@ export function checkMatch(
         tally[e.team]++
         const onLine = Math.abs(e.pos.x) < EPS || Math.abs(e.pos.x - PITCH_LENGTH) < EPS
         if (!onLine || Math.abs(e.pos.y - CENTER.y) >= GOAL_HALF_WIDTH) v('goal-pos', `goal crossing at ${fmt(e.pos)}`)
+        if (e.height >= UNDER_BAR) v('goal-height', `goal given for a ball ${e.height.toFixed(2)}m up`)
         if (Math.abs(e.pos.x - oppGoalX(e.team, half)) > EPS) v('goal-end', `goal for team ${e.team} in the wrong goal`)
         if (dist(P.ball, e.pos) > BALL_STEP + DRIBBLE_OFFSET) v('goal-path', `ball was ${dist(P.ball, e.pos).toFixed(1)}m from the line`)
       }
@@ -229,7 +249,9 @@ export function checkMatch(
         const onGoalLine = Math.abs(e.pos.x) < EPS || Math.abs(e.pos.x - PITCH_LENGTH) < EPS
         const onTouchline = Math.abs(e.pos.y) < EPS || Math.abs(e.pos.y - PITCH_WIDTH) < EPS
         if (!onGoalLine && !onTouchline) v('out-pos', `out at ${fmt(e.pos)}`)
-        if (onGoalLine && Math.abs(e.pos.y - CENTER.y) < GOAL_HALF_WIDTH - 0.11) v('out-goal', `ball out between the posts at ${fmt(e.pos)}`)
+        if (onGoalLine && Math.abs(e.pos.y - CENTER.y) < GOAL_HALF_WIDTH - 0.11 && e.height < UNDER_BAR) {
+          v('out-goal', `ball out under the bar between the posts at ${fmt(e.pos)}`)
+        }
         if ((e.award === 'throwIn') !== onTouchline) v('out-award', `${e.award} for ball out at ${fmt(e.pos)}`)
         if (dist(P.ball, e.pos) > BALL_STEP + DRIBBLE_OFFSET) v('out-path', `ball was ${dist(P.ball, e.pos).toFixed(1)}m from the line`)
       }

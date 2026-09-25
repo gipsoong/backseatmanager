@@ -10,6 +10,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "sim": "node scripts/sim.ts",
+    "calibrate": "node scripts/calibrate.ts",
     "preview": "vite preview"
   },
   "dependencies": {

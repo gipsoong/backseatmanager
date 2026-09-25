@@ -71,6 +71,20 @@ describe('the harness catches inconsistencies', () => {
     expect(violations.some((v) => v.rule === 'speed' && v.tick === 300)).toBe(true)
   })
 
+  it("flags a ball in the air at a player's feet", () => {
+    const [h, a] = teams(1)
+    let done = false
+    const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 2 }, {
+      tamper: (s) => {
+        if (!done && s.ball.ownerIdx !== null) {
+          s.ball.z = 3
+          done = true
+        }
+      },
+    })
+    expect(violations.some((v) => v.rule === 'ball-owner')).toBe(true)
+  })
+
   it('flags a ball that leaves the pitch without going out of play', () => {
     const [h, a] = teams(1)
     const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 2 }, {
