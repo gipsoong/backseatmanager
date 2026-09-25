@@ -9,7 +9,7 @@ export type ViewMode = 'full' | 'key' | 'goals'
 /** Ticks of build-up shown before a moment, and of aftermath after it. */
 const LEAD = 90
 const TAIL = 40
-const GOAL_TAIL = 70
+const GOAL_TAIL = 90
 
 /** Is this event one the mode wants to show? */
 function isMoment(e: MatchEvent, mode: ViewMode): boolean {
@@ -74,3 +74,35 @@ export function flightAt(events: MatchEvent[], upTo: number): { kick: Kick; end:
 }
 
 const isKick = (e: MatchEvent): e is Kick => e.type === 'pass' || e.type === 'shot' || e.type === 'clearance'
+
+/** Ticks before the contact that a slide or dive starts: the body goes before the ball arrives. */
+export const ANIMATION_LEAD = 3
+
+/**
+ * Slides and dives happening around `playhead`: who, towards where, and how far through (0..1).
+ * `upTo` is the index just past the last event at or before `playhead + ANIMATION_LEAD`, so a
+ * dive can start a moment before the keeper gets to the ball.
+ */
+export function animationsAt(
+  events: MatchEvent[],
+  upTo: number,
+  playhead: number,
+): { kind: 'slide' | 'dive'; idx: number; toward: { x: number; y: number; z: number }; age: number }[] {
+  const SLIDE_TICKS = 10
+  const DIVE_TICKS = 13
+  const out: ReturnType<typeof animationsAt> = []
+  for (let i = upTo - 1; i >= 0; i--) {
+    const e = events[i]
+    if (playhead - e.tick > DIVE_TICKS) break
+    const since = playhead - e.tick + ANIMATION_LEAD
+    if (since < 0) continue
+    if ((e.type === 'tackle' || e.type === 'foul') && e.style === 'slide' && since < SLIDE_TICKS) {
+      out.push({ kind: 'slide', idx: e.byIdx, toward: { ...e.pos, z: 0 }, age: since / SLIDE_TICKS })
+    }
+    const save = (e.type === 'possession' && e.via === 'save') || (e.type === 'deflection' && e.kind === 'parry')
+    if (save && e.dive && since < DIVE_TICKS) {
+      out.push({ kind: 'dive', idx: e.idx, toward: { ...e.contact, z: e.height }, age: since / DIVE_TICKS })
+    }
+  }
+  return out
+}

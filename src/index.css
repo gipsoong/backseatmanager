@@ -315,6 +315,39 @@ h1 .v {
   color: rgba(243, 245, 241, 0.65);
 }
 
+.replay-chip {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 10px;
+  background: var(--strip);
+  color: var(--strip-ink);
+  font-family: var(--display);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  border-radius: 3px;
+}
+
+.replay-chip .replay-label {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  color: #e0b04a;
+}
+
+.replay-chip button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(243, 245, 241, 0.3);
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
 /* Playback controls */
 
 .controls {
@@ -488,7 +521,16 @@ h1 .v {
   overflow-y: auto;
 }
 
-.commentary button {
+.commentary li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 10px;
+}
+
+.commentary .line-main {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: 3.4em 8px 1fr;
   gap: 10px;
@@ -501,7 +543,7 @@ h1 .v {
   line-height: 1.35;
 }
 
-.commentary button:hover {
+.commentary .line-main:hover {
   background: color-mix(in srgb, var(--accent) 7%, transparent);
 }
 
@@ -522,6 +564,22 @@ h1 .v {
 /* Outline team swatches so a white kit still shows on a light panel. */
 .commentary .dot:not([style*='transparent']) {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.line-replay {
+  flex: none;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.line-replay:hover {
+  border-color: var(--accent);
 }
 
 .line.goal .text {

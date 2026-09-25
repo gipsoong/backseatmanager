@@ -28,6 +28,7 @@ import {
 } from './geometry.ts'
 import {
   BALL_FRICTION,
+  CELEBRATION_TICKS,
   CONTROL_RADIUS,
     DT,
   GK_EXTRA_REACH,
@@ -561,7 +562,20 @@ export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIn
   if (p.idx === r.takerIdx) return { target: takerSpot(s, r), urgency: 0.9 }
   const attacking = p.team === r.team
 
-  if (r.type === 'kickoff') return { target: kickoffPosition(s, p), urgency: 0.7 }
+  if (r.type === 'kickoff') {
+    const c = r.celebration
+    if (c && s.tick - r.since < CELEBRATION_TICKS) {
+      // The scorer wheels away; teammates nearby run to join him; everyone else trudges back.
+      const scorer = s.players[c.scorerIdx]
+      if (p.idx === c.scorerIdx) return { target: c.spot, urgency: c.style === 'fistPump' ? 0.55 : 1 }
+      if (p.team === scorer.team && p.slot.role !== 'GK' && dist(p.pos, scorer.pos) < 60) {
+        const angle = (p.idx * 2.4) % (Math.PI * 2)
+        return { target: add(scorer.pos, vec(Math.cos(angle) * 1.4, Math.sin(angle) * 1.4)), urgency: 0.95 }
+      }
+      return { target: kickoffPosition(s, p), urgency: 0.35 }
+    }
+    return { target: kickoffPosition(s, p), urgency: 0.7 }
+  }
 
   let target = shapeTarget(s, p, attacking)
 

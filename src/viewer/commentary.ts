@@ -69,13 +69,19 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
       }
       case 'possession':
         if (e.via === 'save' && shotLive(e)) {
-          add(e, vary(e.tick, [`Saved. ${name(e.idx)} holds on to it.`, `Comfortable for ${name(e.idx)}.`, `${name(e.idx)} gathers.`]), 'info', teamOf(e.idx))
+          const text = e.dive
+            ? vary(e.tick, [`Diving save! ${name(e.idx)} holds on to it.`, `${name(e.idx)} flings himself across and gathers.`])
+            : vary(e.tick, [`Saved. ${name(e.idx)} holds on to it.`, `Comfortable for ${name(e.idx)}.`, `${name(e.idx)} gathers.`])
+          add(e, text, e.dive ? 'chance' : 'info', teamOf(e.idx))
           lastShot = null
         }
         break
       case 'deflection':
         if (e.kind === 'parry' && shotLive(e)) {
-          add(e, vary(e.tick, [`Good save! ${name(e.idx)} parries it.`, `${name(e.idx)} gets down well to push it away.`]), 'chance', teamOf(e.idx))
+          const text = e.dive
+            ? vary(e.tick, [`What a save! ${name(e.idx)} dives to tip it away.`, `${name(e.idx)} stretches full length to keep it out.`])
+            : vary(e.tick, [`Good save! ${name(e.idx)} parries it.`, `${name(e.idx)} gets down well to push it away.`])
+          add(e, text, 'chance', teamOf(e.idx))
           lastShot = null
         } else if (e.kind === 'block' && shotLive(e)) {
           add(e, `Blocked by ${name(e.idx)}.`, 'info', teamOf(e.idx))
@@ -99,7 +105,13 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
         const text = e.ownGoal
           ? `Goal for ${teamName(e.team)}. An own goal by ${name(e.scorerIdx)}.`
           : `Goal for ${teamName(e.team)}. ${name(e.scorerIdx)} scores${assist}.`
-        add(e, `${text} ${score[0]}–${score[1]}.`, 'goal', e.team)
+        const flourish =
+          e.celebration === 'cornerFlag'
+            ? ` ${name(e.scorerIdx)} races away to the corner flag.`
+            : e.celebration === 'kneeSlide'
+              ? ' Down on his knees in front of the fans.'
+              : ''
+        add(e, `${text} ${score[0]}–${score[1]}.${flourish}`, 'goal', e.team)
         lastShot = null
         afterGoal = true
         break
@@ -108,7 +120,11 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
         if (e.award === 'penalty') {
           add(e, `Penalty to ${teamName(teamOf(e.onIdx))}. ${name(e.byIdx)} brings down ${name(e.onIdx)}.`, 'chance', teamOf(e.onIdx))
         } else {
-          add(e, vary(e.tick, [`Foul by ${name(e.byIdx)} on ${name(e.onIdx)}.`, `${name(e.byIdx)} catches ${name(e.onIdx)}. Free kick.`]), 'info', teamOf(e.onIdx))
+          const text =
+            e.style === 'slide'
+              ? vary(e.tick, [`${name(e.byIdx)} slides in and takes ${name(e.onIdx)}. Free kick.`, `Late sliding challenge from ${name(e.byIdx)}.`])
+              : vary(e.tick, [`Foul by ${name(e.byIdx)} on ${name(e.onIdx)}.`, `${name(e.byIdx)} catches ${name(e.onIdx)}. Free kick.`])
+          add(e, text, 'info', teamOf(e.onIdx))
         }
         break
       case 'card':

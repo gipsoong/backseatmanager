@@ -38,3 +38,10 @@ export const AERIAL_HEIGHT = 1.0
 /** Fraction of vertical speed kept on a bounce; slower than this and it just rolls. */
 export const BOUNCE = 0.45
 export const MIN_BOUNCE_SPEED = 1.5
+
+/** A keeper reaching the ball further from his body than this has had to dive for it. */
+export const KEEPER_BODY_REACH = 1.0
+/** A tackle from further away than this is a slide. */
+export const SLIDE_TACKLE_DISTANCE = 1.15
+/** Ticks the goal-scoring team spends celebrating before heading back for kick-off. */
+export const CELEBRATION_TICKS = 70

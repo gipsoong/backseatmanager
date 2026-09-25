@@ -119,13 +119,20 @@ export interface BallState {
   receivedFromIdx: number | null
 }
 
+export type Celebration = 'cornerFlag' | 'kneeSlide' | 'fistPump'
+
 export interface Restart {
   type: RestartType
   team: Side
   spot: Vec
   takerIdx: number
   since: number
+  /** After a goal: the scorer heads for `spot` and his teammates join him before kick-off. */
+  celebration?: { scorerIdx: number; style: Celebration; spot: Vec }
 }
+
+/** Slide if the tackler went in from beyond standing reach of the ball carrier. */
+export type TackleStyle = 'slide' | 'standing'
 
 export type Phase = { kind: 'play' } | { kind: 'restart'; restart: Restart } | { kind: 'fullTime' }
 
@@ -166,15 +173,39 @@ export type MatchEvent = EventBase &
         penalty: boolean
         header: boolean
       }
-    | { type: 'possession'; idx: number; contact: Vec; height: number; via: 'control' | 'interception' | 'save' | 'restart' }
-    | { type: 'deflection'; idx: number; contact: Vec; height: number; kind: 'block' | 'parry' | 'miscontrol' | 'header' }
-    | { type: 'tackle'; byIdx: number; onIdx: number; pos: Vec; won: boolean }
-    | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty' }
+    | {
+        type: 'possession'
+        idx: number
+        contact: Vec
+        height: number
+        via: 'control' | 'interception' | 'save' | 'restart'
+        /** Saves only: the keeper had to dive, the ball was beyond his body. */
+        dive?: boolean
+      }
+    | {
+        type: 'deflection'
+        idx: number
+        contact: Vec
+        height: number
+        kind: 'block' | 'parry' | 'miscontrol' | 'header'
+        dive?: boolean
+      }
+    | { type: 'tackle'; byIdx: number; onIdx: number; pos: Vec; won: boolean; style: TackleStyle }
+    | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }
     | { type: 'woodwork'; byIdx: number | null; pos: Vec; height: number }
     | { type: 'out'; award: 'throwIn' | 'corner' | 'goalKick'; team: Side; pos: Vec; height: number }
-    | { type: 'goal'; team: Side; scorerIdx: number; assistIdx: number | null; ownGoal: boolean; pos: Vec; height: number }
+    | {
+        type: 'goal'
+        team: Side
+        scorerIdx: number
+        assistIdx: number | null
+        ownGoal: boolean
+        pos: Vec
+        height: number
+        celebration: Celebration | null
+      }
     | { type: 'halfTime' }
     | { type: 'fullTime' }
   )

@@ -39,12 +39,14 @@ import {
   CROSSBAR_HEIGHT,
   DRIBBLE_OFFSET,
   DT,
+  KEEPER_BODY_REACH,
   KICKER_IMMUNITY_TICKS,
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
   PLAYER_ACCEL,
   RESTART_SPOT_TOLERANCE,
   RESTART_TIMEOUT_TICKS,
+  SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
   TICKS_PER_MINUTE,
 } from './constants.ts'
@@ -83,6 +85,8 @@ import type {
   Side,
   TeamDef,
   TeamStats,
+  Celebration,
+  TackleStyle,
 } from './types.ts'
 
 const XG_CALIBRATION = 0.85
@@ -489,7 +493,8 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     b.vz = rng.range(0, 3)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
-    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind })
+    const dive = kind === 'parry' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
+    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind, dive })
     return true
   }
 
@@ -525,7 +530,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     b.vz = rng.range(1, 4)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
-    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry' })
+    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry', dive: dist(p.pos, contact) > KEEPER_BODY_REACH })
     return true
   }
 
@@ -635,7 +640,8 @@ function takePossession(
   s.decisionAt = s.tick + (via === 'save' ? s.rng.int(15, 30) : s.rng.int(8, 15))
   // A moment to settle: nobody can tackle in the same instant the ball arrives.
   for (const o of s.players) if (o.team !== p.team) o.tackleReadyAt = Math.max(o.tackleReadyAt, s.tick + 6)
-  emit(s, out, { type: 'possession', idx: p.idx, contact: { ...contact }, height, via })
+  const dive = via === 'save' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
+  emit(s, out, { type: 'possession', idx: p.idx, contact: { ...contact }, height, via, dive })
 }
 
 /** Segment parameter where the ball first leaves the field of play, if it does. */
@@ -720,8 +726,27 @@ function scoreGoal(s: MatchState, team: Side, pos: Vec, height: number, out: Mat
     ownGoal = true
   }
   s.score[team]++
-  emit(s, out, { type: 'goal', team, scorerIdx, assistIdx, ownGoal, pos: { ...pos }, height })
+  const celebration = ownGoal ? null : celebrate(s, s.players[scorerIdx])
+  emit(s, out, { type: 'goal', team, scorerIdx, assistIdx, ownGoal, pos: { ...pos }, height, celebration: celebration?.style ?? null })
   setRestart(s, 'kickoff', (1 - team) as Side, CENTER)
+  if (celebration && s.phase.kind === 'restart') s.phase.restart.celebration = { scorerIdx, ...celebration }
+}
+
+/**
+ * How the scorer celebrates, from his flair: a showman sprints to the corner flag, most slide on
+ * their knees towards the crowd, the quiet ones clench a fist and jog back.
+ */
+function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; spot: Vec } {
+  const flair = scorer.def.traits.flair + s.rng.gauss() * 0.1
+  const goalX = oppGoalX(scorer.team, s.half)
+  const inward = goalX === 0 ? 1 : -1
+  const nearSide = scorer.pos.y < CENTER.y ? 0 : PITCH_WIDTH
+  const toSide = nearSide === 0 ? 1 : -1
+  if (flair > 0.7) return { style: 'cornerFlag', spot: vec(goalX + inward * 2, nearSide + toSide * 2) }
+  if (flair > 0.35) {
+    return { style: 'kneeSlide', spot: vec(clamp(scorer.pos.x + inward * 6, 3, PITCH_LENGTH - 3), nearSide + toSide * 2.5) }
+  }
+  return { style: 'fistPump', spot: vec(clamp(scorer.pos.x + inward * 10, 3, PITCH_LENGTH - 3), scorer.pos.y) }
 }
 
 // ---------------------------------------------------------------------------
@@ -747,11 +772,13 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   // Players go in more carefully in their own box, and once they've been booked.
   const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
   const pFoul = clamp(0.03 + o.def.traits.temper * 0.045 + ((ca.dribbling - oa.tackling) / 20) * 0.05, 0.015, 0.12) * care
-  if (rng.chance(pFoul)) {
+  // Going in from beyond standing reach means going to ground.
+  const style: TackleStyle = dist(o.pos, c.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
+  if (rng.chance(pFoul * (style === 'slide' ? 1.4 : 1))) {
     const pos = { ...c.pos }
     const award = inOwnBox ? 'penalty' : 'freeKick'
     s.stats[o.team].fouls++
-    emit(s, out, { type: 'foul', byIdx: o.idx, onIdx: c.idx, pos, award })
+    emit(s, out, { type: 'foul', byIdx: o.idx, onIdx: c.idx, pos, award, style })
     const cardRoll = rng.next()
     if (cardRoll < 0.002) sendOff(s, o, out)
     else if (cardRoll < (0.08 + o.def.traits.temper * 0.12) * (o.yellowCards > 0 ? 0.6 : 1)) {
@@ -767,7 +794,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
 
   const skill = o.slot.role === 'GK' ? oa.keeping + 3 : oa.tackling
   const won = rng.chance(clamp(0.5 + (skill - ca.dribbling) * 0.03, 0.2, 0.85))
-  emit(s, out, { type: 'tackle', byIdx: o.idx, onIdx: c.idx, pos: { ...c.pos }, won })
+  emit(s, out, { type: 'tackle', byIdx: o.idx, onIdx: c.idx, pos: { ...c.pos }, won, style })
   if (won) {
     const b = s.ball
     const dir = norm(add(sub(vec(oppGoalX(o.team, s.half), CENTER.y), b.pos), scale(vec(rng.gauss(), rng.gauss()), 20)))

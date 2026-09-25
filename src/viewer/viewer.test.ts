@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMatch, frameOf, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
-import { flightAt, highlightWindows, windowAt } from './highlights.ts'
+import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, windowAt } from './highlights.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
@@ -90,5 +90,22 @@ describe('view modes', () => {
     const flight = flightAt(events, at)
     expect(flight?.kick).toBe(shot)
     expect(flight?.end).toBeGreaterThanOrEqual(shot.tick)
+  })
+})
+
+describe('animations', () => {
+  const events = full.state.events
+
+  it('shows a slide tackle as it happens, starting just before contact and then finishing', () => {
+    const slide = events.find((e) => e.type === 'tackle' && e.style === 'slide')
+    if (!slide || slide.type !== 'tackle') throw new Error('no slide tackle in this match')
+    // This slide specifically (the same player may slide in again soon after).
+    const thisOne = (ph: number): boolean =>
+      animationsAt(events, full.indexAfter(ph + ANIMATION_LEAD), ph).some(
+        (a) => a.kind === 'slide' && a.idx === slide.byIdx && a.toward.x === slide.pos.x && a.toward.y === slide.pos.y,
+      )
+    expect(thisOne(slide.tick)).toBe(true)
+    expect(thisOne(slide.tick - ANIMATION_LEAD - 1)).toBe(false)
+    expect(thisOne(slide.tick + 30)).toBe(false)
   })
 })

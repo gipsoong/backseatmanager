@@ -29,9 +29,11 @@ import {
   GK_EXTRA_REACH,
   GK_HAND_REACH,
   HEADER_REACH,
+  KEEPER_BODY_REACH,
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
   MAX_SHOT_DISTANCE,
+  SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
 } from './constants.ts'
 import { frameOf, runMatch } from './match.ts'
@@ -151,6 +153,7 @@ export function checkMatch(
       if (d > reach(e.idx, C.players[e.idx]) + EPS) v('touch-reach', `${e.type} by ${e.idx} at ${d.toFixed(2)}m from the ball`)
       if (dist(P.ball, e.contact) > BALL_STEP) v('touch-path', `${e.type} contact ${fmt(e.contact)} not on the ball's path from ${fmt(P.ball)}`)
       if (e.height > reachHeight(e.idx, C.players[e.idx]) + EPS) v('touch-height', `${e.type} by ${e.idx} with the ball ${e.height.toFixed(2)}m up`)
+      if (e.dive !== undefined && e.dive !== d > KEEPER_BODY_REACH) v('save-style', `dive=${e.dive} for a save ${d.toFixed(2)}m from the keeper`)
     }
 
     // --- Kicks and touches, in the order they happened (a header is a touch and then a kick).
@@ -225,6 +228,7 @@ export function checkMatch(
       if (e.type === 'tackle' || e.type === 'foul') {
         const d = dist(C.players[e.byIdx], C.players[e.onIdx])
         if (d > TACKLE_RANGE + EPS) v(`${e.type}-range`, `${e.type} from ${d.toFixed(2)}m`)
+        if ((e.style === 'slide') !== d > SLIDE_TACKLE_DISTANCE) v('tackle-style', `${e.style} ${e.type} from ${d.toFixed(2)}m`)
         const gained = events.some((g) => g.type === 'possession' && g.idx === e.onIdx)
         if (P.ball.ownerIdx !== e.onIdx && !gained) v(`${e.type}-carrier`, `${e.onIdx} didn't have the ball`)
       }
@@ -239,6 +243,7 @@ export function checkMatch(
     for (const e of events) {
       if (e.type === 'goal') {
         tally[e.team]++
+        if ((e.celebration === null) !== e.ownGoal) v('goal-celebration', `celebration ${e.celebration} for ownGoal=${e.ownGoal}`)
         const onLine = Math.abs(e.pos.x) < EPS || Math.abs(e.pos.x - PITCH_LENGTH) < EPS
         if (!onLine || Math.abs(e.pos.y - CENTER.y) >= GOAL_HALF_WIDTH) v('goal-pos', `goal crossing at ${fmt(e.pos)}`)
         if (e.height >= UNDER_BAR) v('goal-height', `goal given for a ball ${e.height.toFixed(2)}m up`)

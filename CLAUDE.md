@@ -144,8 +144,10 @@ pulling the repo.
 - `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
   built-in TypeScript stripping (hence `.ts` import extensions throughout).
 - `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and
-  records packed frames; `pitch.ts` draws on canvas; `commentary.ts` turns events into lines;
-  `highlights.ts` decides what each view mode shows and which kick is in the air;
+  records packed frames; `pitch.ts` draws on canvas through a Camera (wide, close-up, behind the
+  goal); `commentary.ts` turns events into lines;
+  `highlights.ts` decides what each view mode shows, which kick is in the air, and which
+  slides/dives are animating;
   `MatchViewer.tsx` is the UI. The viewer only reads engine output; it never feeds back into it.
 - `src/App.tsx` — fixture header and match picker around the viewer.
 

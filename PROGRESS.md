@@ -7,6 +7,20 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **2. Match viewer** — view modes and ball flight done (session 3). Engine calibrated to real ranges
 except corners and headers.
 
+## Done (session 4): match presentation
+
+- Highlights modes cut between moments (fade to the grass, clock rolls on, fade in) instead of
+  fast-forwarding; skipped play still updates commentary and stats.
+- Goal replays: after the (live) celebration, the goal is replayed wide, in slow-motion
+  close-up following the ball, and from behind the goal in true perspective; any goal can be
+  rewatched from its commentary line. Drawing goes through a Camera (`pitch.ts`), re-rendered per
+  angle rather than scaled.
+- Variation driven by positions and traits, all checked by the harness: celebrations (scorer's
+  flair picks corner-flag run / knee slide / fist pump; teammates join), slide vs standing
+  tackles (from the tackle distance), diving vs body saves (from how far the ball was from the
+  keeper). Viewer animates slides and dives; commentary mentions them.
+- Engine fixes: keeper-chip own goals, stuck loose balls, keeper save rate (see notes).
+
 ## Done (session 3): ball height, calibration, view modes
 
 - Engine: the ball flies in 3D (`physics.ts`, shared by loop and AI predictions). Players can
@@ -87,7 +101,7 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 ## In flight / next up
 
 0. **Viewer follow-ups**: run indicators for players making runs (engine has `runUntil`, not yet
-   exported in frames), replays of goals from 2–3 angles, highlight windows shaded on the scrubber.
+   exported in frames); dribble-move variation (skills when beating a man).
 1. **Calibration**: crosses, corners and headed shots (see findings below); shots slightly low
    (~9); longest dull spell ~40 min (Key moments' cuts hide it when watching).
 2. Season loop, transfers/scouting, development/youth, polish (see CLAUDE.md).
