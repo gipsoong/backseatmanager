@@ -1,5 +1,6 @@
+import { clamp } from './geometry.ts'
 import { Rng } from './rng.ts'
-import type { Attributes, Block, Formation, Kit, PlayerDef, Role, Slot, TeamDef } from './types.ts'
+import type { Attributes, Block, Formation, Kit, PlayerDef, Role, Slot, TeamDef, Traits } from './types.ts'
 
 const s = (role: Role, depth: number, y: number, attackDepth = 0): Slot => ({ role, depth, y, attackDepth })
 
@@ -78,17 +79,32 @@ function makeAttributes(rng: Rng, role: Role, quality: number): Attributes {
   return attrs
 }
 
+/** Hidden traits, spread across the whole range but leaning the way players in a role tend to. */
+function makeTraits(rng: Rng, role: Role): Traits {
+  const lean = (k: number): number => clamp(rng.next() * 0.8 + k * 0.2 + rng.gauss() * 0.05, 0, 1)
+  const attacker = role === 'W' || role === 'WM' || role === 'ST'
+  const defender = role === 'CB' || role === 'DM' || role === 'FB'
+  return {
+    flair: lean(attacker ? 0.8 : role === 'CM' ? 0.5 : 0.2),
+    temper: lean(defender ? 0.6 : 0.4),
+    aggression: lean(defender ? 0.8 : role === 'GK' ? 0.3 : 0.4),
+    workRate: lean(role === 'CM' || role === 'FB' || role === 'DM' ? 0.8 : 0.5),
+    directness: lean(role === 'ST' || role === 'W' ? 0.7 : role === 'CB' || role === 'GK' ? 0.3 : 0.5),
+  }
+}
+
 export function randomTeam(seed: number, block?: Block, formation?: Formation): TeamDef {
   const rng = new Rng(seed)
   const f = formation ?? rng.pick(['4-4-2', '4-3-3'] as const)
-  const quality = rng.int(10, 15)
+  // Squad strength: from a relegation battler to a title contender, in the same league.
+  const quality = rng.int(11, 15)
   const players: PlayerDef[] = FORMATIONS[f].map((slot, i) => ({
     id: `${seed}-${i}`,
     name: `${rng.pick(FIRST)} ${rng.pick(LAST)}`,
     shirt: i + 1,
     role: slot.role,
     attrs: makeAttributes(rng, slot.role, quality),
-    traits: { flair: rng.next(), temper: rng.next() },
+    traits: makeTraits(rng, slot.role),
   }))
   const name = rng.pick(CLUBS)
   return {

@@ -12,6 +12,7 @@ import {
   type TeamStats,
   createMatch,
   formatClock,
+  halfElapsed,
   step,
 } from '../engine/index.ts'
 
@@ -26,12 +27,15 @@ export class Timeline {
   done = false
   halfTimeTick: number | null = null
   private frames: Float32Array
+  /** Per tick: clock ticks gone in the half (the clock also counts stoppages it didn't simulate). */
+  private clock: Float64Array
   private stats: [TeamStats, TeamStats][] = []
 
   constructor(home: TeamDef, away: TeamDef, seed: number) {
     this.state = createMatch(home, away, { seed })
     this.stride = PLAYERS_AT + this.state.players.length * 2
     this.frames = new Float32Array(this.stride * 70_000)
+    this.clock = new Float64Array(70_000)
     this.record()
   }
 
@@ -66,6 +70,14 @@ export class Timeline {
       grown.set(this.frames)
       this.frames = grown
     }
+    if (s.tick >= this.clock.length) {
+      const grown = new Float64Array(this.clock.length * 2)
+      grown.set(this.clock)
+      this.clock = grown
+    }
+    // The half-time whistle's tick belongs to the first half: the engine has already reset the
+    // clock for the second by the time it's recorded.
+    this.clock[s.tick] = s.tick === this.halfTimeTick ? this.clock[s.tick - 1] + 1 : halfElapsed(s)
     const o = s.tick * this.stride
     const f = this.frames
     f[o] = s.ball.pos.x
@@ -111,9 +123,9 @@ export class Timeline {
   }
 
   clockAt(tick: number): string {
-    const s = this.state
-    if (this.halfTimeTick === null || tick <= this.halfTimeTick) return formatClock(1, tick, s.halfTicks)
-    return formatClock(2, tick - this.halfTimeTick, s.halfTicks)
+    const t = Math.max(0, Math.min(Math.floor(tick), this.lastTick))
+    const half = this.halfTimeTick === null || t <= this.halfTimeTick ? 1 : 2
+    return formatClock(half, this.clock[t], this.state.halfTicks)
   }
 
   statsAt(tick: number): [TeamStats, TeamStats] {

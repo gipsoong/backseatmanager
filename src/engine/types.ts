@@ -18,10 +18,18 @@ export interface Attributes {
   keeping: number
 }
 
-/** Hidden traits, 0–1. Drive variation rather than raw ability. */
+/** Hidden traits, 0–1. Drive how a player goes about things rather than how good he is. */
 export interface Traits {
+  /** Tricks and risks: take-ons, dribble moves, shooting on sight, one-twos, celebrations. */
   flair: number
+  /** Fouls and cards, and the cynical pull-back when he's been beaten. */
   temper: number
+  /** How readily he goes into a challenge, goes to ground, and how tight he presses. */
+  aggression: number
+  /** How hard he runs without the ball: pressing, tracking back, runs in behind. */
+  workRate: number
+  /** Looks forward first (through balls, balls in behind) rather than keeping it simple. */
+  directness: number
 }
 
 export interface PlayerDef {
@@ -209,7 +217,8 @@ export type MatchEvent = EventBase &
       }
     /** A forward sets off on a run in behind, until `until`. */
     | { type: 'run'; idx: number; until: number }
-    | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle }
+    /** `aerial`: a push or pull as they both go for a ball in the air, not a challenge on a carrier. */
+    | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle; aerial?: boolean }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }
     | { type: 'woodwork'; byIdx: number | null; pos: Vec; height: number }
@@ -245,6 +254,11 @@ export interface MatchState {
   half: 1 | 2
   /** Ticks of added time for the current half. */
   addedTicks: number
+  /**
+   * Clock time (in ticks) this half spent on stoppages that isn't simulated: the ball being
+   * fetched for a throw-in, a free kick being set up, a celebration. Counts on the clock only.
+   */
+  deadTicks: number
   halfTicks: number
   players: PlayerState[]
   ball: BallState
@@ -265,6 +279,6 @@ export interface Frame {
   tick: number
   phase: Phase['kind']
   half: 1 | 2
-  ball: { x: number; y: number; z: number; vx: number; vy: number; ownerIdx: number | null }
+  ball: { x: number; y: number; z: number; vx: number; vy: number; vz: number; ownerIdx: number | null }
   players: { x: number; y: number; onPitch: boolean }[]
 }

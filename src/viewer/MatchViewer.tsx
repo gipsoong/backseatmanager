@@ -312,7 +312,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     return byTick
   }, [timeline, events, tick])
   // Rough full length so the scrubber doesn't jump around while the rest simulates.
-  const total = timeline.done ? timeline.lastTick : Math.max(recorded, match.halfTicks * 2 + 3000)
+  const total = timeline.done ? timeline.lastTick : Math.max(recorded, Math.round(match.halfTicks * 2 * 0.68))
   const name = (idx: number): string => surname(match.players[idx].def.name)
 
   return (

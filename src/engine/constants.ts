@@ -9,7 +9,7 @@ export const DRIBBLE_OFFSET = 0.6
 /** A player within this distance of the ball's path can touch it. */
 export const CONTROL_RADIUS = 1.0
 /** Extra reach a goalkeeper gets inside his own box (diving). Scaled by keeping. */
-export const GK_EXTRA_REACH = 2.2
+export const GK_EXTRA_REACH = 2.6
 /** Ball slower than this can be controlled; faster must be blocked/saved. */
 export const CONTROLLABLE_SPEED = 20
 export const BALL_FRICTION = 3.0
@@ -59,3 +59,5 @@ export const KEEPER_BODY_REACH = 1.0
 export const SLIDE_TACKLE_DISTANCE = 1.15
 /** Ticks the goal-scoring team spends celebrating before heading back for kick-off. */
 export const CELEBRATION_TICKS = 70
+/** Chance a contested header ends in a foul (by either player), for an average aggression. */
+export const AERIAL_FOUL_CHANCE = 0.1

@@ -35,6 +35,7 @@ import {
   vec,
 } from './geometry.ts'
 import {
+  AERIAL_FOUL_CHANCE,
   AERIAL_HEIGHT,
   HEADER_RECOVERY_TICKS,
   BLOCK_RECOVERY_TICKS,
@@ -55,6 +56,7 @@ import {
   SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
   TICKS_PER_MINUTE,
+  TICKS_PER_SECOND,
 } from './constants.ts'
 import { advanceBall, loft, loftTime, shotVz } from './physics.ts'
 import {
@@ -104,7 +106,7 @@ import type {
   TackleStyle,
 } from './types.ts'
 
-const XG_CALIBRATION = 1.7
+const XG_CALIBRATION = 1.45
 
 type EventBody = MatchEvent extends infer E ? (E extends MatchEvent ? Omit<E, 'tick' | 'clock'> : never) : never
 
@@ -154,6 +156,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
     halfStartTick: 0,
     half: 1,
     addedTicks: rng.int(0, 3) * TICKS_PER_MINUTE + rng.int(0, 59) * 10,
+    deadTicks: 0,
     halfTicks,
     players,
     ball: emptyBall(),
@@ -186,8 +189,13 @@ function emptyBall() {
   }
 }
 
+/** Clock ticks gone in the current half: simulated play plus stoppages. */
+export function halfElapsed(s: MatchState): number {
+  return s.tick - s.halfStartTick + s.deadTicks
+}
+
 export function clockString(s: MatchState): string {
-  return formatClock(s.half, s.tick - s.halfStartTick, s.halfTicks)
+  return formatClock(s.half, halfElapsed(s), s.halfTicks)
 }
 
 /** Broadcast clock ("23'", "45+2'") for a tick count into a half. */
@@ -266,7 +274,7 @@ export function frameOf(s: MatchState): Frame {
     tick: s.tick,
     phase: s.phase.kind,
     half: s.half,
-    ball: { x: s.ball.pos.x, y: s.ball.pos.y, z: s.ball.z, vx: s.ball.vel.x, vy: s.ball.vel.y, ownerIdx: s.ball.ownerIdx },
+    ball: { x: s.ball.pos.x, y: s.ball.pos.y, z: s.ball.z, vx: s.ball.vel.x, vy: s.ball.vel.y, vz: s.ball.vz, ownerIdx: s.ball.ownerIdx },
     players: s.players.map((p) => ({ x: p.pos.x, y: p.pos.y, onPitch: p.onPitch })),
   }
 }
@@ -340,7 +348,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       // A through ball proper: from in front of the defensive line into the space behind it, not
       // just ahead of a man.
       const line = defensiveLine(s, p.team)
-      const through = !!action.through && af(s, p.team, s.ball.kick!.from).x < line && af(s, p.team, target).x > line
+      const through = !!action.through && af(s, p.team, s.ball.kick!.from).x < line && af(s, p.team, target).x > line + 4 && dt >= 12
       emit(s, out, { type: 'pass', byIdx: p.idx, toIdx: action.toIdx, from: { ...s.ball.kick!.from }, target, lofted: action.lofted, header: false, through })
       // Pass and move: the passer goes for the return.
       if (restart === null && !action.lofted) {
@@ -544,7 +552,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   // when he does it ricochets off him rather than being controlled.
   if (fromOpponent && s.tick - k.tick <= 1 && dist(contact, k.from) < 1.5 && p.slot.role !== 'GK') {
     // Charged down at source, it comes back off him rather than carrying on.
-    return rng.chance(CHARGE_DOWN_CHANCE) ? deflect('block', 0.45, -0.4) : miss()
+    return rng.chance(CHARGE_DOWN_CHANCE) ? deflect('block', 0.45, rng.range(-0.6, 0.6)) : miss()
   }
 
   // A keeper coming for a cross: catch it or punch it clear.
@@ -570,7 +578,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
     // to react (struck from close in); one towards the edge of his reach is a real test.
     const flight = k ? (s.tick - k.tick) * DT : 1
-    const pSave = clamp(0.97 - off * off * 0.9 - Math.max(0, 0.5 - flight) * 1.2 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
+    const pSave = clamp(0.97 - off * off * 0.8 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
     if (!rng.chance(pSave)) return miss()
     if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
       takePossession(s, p, contact, height, 'save', out)
@@ -591,18 +599,21 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
 
   if (speed >= CONTROLLABLE_SPEED) {
     if (!rng.chance(0.55)) return miss()
-    return deflect('block', 0.4)
+    // Off a body at pace it goes anywhere: on, wide, looping up; often behind.
+    return deflect('block', rng.range(0.35, 0.6), rng.range(-0.3, 0.9))
   }
 
   // A defender in his own box under an opponent's cross gets rid of it, sometimes behind for a corner.
   const ownBox = inPenaltyArea(p.pos, ownGoalX(p.team, s.half))
   // With an attacker challenging him for it, he's more likely to only get a flick on it.
   const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 2)
-  if (ownBox && fromOpponent && k?.lofted && p.slot.role !== 'GK' && rng.chance(challenged ? 0.5 : 0.25)) {
+  if (ownBox && fromOpponent && k?.lofted && p.slot.role !== 'GK' && rng.chance(challenged ? 0.75 : 0.45)) {
+    // Glanced behind, wide of his own post rather than back across the goal mouth.
     const goalX = ownGoalX(p.team, s.half)
     const wide = contact.y < CENTER.y ? -1 : 1
+    const aim = vec(goalX, CENTER.y + wide * (GOAL_HALF_WIDTH + rng.range(4, 14)))
     b.pos = contact
-    b.vel = vec((goalX === 0 ? -1 : 1) * rng.range(8, 13), wide * rng.range(4, 9))
+    b.vel = scale(norm(sub(aim, contact)), rng.range(10, 15))
     b.z = height
     b.vz = rng.range(1, 4)
     b.lastTouchIdx = p.idx
@@ -633,6 +644,19 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   const k = b.kick
   // Challenged for it by an opponent right with him: harder to win cleanly, harder to direct.
   const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && o.slot.role !== 'GK' && dist(o.pos, contact) < 1.5)
+  // Going up together, one of them may push or pull the other: either can be penalised.
+  const rival = s.players.find(
+    (o) => o.onPitch && o.team !== p.team && o.slot.role !== 'GK' && dist(o.pos, contact) < 1.5 && dist(o.pos, p.pos) <= TACKLE_RANGE,
+  )
+  if (rival && b.kick) {
+    const [fouler, fouled] = rng.chance(0.5) ? [rival, p] : [p, rival]
+    const inOwnBox = inPenaltyArea(fouled.pos, ownGoalX(fouler.team, s.half))
+    if (rng.chance(AERIAL_FOUL_CHANCE * (0.5 + fouler.def.traits.aggression) * (inOwnBox ? 0.3 : 1))) {
+      const style: TackleStyle = dist(fouler.pos, fouled.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
+      commitFoul(s, fouler, fouled, style, 0.05 + fouler.def.traits.temper * 0.1, true, out)
+      return true
+    }
+  }
   if (!rng.chance(challenged ? 0.6 : 0.8)) {
     // Mistimed: it goes over or past him. He can have another go once it's past his head.
     p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
@@ -828,48 +852,46 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
     if (d > TACKLE_RANGE) continue
     if (!tackler || d < dist(tackler.pos, c.pos)) tackler = o
   }
-  if (!tackler || !rng.chance(0.1)) return
-
+  if (!tackler) return
   const o = tackler
+  const traits = o.def.traits
+  // Most of the time a defender jockeys, shows him away and waits; an aggressive one goes in sooner.
+  // Up the pitch, forwards counter-press the ball they've just lost.
+  const finalThird = af(s, o.team, c.pos).x > 70
+  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : 1))) return
+
   const oa = o.def.attrs
   const ca = c.def.attrs
   const inOwnBox = inPenaltyArea(c.pos, ownGoalX(o.team, s.half))
   // Players go in more carefully in their own box, and once they've been booked.
   const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
-  const pFoul = clamp(0.04 + o.def.traits.temper * 0.05 + ((ca.dribbling - oa.tackling) / 20) * 0.05, 0.02, 0.16) * care
+  const pFoul = clamp(0.08 + traits.temper * 0.1 + traits.aggression * 0.06 + ((ca.dribbling - oa.tackling) / 20) * 0.08, 0.04, 0.3) * care
   // Going in from beyond standing reach means going to ground.
   const style: TackleStyle = dist(o.pos, c.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
-  if (rng.chance(pFoul * (style === 'slide' ? 1.4 : 1))) {
-    const pos = { ...c.pos }
-    const award = inOwnBox ? 'penalty' : 'freeKick'
-    s.stats[o.team].fouls++
-    emit(s, out, { type: 'foul', byIdx: o.idx, onIdx: c.idx, pos, award, style })
-    const cardRoll = rng.next()
-    if (cardRoll < 0.002) sendOff(s, o, out)
-    else if (cardRoll < (0.08 + o.def.traits.temper * 0.12) * (o.yellowCards > 0 ? 0.6 : 1)) {
-      o.yellowCards++
-      s.stats[o.team].yellowCards++
-      emit(s, out, { type: 'card', idx: o.idx, color: 'yellow' })
-      if (o.yellowCards >= 2) sendOff(s, o, out)
-    }
-    const spot = award === 'penalty' ? penaltySpot(ownGoalX(o.team, s.half)) : pos
-    setRestart(s, award, c.team, spot)
+  const skill = o.slot.role === 'GK' ? oa.keeping + 3 : oa.tackling
+  const won = rng.chance(clamp(0.58 + (skill - ca.dribbling) * 0.03, 0.25, 0.88))
+  // Beaten outside his own box, a hot-headed defender may just pull him back.
+  const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care)
+  if (cynical || rng.chance(pFoul * (style === 'slide' ? 1.4 : 1))) {
+    commitFoul(s, o, c, style, (cynical ? 0.35 : 0.08) + traits.temper * 0.12, false, out)
     return
   }
 
-  const skill = o.slot.role === 'GK' ? oa.keeping + 3 : oa.tackling
-  const won = rng.chance(clamp(0.5 + (skill - ca.dribbling) * 0.03, 0.2, 0.85))
   const beaten = won ? undefined : dribbleMove(s, c, o)
   emit(s, out, { type: 'tackle', byIdx: o.idx, onIdx: c.idx, pos: { ...c.pos }, won, style, beaten })
   if (won) {
     const b = s.ball
-    const dir = norm(add(sub(vec(oppGoalX(o.team, s.half), CENTER.y), b.pos), scale(vec(rng.gauss(), rng.gauss()), 20)))
+    // Poked away from him through the carrier, a little towards where the tackler is facing: near
+    // the touchline, a tackle from the inside often knocks it out of play.
+    const through = norm(sub(c.pos, o.pos))
+    const upfield = norm(sub(vec(oppGoalX(o.team, s.half), CENTER.y), b.pos))
+    const dir = norm(add(add(scale(through, 0.7), scale(upfield, 0.3)), scale(vec(rng.gauss(), rng.gauss()), 0.5)))
     b.ownerIdx = null
     b.kick = null
     b.touchedSinceKick = true
     b.lastTouchIdx = o.idx
     b.receivedFromIdx = null
-    b.vel = scale(dir, rng.range(3, 6))
+    b.vel = scale(dir, rng.range(4, 8))
     s.dribbleTarget = null
     o.tackleReadyAt = s.tick + 10
     c.touchReadyAt = s.tick + 8
@@ -906,6 +928,25 @@ function dribbleMove(s: MatchState, c: PlayerState, o: PlayerState): DribbleMove
         : scale(norm(add(scale(side, 0.8), scale(dir, 0.6))), c.maxSpeed * 0.75)
   c.vel = v
   return move
+}
+
+/** `o` fouls `c`: free kick or penalty from where `c` is, and maybe a card (`booking`: chance of a yellow). */
+function commitFoul(s: MatchState, o: PlayerState, c: PlayerState, style: TackleStyle, booking: number, aerial: boolean, out: MatchEvent[]): void {
+  const pos = { ...c.pos }
+  const award = inPenaltyArea(pos, ownGoalX(o.team, s.half)) ? 'penalty' : 'freeKick'
+  s.stats[o.team].fouls++
+  emit(s, out, { type: 'foul', byIdx: o.idx, onIdx: c.idx, pos, award, style, ...(aerial ? { aerial } : {}) })
+  const cardRoll = s.rng.next()
+  if (cardRoll < 0.001) sendOff(s, o, out)
+  // Referees think twice before a second yellow.
+  else if (cardRoll < booking * (o.yellowCards > 0 ? 0.4 : 1)) {
+    o.yellowCards++
+    s.stats[o.team].yellowCards++
+    emit(s, out, { type: 'card', idx: o.idx, color: 'yellow' })
+    if (o.yellowCards >= 2) sendOff(s, o, out)
+  }
+  const spot = award === 'penalty' ? penaltySpot(ownGoalX(o.team, s.half)) : pos
+  setRestart(s, award, c.team, spot)
 }
 
 function sendOff(s: MatchState, p: PlayerState, out: MatchEvent[]): void {
@@ -950,6 +991,11 @@ function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {
   if (!taker.onPitch) return
 
   s.phase = { kind: 'play' }
+  // The rest of the stoppage the simulation didn't play out goes on the clock.
+  const [lo, hi] = r.type === 'kickoff' ? (r.celebration ? [45, 75] : [0, 0]) : STOPPAGE_SECONDS[r.type]
+  let dead = s.rng.range(lo, hi)
+  if (r.type !== 'kickoff' && s.rng.chance(OTHER_STOPPAGE_CHANCE)) dead += s.rng.range(...OTHER_STOPPAGE_SECONDS)
+  s.deadTicks += Math.max(0, Math.round(dead * TICKS_PER_SECOND) - (s.tick - r.since))
   emit(s, out, { type: 'restart', restart: r.type, team: r.team, takerIdx: taker.idx, spot: { ...r.spot }, forced: !ready })
   s.ball.ownerIdx = taker.idx
   s.ball.lastTouchIdx = taker.idx
@@ -996,9 +1042,23 @@ function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {
 // ---------------------------------------------------------------------------
 // Clock
 
+/**
+ * Typical time (s) from the whistle to the restart being taken in top-flight football, so the
+ * ball is in play for ~55-60 of the 90+ minutes. Only the part not simulated is added.
+ */
+const STOPPAGE_SECONDS: Record<Exclude<RestartType, 'kickoff'>, [number, number]> = {
+  throwIn: [10, 20],
+  goalKick: [20, 34],
+  freeKick: [20, 40],
+  corner: [26, 42],
+  penalty: [60, 90],
+}
+/** Stoppages the engine doesn't model (treatment, substitutions): how often, and how long (s). */
+const OTHER_STOPPAGE_CHANCE = 0.1
+const OTHER_STOPPAGE_SECONDS: [number, number] = [30, 75]
+
 function checkPeriodEnd(s: MatchState, out: MatchEvent[]): void {
-  const elapsed = s.tick - s.halfStartTick
-  if (elapsed < s.halfTicks + s.addedTicks) return
+  if (halfElapsed(s) < s.halfTicks + s.addedTicks) return
   // Don't blow up while a shot is on its way or a penalty is being set up.
   const k = s.ball.kick
   if (s.phase.kind === 'play' && s.ball.ownerIdx === null && k?.kind === 'shot' && !s.ball.touchedSinceKick) return
@@ -1012,6 +1072,7 @@ function checkPeriodEnd(s: MatchState, out: MatchEvent[]): void {
   emit(s, out, { type: 'halfTime' })
   s.half = 2
   s.halfStartTick = s.tick
+  s.deadTicks = 0
   s.addedTicks = s.rng.int(1, 5) * TICKS_PER_MINUTE + s.rng.int(0, 59) * 10
   s.ball = emptyBall()
   // Teams come back out for the second half already in kick-off positions.

@@ -22,6 +22,7 @@ import {
   penaltySpot,
 } from './geometry.ts'
 import {
+  AERIAL_HEIGHT,
   CONTROL_RADIUS,
   CROSSBAR_HEIGHT,
   DRIBBLE_OFFSET,
@@ -243,7 +244,20 @@ export function checkMatch(
         if ((e.style === 'slide') !== d > SLIDE_TACKLE_DISTANCE) v('tackle-style', `${e.style} ${e.type} from ${d.toFixed(2)}m`)
         if (e.type === 'tackle' && (e.beaten !== undefined) === e.won) v('tackle-beaten', `won=${e.won} but beaten=${e.beaten}`)
         const gained = events.some((g) => g.type === 'possession' && g.idx === e.onIdx)
-        if (P.ball.ownerIdx !== e.onIdx && !gained) v(`${e.type}-carrier`, `${e.onIdx} didn't have the ball`)
+        if (e.type === 'foul' && e.aerial) {
+          // Both going for a ball in the air: it has to be up, and within his reach this tick.
+          // Struck this same tick (a header right off a kick): measure from where it was struck;
+          // its height isn't in the frame yet.
+          const struck = events.find((g) => g.type === 'pass' || g.type === 'clearance' || g.type === 'shot')
+          const from = struck && 'from' in struck ? struck.from : P.ball
+          const near = dist(from, C.players[e.onIdx])
+          // Highest it gets this tick (rising at most at its vertical speed).
+          const top = struck ? Infinity : P.ball.z + Math.max(0, P.ball.vz) * DT
+          const travel = struck ? BALL_STEP : Math.hypot(P.ball.vx, P.ball.vy) * DT
+          if (top < AERIAL_HEIGHT - EPS || near > CONTROL_RADIUS + travel + 1 + EPS) {
+            v('foul-aerial', `aerial foul on ${e.onIdx} with the ball ${near.toFixed(2)}m away at ${P.ball.z.toFixed(2)}m up`)
+          }
+        } else if (P.ball.ownerIdx !== e.onIdx && !gained) v(`${e.type}-carrier`, `${e.onIdx} didn't have the ball`)
       }
       if (e.type === 'foul') {
         if (dist(e.pos, C.players[e.onIdx]) > EPS) v('foul-pos', `foul logged at ${fmt(e.pos)} but player was at ${fmt(C.players[e.onIdx])}`)
@@ -270,7 +284,8 @@ export function checkMatch(
         if (onGoalLine && Math.abs(e.pos.y - CENTER.y) < GOAL_HALF_WIDTH - 0.11 && e.height < UNDER_BAR) {
           v('out-goal', `ball out under the bar between the posts at ${fmt(e.pos)}`)
         }
-        if ((e.award === 'throwIn') !== onTouchline) v('out-award', `${e.award} for ball out at ${fmt(e.pos)}`)
+        // Exactly at a corner flag it has crossed both lines: either restart is right.
+        if ((e.award === 'throwIn') !== onTouchline && !(onGoalLine && onTouchline)) v('out-award', `${e.award} for ball out at ${fmt(e.pos)}`)
         if (dist(P.ball, e.pos) > BALL_STEP + DRIBBLE_OFFSET) v('out-path', `ball was ${dist(P.ball, e.pos).toFixed(1)}m from the line`)
       }
     }
