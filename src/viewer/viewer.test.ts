@@ -3,6 +3,7 @@ import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/inde
 import { buildCommentary } from './commentary.ts'
 import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
 import { GOAL_DEPTH, netAt } from './net.ts'
+import { describeTraits, playerLines } from './players.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
@@ -148,6 +149,28 @@ describe('the ball in the net', () => {
     expect(s.ball.x).toBeLessThanOrEqual(105 + GOAL_DEPTH + 0.01)
     expect(s.ball.z).toBeLessThan(0.2)
     expect(Math.abs(s.bulge.amount)).toBeLessThan(0.01)
+  })
+})
+
+describe('player stats', () => {
+  const lines = playerLines(full.state, full.state.events)
+  it('adds up to the match: goals to the score, passes to the team totals', () => {
+    const own = full.state.events.filter((e) => e.type === 'goal' && e.ownGoal).length
+    expect(lines.reduce((n, l) => n + l.goals, 0) + own).toBe(full.state.score[0] + full.state.score[1])
+    for (const team of [0, 1] as const) {
+      const mine = lines.filter((_, i) => full.state.players[i].team === team)
+      expect(mine.reduce((n, l) => n + l.passes, 0)).toBe(full.state.stats[team].passes)
+      expect(mine.reduce((n, l) => n + l.shots, 0)).toBe(full.state.stats[team].shots)
+    }
+    for (const l of lines) {
+      expect(l.passesCompleted).toBeLessThanOrEqual(l.passes)
+      expect(l.rating).toBeGreaterThanOrEqual(3)
+      expect(l.rating).toBeLessThanOrEqual(10)
+    }
+  })
+  it('describes only traits that stand out', () => {
+    expect(describeTraits({ flair: 0.9, temper: 0.5, aggression: 0.1, workRate: 0.5, directness: 0.5 })).toEqual(['Flair player', 'Stands off'])
+    expect(describeTraits({ flair: 0.5, temper: 0.5, aggression: 0.5, workRate: 0.5, directness: 0.5 })).toEqual([])
   })
 })
 

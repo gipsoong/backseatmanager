@@ -98,9 +98,17 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
   const f = formation ?? rng.pick(['4-4-2', '4-3-3'] as const)
   // Squad strength: from a relegation battler to a title contender, in the same league.
   const quality = rng.int(11, 15)
+  const names = new Set<string>()
+  const uniqueName = (): string => {
+    let name: string
+    do name = `${rng.pick(FIRST)} ${rng.pick(LAST)}`
+    while (names.has(name))
+    names.add(name)
+    return name
+  }
   const players: PlayerDef[] = FORMATIONS[f].map((slot, i) => ({
     id: `${seed}-${i}`,
-    name: `${rng.pick(FIRST)} ${rng.pick(LAST)}`,
+    name: uniqueName(),
     shirt: i + 1,
     role: slot.role,
     attrs: makeAttributes(rng, slot.role, quality),
