@@ -17,6 +17,7 @@ import {
   clamp,
   closestT,
   dist,
+  projectT,
   len,
   lerp,
   norm,
@@ -29,11 +30,13 @@ import {
 import {
   BALL_FRICTION,
   CELEBRATION_TICKS,
+  CHARGE_DOWN_REACH,
   CONTROL_RADIUS,
     DT,
   GK_EXTRA_REACH,
   GK_HAND_REACH,
   GK_REACTION_TICKS,
+  KEEPER_STAND_OFF,
   HEADER_REACH,
   MAX_SHOT_DISTANCE,
   PASS_ARRIVAL_SPEED,
@@ -62,6 +65,9 @@ const keeperInOwnBox = (s: MatchState, p: PlayerState): boolean => {
   const a = af(s, p.team, p.pos)
   return a.x <= BOX_DEPTH && Math.abs(a.y - CENTER.y) <= BOX_HALF_WIDTH
 }
+
+/** A keeper with the ball in his own box has it in his hands. */
+export const keeperHasItInHands = (s: MatchState, p: PlayerState): boolean => keeperInOwnBox(s, p)
 
 /** How far sideways a player can reach the ball. */
 export function reachOf(s: MatchState, p: PlayerState): number {
@@ -139,9 +145,13 @@ export function xgFrom(a: Vec): number {
   return 0.9 * (1 - Math.exp(-0.95 * angle * angle))
 }
 
-/** How valuable it is for the attacking team to have the ball at a. */
+/**
+ * How valuable it is for the attacking team to have the ball at a. The chance a spot *might* give
+ * is discounted well below a shot on offer now: by the time you get there defenders have closed,
+ * so carrying on past a good shooting chance is rarely worth it.
+ */
 export function threat(a: Vec): number {
-  return 0.005 + 0.03 * (a.x / PITCH_LENGTH) ** 2 + 0.5 * xgFrom(a)
+  return 0.005 + 0.03 * (a.x / PITCH_LENGTH) ** 2 + 0.3 * xgFrom(a)
 }
 
 /** Value of simply keeping the ball, on top of where it is: a shot gives this up. */
@@ -233,6 +243,8 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
     const { speed } = passKinematics(d)
     let keep = 1
     for (const o of opps) {
+      // Behind the pass: it's played away from him, unless he's tight enough to charge it down.
+      if (projectT(ball, target, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
       const t = closestT(ball, target, o.pos)
       const c = lerp(ball, target, t)
       const db = t * d
@@ -256,6 +268,7 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       const { apex } = loft(d, T)
       let keepAir = 1
       for (const o of opps) {
+        if (projectT(ball, target, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
         const t = closestT(ball, target, o.pos)
         if (loftHeightAt(apex, t) > reachHeightOf(s, o)) continue
         const c = lerp(ball, target, t)
@@ -305,8 +318,8 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
   // Shot: only from where a shot is physically sensible.
   if (opts.allowShot) {
     const q = shotQuality(s, p, ball, opts.maxShotDistance)
-    const eagerness = 0.7 + p.def.traits.flair * 0.3 + attrs.shooting / 50
-    if (q > 0.05 && q * eagerness > bestU) {
+    const eagerness = 0.9 + p.def.traits.flair * 0.4 + attrs.shooting / 40
+    if (q > 0.03 && q * eagerness > bestU) {
       const gk = goalkeeperOf(s, 1 - p.team as Side)
       const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
       const side = gy > CENTER.y ? -1 : 1
@@ -315,7 +328,7 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28)
       const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
       // Height as it reaches the line: aimed under the bar, with error growing with distance.
-      const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.8)
+      const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.45)
       return { kind: 'shot', target, xg: q, height }
     }
   }
@@ -448,6 +461,11 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   if (chasers.get(p.idx) === 1) {
     const goalSide = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
     return { target: add(owner.pos, scale(goalSide, 4)), urgency: 1 }
+  }
+  // A keeper holding the ball can't be challenged: forwards drop off and wait for the release.
+  if (chasers.has(p.idx) && keeperHasItInHands(s, owner)) {
+    const away = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
+    return { target: add(owner.pos, scale(away, KEEPER_STAND_OFF)), urgency: 0.7 }
   }
   if (chasers.get(p.idx) === 0) {
     const oa = af(s, p.team, owner.pos)

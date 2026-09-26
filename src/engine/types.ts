@@ -97,6 +97,8 @@ export interface Kick {
   /** Throw-ins, corners and goal kicks can't produce offside. */
   offsideExempt: boolean
   fromRestart: RestartType | null
+  /** Released by a keeper from his hands: the laws don't let an opponent stop that at source. */
+  fromHands: boolean
   /** For shots: who passed to the shooter, if anyone. */
   assistIdx: number | null
   /** Players who already tried and failed to touch this kick (one attempt each). */

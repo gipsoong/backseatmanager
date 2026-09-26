@@ -29,6 +29,7 @@ import {
   GK_EXTRA_REACH,
   GK_HAND_REACH,
   HEADER_REACH,
+  KEEPER_RELEASE_TICKS,
   KEEPER_BODY_REACH,
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
@@ -91,6 +92,8 @@ export function checkMatch(
   let forcedRestarts = 0
   let prev: Frame | null = null
   let pending: PendingKick | null = null
+  // A keeper's release from his hands (kicked from inside his own box): no opponent may play it at source.
+  let release: { tick: number; team: Side } | null = null
   let stillBallTicks = 0
   let heldTicks = 0
   const tally: [number, number] = [0, 0]
@@ -162,6 +165,11 @@ export function checkMatch(
       if (e.type === 'tackle' || e.type === 'goal' || e.type === 'out' || e.type === 'foul') pending = null
 
       if (e.type === 'possession' || e.type === 'deflection' || e.type === 'offside') {
+        const rel = release as { tick: number; team: Side } | null
+        if (rel && team(e.idx) !== rel.team && s.tick - rel.tick < KEEPER_RELEASE_TICKS) {
+          v('keeper-release', `player ${e.idx} played the keeper's release ${s.tick - rel.tick} ticks after it left his hands`)
+        }
+        release = null
         const pk = pending as PendingKick | null
         if (!pk) continue
         const was = pk.offside.has(e.idx)
@@ -204,6 +212,10 @@ export function checkMatch(
         if (team(e.toIdx) !== team(e.byIdx) || !C.players[e.toIdx].onPitch) v('pass-receiver', `pass to ${e.toIdx}`)
         if (dist(e.from, e.target) > 65) v('pass-length', `pass of ${dist(e.from, e.target).toFixed(1)}m`)
       }
+
+      const kicker = s.players[e.byIdx]
+      const keeperInHands = !e.header && kicker.slot.role === 'GK' && inBox(P.players[e.byIdx], ownGoalX(kicker.team, half))
+      release = keeperInHands ? { tick: s.tick, team: kicker.team } : null
 
       // Offside positions at the moment of the kick.
       const exempt = !e.header && restartEv?.type === 'restart' && ['throwIn', 'corner', 'goalKick'].includes(restartEv.restart)

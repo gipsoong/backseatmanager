@@ -39,6 +39,14 @@ export const AERIAL_HEIGHT = 1.0
 export const BOUNCE = 0.45
 export const MIN_BOUNCE_SPEED = 1.5
 
+/** Ticks after a keeper releases the ball from his hands during which no opponent may play it. */
+export const KEEPER_RELEASE_TICKS = 4
+/** How far opponents stay from a keeper holding the ball. */
+export const KEEPER_STAND_OFF = 8
+
+/** How close a player behind the ball must be to block it as it's struck away from him. */
+export const CHARGE_DOWN_REACH = 0.6
+
 /** A keeper reaching the ball further from his body than this has had to dive for it. */
 export const KEEPER_BODY_REACH = 1.0
 /** A tackle from further away than this is a slide. */

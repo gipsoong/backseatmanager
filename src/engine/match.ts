@@ -29,17 +29,20 @@ import {
   oppGoalX,
   ownGoalX,
   penaltySpot,
+  projectT,
   scale,
   sub,
   vec,
 } from './geometry.ts'
 import {
   AERIAL_HEIGHT,
+  CHARGE_DOWN_REACH,
   CONTROLLABLE_SPEED,
   CROSSBAR_HEIGHT,
   DRIBBLE_OFFSET,
   DT,
   KEEPER_BODY_REACH,
+  KEEPER_RELEASE_TICKS,
   KICKER_IMMUNITY_TICKS,
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
@@ -57,6 +60,7 @@ import {
   af,
   chooseAction,
   chooseTaker,
+  keeperHasItInHands,
   kickoffPosition,
   maybeStartRuns,
   offsidePositions,
@@ -89,7 +93,7 @@ import type {
   TackleStyle,
 } from './types.ts'
 
-const XG_CALIBRATION = 0.85
+const XG_CALIBRATION = 1.7
 
 type EventBody = MatchEvent extends infer E ? (E extends MatchEvent ? Omit<E, 'tick' | 'clock'> : never) : never
 
@@ -397,6 +401,7 @@ function kick(
     offsideIdxs: exempt ? [] : offsidePositions(s, p, b.pos),
     offsideExempt: exempt,
     fromRestart: restart,
+    fromHands: keeperHasItInHands(s, p),
     assistIdx: null,
     missedIdxs: [],
   }
@@ -448,13 +453,18 @@ function updateBall(s: MatchState, out: MatchEvent[]): void {
 function touchCandidates(s: MatchState, from: Vec, to: Vec, heightAt: (t: number) => number): { p: PlayerState; t: number }[] {
   const b = s.ball
   const out: { p: PlayerState; t: number; d: number }[] = []
+  const moving = len(b.vel) > 2
   for (const p of s.players) {
     if (!p.onPitch || s.tick < p.touchReadyAt) continue
     if (b.kick && !b.touchedSinceKick) {
       if (b.kick.byIdx === p.idx && s.tick - b.kick.tick < KICKER_IMMUNITY_TICKS) continue
+      if (b.kick.fromHands && p.team !== b.kick.team && s.tick - b.kick.tick < KEEPER_RELEASE_TICKS) continue
       // A missed attempt means the ball got past him; once it's slowed right down he can have another go.
       if (b.kick.missedIdxs.includes(p.idx) && len(b.vel) > 3) continue
     }
+    // A moving ball going away from a player can't be played by him where it left, unless he's
+    // tight enough to charge it down as it's struck.
+    if (moving && projectT(from, to, p.pos) < 0 && dist(p.pos, from) > CHARGE_DOWN_REACH) continue
     const t = closestT(from, to, p.pos)
     const d = dist(p.pos, lerp(from, to, t))
     if (d <= reachOf(s, p) && heightAt(t) <= reachHeightOf(s, p)) out.push({ p, t, d })
@@ -637,7 +647,8 @@ function takePossession(
   b.z = 0
   b.vz = 0
   s.dribbleTarget = null
-  s.decisionAt = s.tick + (via === 'save' ? s.rng.int(15, 30) : s.rng.int(8, 15))
+  // A keeper with it in his hands takes his time; nobody can challenge him.
+  s.decisionAt = s.tick + (via === 'save' || keeperHasItInHands(s, p) ? s.rng.int(15, 30) : s.rng.int(8, 15))
   // A moment to settle: nobody can tackle in the same instant the ball arrives.
   for (const o of s.players) if (o.team !== p.team) o.tackleReadyAt = Math.max(o.tackleReadyAt, s.tick + 6)
   const dive = via === 'save' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
@@ -755,7 +766,7 @@ function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; sp
 function challenges(s: MatchState, out: MatchEvent[]): void {
   const c = s.players[s.ball.ownerIdx!]
   const rng = s.rng
-  if (c.slot.role === 'GK' && inPenaltyArea(c.pos, ownGoalX(c.team, s.half))) return // ball in hands
+  if (keeperHasItInHands(s, c)) return // ball in his hands: he can't be challenged
   let tackler: PlayerState | null = null
   for (const o of s.players) {
     if (!o.onPitch || o.team === c.team || s.tick < o.tackleReadyAt) continue
@@ -763,7 +774,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
     if (d > TACKLE_RANGE) continue
     if (!tackler || d < dist(tackler.pos, c.pos)) tackler = o
   }
-  if (!tackler || !rng.chance(0.06)) return
+  if (!tackler || !rng.chance(0.1)) return
 
   const o = tackler
   const oa = o.def.attrs

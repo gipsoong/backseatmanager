@@ -32,11 +32,16 @@ export function norm(a: Vec): Vec {
 
 /** Parameter t in [0,1] of the point on segment a→b closest to p. */
 export function closestT(a: Vec, b: Vec, p: Vec): number {
+  return clamp(projectT(a, b, p), 0, 1)
+}
+
+/** Unclamped projection of p onto the line a→b: negative means p is behind a. */
+export function projectT(a: Vec, b: Vec, p: Vec): number {
   const abx = b.x - a.x
   const aby = b.y - a.y
   const l2 = abx * abx + aby * aby
   if (l2 < 1e-12) return 0
-  return clamp(((p.x - a.x) * abx + (p.y - a.y) * aby) / l2, 0, 1)
+  return ((p.x - a.x) * abx + (p.y - a.y) * aby) / l2
 }
 
 export function distToSegment(a: Vec, b: Vec, p: Vec): number {
