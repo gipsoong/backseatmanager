@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
 import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
+import { GOAL_DEPTH, netAt } from './net.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
@@ -107,6 +108,46 @@ describe('animations', () => {
     expect(thisOne(slide.tick)).toBe(true)
     expect(thisOne(slide.tick - ANIMATION_LEAD - 1)).toBe(false)
     expect(thisOne(slide.tick + 30)).toBe(false)
+  })
+})
+
+describe('strikes and headers', () => {
+  const events = full.state.events
+  it('swings the kicker\'s leg around every pass, towards where it was played', () => {
+    const pass = events.find((e) => e.type === 'pass' && !e.header)
+    if (!pass || pass.type !== 'pass') throw new Error('no passes')
+    const at = animationsAt(events, full.indexAfter(pass.tick + ANIMATION_LEAD), pass.tick)
+    expect(at.some((a) => a.kind === 'kick' && a.idx === pass.byIdx && a.toward.x === pass.target.x)).toBe(true)
+  })
+  it('lifts a player for a header', () => {
+    const header = events.find((e) => e.type === 'deflection' && e.kind === 'header')
+    if (!header || header.type !== 'deflection') throw new Error('no headers')
+    const at = animationsAt(events, full.indexAfter(header.tick + ANIMATION_LEAD), header.tick)
+    expect(at.some((a) => a.kind === 'jump' && a.idx === header.idx)).toBe(true)
+  })
+})
+
+describe('the ball in the net', () => {
+  // A firm shot in at 1.2m, just inside the right post of the goal at x = 105.
+  const entry = { x: 105, y: 36, z: 1.2 }
+  const before = { x: 102.6, y: 35.8, z: 1.25 }
+  it('carries on into the goal from where it crossed the line', () => {
+    const s = netAt(entry, before, 0.03)
+    expect(s.ball.x).toBeGreaterThan(105)
+    expect(s.bulge.amount).toBe(0)
+  })
+  it('stretches the back of the net where it hits, harder shots further', () => {
+    const peak = (b: typeof before) => Math.max(...Array.from({ length: 40 }, (_, i) => netAt(entry, b, i * 0.02).bulge.amount))
+    const soft = { x: 104.2, y: 35.9, z: 1.2 }
+    expect(peak(before)).toBeGreaterThan(peak(soft))
+    expect(peak(soft)).toBeGreaterThan(0)
+  })
+  it('ends up on the floor inside the goal', () => {
+    const s = netAt(entry, before, 3)
+    expect(s.ball.x).toBeGreaterThan(105)
+    expect(s.ball.x).toBeLessThanOrEqual(105 + GOAL_DEPTH + 0.01)
+    expect(s.ball.z).toBeLessThan(0.2)
+    expect(Math.abs(s.bulge.amount)).toBeLessThan(0.01)
   })
 })
 

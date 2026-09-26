@@ -13,6 +13,7 @@ import {
   windowAt,
 } from './highlights.ts'
 import { type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
+import { type NetState, netAt } from './net.ts'
 import { PLAYERS_AT, type Timeline } from './timeline.ts'
 
 type Goal = Extract<MatchEvent, { type: 'goal' }>
@@ -22,14 +23,18 @@ const TICKS_PER_SECOND_AT_1X = 30
 const SPEEDS = [1, 2, 4] as const
 /** Wall time per animation frame the engine may use to simulate ahead of playback. */
 const SIM_BUDGET_MS = 6
-/** Ticks the net keeps moving after a goal. */
-const RIPPLE_TICKS = 18
 /**
- * Between highlights we cut, like a TV highlights package: fade to the grass, roll the clock on
- * to the next moment (the skipped play still happens; commentary and stats catch up), fade in.
+ * Between highlights we skip ahead: a light scrim comes over the pitch and the match fast-forwards
+ * underneath it to the next moment (the skipped play still happens; commentary and stats catch
+ * up), then the scrim lifts. Longer gaps take a little longer, so play never becomes a blur.
  */
-const CUT_FADE_MS = 350
-const CUT_ROLL_MS = 900
+const CUT_FADE_MS = 300
+const CUT_ROLL_MIN_MS = 1200
+const CUT_ROLL_MAX_MS = 3200
+/** Skipped ticks per millisecond of skip, before the limits above. */
+const CUT_TICKS_PER_MS = 2
+/** How fast play runs under the scrim while the engine hasn't reached the next moment yet. */
+const CUT_HOLD_TICKS_PER_S = 300
 const ease = (x: number): number => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2)
 const MODES: [ViewMode, string][] = [
   ['full', 'Full match'],
@@ -143,7 +148,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     let momentsFor = -1
     const replayed = new Set<number>()
     // A cut in progress: when it started, where from, and where to (null until the next moment is known).
-    let cut: { started: number; from: number; to: number | null } | null = null
+    let cut: { started: number; from: number; to: number | null; rollMs: number } | null = null
     const cover = (opacity: number): void => {
       if (coverRef.current) coverRef.current.style.opacity = String(opacity)
     }
@@ -155,15 +160,18 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       const t = Math.floor(ph)
       const upTo = timeline.indexAfter(t)
       const shown = events.slice(0, upTo)
-      const goal = lastGoalBefore(shown)
-      const age = goal ? (ph - goal.tick) / RIPPLE_TICKS : 1
       const pending = currentGoal(shown)
+      // The ball going into the net: from where it crossed the line, at the pace it crossed it.
+      let net: NetState | null = null
+      if (pending) {
+        const prev = timeline.frame(pending.tick - 1)
+        net = netAt({ ...pending.pos, z: pending.height }, { x: prev[0], y: prev[1], z: prev[2] }, (ph - pending.tick + 1) / 10 - 0.05)
+      }
       drawFrame(canvas.getContext('2d')!, viewRef.current, cam, timeline, ph, {
         kits,
         keeperKits,
         showRoles: roles,
-        ripple: goal && age < 1 ? { x: goal.pos.x, y: goal.pos.y, age } : null,
-        ballInNet: pending ? pending.pos : null,
+        net,
         flight: pending ? null : flightAt(events, upTo),
         animations: animationsAt(events, timeline.indexAfter(t + ANIMATION_LEAD), ph),
         runs: runsAt(events, upTo, ph).map((r) => {
@@ -202,7 +210,8 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       if (replay.current) {
         const r = replay.current
         cover(Math.max(0, 1 - (now - r.angleStarted) / ANGLE_FADE_MS))
-        const f = timeline.frame(r.playhead)
+        // Follow the ball; after a goal it's in the net (the recorded ball is already back on the spot).
+        const f = timeline.frame(r.moment.kind === 'goal' ? Math.min(r.playhead, r.moment.tick - 1) : r.playhead)
         const angle = r.moment.angles[r.angle]
         const goalX = r.moment.goalX ?? f[0]
         // The close-up follows the ball (leaning towards the goal, for a goal).
@@ -232,32 +241,44 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         const before = playhead.current
         let ph = before
         if (!cut && view !== 'full' && !windowAt(windows, ph).inside) {
-          cut = { started: now, from: ph, to: null }
+          cut = { started: now, from: ph, to: null, rollMs: CUT_ROLL_MIN_MS }
           setCutTo('')
         }
         if (cut) {
+          const normal = dt * rate * TICKS_PER_SECOND_AT_1X
           if (cut.to === null) {
-            const next = windowAt(windows, cut.from).next
+            const next = windowAt(windows, ph).next
             cut.to = next ? next[0] : timeline.done ? timeline.lastTick : null
             if (cut.to !== null) setCutTo(timeline.clockAt(cut.to))
           }
           const e = now - cut.started
           if (e < CUT_FADE_MS) {
+            // Scrim comes in while play carries on as normal.
             cover(e / CUT_FADE_MS)
+            ph = Math.min(ph + normal, cut.to ?? Infinity)
+            cut.from = ph
           } else if (cut.to === null) {
-            cut.started = now - CUT_FADE_MS // hold on the cover until the engine reaches the next moment
+            // The engine hasn't reached the next moment yet: keep playing on under the scrim.
+            cut.started = now - CUT_FADE_MS
             cover(1)
-          } else if (e < CUT_FADE_MS + CUT_ROLL_MS) {
-            cover(1)
-            ph = cut.from + (cut.to - cut.from) * ease((e - CUT_FADE_MS) / CUT_ROLL_MS)
-          } else if (e < 2 * CUT_FADE_MS + CUT_ROLL_MS) {
-            ph = cut.to
-            cover(1 - (e - CUT_FADE_MS - CUT_ROLL_MS) / CUT_FADE_MS)
+            ph += dt * CUT_HOLD_TICKS_PER_S
+            cut.from = ph
           } else {
-            ph = cut.to
-            cut = null
-            cover(0)
-            setCutTo(null)
+            if (e < CUT_FADE_MS + 16) cut.rollMs = Math.min(CUT_ROLL_MAX_MS, Math.max(CUT_ROLL_MIN_MS, (cut.to - cut.from) / CUT_TICKS_PER_MS))
+            const roll = e - CUT_FADE_MS
+            if (roll < cut.rollMs) {
+              cover(1)
+              ph = cut.from + (cut.to - cut.from) * ease(roll / cut.rollMs)
+            } else if (roll < cut.rollMs + CUT_FADE_MS) {
+              // Scrim lifts as the moment begins, at normal speed.
+              ph = Math.max(ph, cut.to) + normal
+              cover(1 - (roll - cut.rollMs) / CUT_FADE_MS)
+            } else {
+              ph += normal
+              cut = null
+              cover(0)
+              setCutTo(null)
+            }
           }
         } else {
           ph += dt * rate * TICKS_PER_SECOND_AT_1X
@@ -320,11 +341,14 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       <div className="stage">
         <div className="pitch-wrap" ref={wrapRef} style={{ aspectRatio: `${1 / PITCH_ASPECT}` }}>
           <canvas ref={canvasRef} aria-label={`${home.name} against ${away.name}`} />
-          <div className="cut-cover" ref={coverRef} aria-hidden={cutTo === null}>
+          <div className={`cut-cover${replayAngle ? ' replay' : ''}`} ref={coverRef} aria-hidden={cutTo === null}>
             {cutTo !== null && !replayAngle && (
-              <p className="cut-caption">
+              <p className="cut-caption" role="status">
+                <span className="cut-icon" aria-hidden="true">
+                  ▸▸
+                </span>
+                <span className="cut-label">{mode === 'goals' ? 'Next goal' : 'Next key moment'}</span>
                 {cutTo && <span className="cut-clock">{cutTo}</span>}
-                <span className="cut-label">{mode === 'goals' ? 'Goals' : 'Key moments'}</span>
               </p>
             )}
           </div>
@@ -507,14 +531,6 @@ function Stats({ stats, teams }: { stats: [TeamStats, TeamStats]; teams: [string
       })}
     </div>
   )
-}
-
-function lastGoalBefore(events: MatchEvent[]): Extract<MatchEvent, { type: 'goal' }> | null {
-  for (let i = events.length - 1; i >= 0; i--) {
-    const e = events[i]
-    if (e.type === 'goal') return e
-  }
-  return null
 }
 
 /** The goal to show in the lower-third: from the goal until play restarts. */

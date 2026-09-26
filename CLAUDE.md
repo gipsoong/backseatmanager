@@ -139,15 +139,18 @@ pulling the repo.
     are written independently of the engine's rule code on purpose.
   - `engine.test.ts` — determinism, zero violations over full matches, loose stat bounds, and
     tests that the harness itself catches injected faults.
-- `scripts/calibrate.ts` — `npm run calibrate -- [n]`: aggregate stats over n seeds next to
-  real-football ranges. Use it for every engine tuning change.
+- `scripts/calibrate.ts` — `npm run calibrate -- [n] [first seed]`: aggregate stats over n seeds
+  next to real-football ranges, with a realism score. Use it for every engine tuning change, with
+  80 matches, and confirm on a second seed set (single sets of 20–40 are too noisy).
+- `scripts/diag-attacks.ts`, `scripts/diag-crosses.ts` — how final-third attacks end; what
+  happens to crosses.
 - `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
   built-in TypeScript stripping (hence `.ts` import extensions throughout).
 - `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and
   records packed frames; `pitch.ts` draws on canvas through a Camera (wide, close-up, behind the
   goal); `commentary.ts` turns events into lines;
   `highlights.ts` decides what each view mode shows, which kick is in the air, and which
-  slides/dives are animating;
+  slides/dives/kicks/headers are animating; `net.ts` animates the ball going into the net;
   `MatchViewer.tsx` is the UI. The viewer only reads engine output; it never feeds back into it.
 - `src/App.tsx` — fixture header and match picker around the viewer.
 

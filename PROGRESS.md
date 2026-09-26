@@ -4,8 +4,43 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 ## Current milestone
 
-**2. Match viewer** — done. Engine: attacking AI reworked (session 6); remaining calibration gaps
-listed under "next up".
+**2. Match viewer** — done. Engine realism ~85% of 32 metrics in real ranges (session 7); remaining
+gaps under "next up". Next milestone: season loop.
+
+## Done (session 7): realism pass, player traits, skip overlay, goal and ball animation
+
+**Realism scorecard** (`npm run calibrate -- 80 [first seed]`): 32 metrics against top-flight
+ranges, with a realism score. 84–88% of metrics in range across two independent sets of 80
+matches (seeds 1–80: 28/32; seeds 201–280: 27/32). Per team: goals 1.2–1.4, shots ~11, xG ~1.2,
+goals per xG ~1.0, save % 62–68, passes ~490 at 86%, avg pass 19m, fouls ~11, yellows ~2,
+tackles won ~13 (35% in own third, 9% in final third), headed shots ~14%, ball in play ~60 min.
+Consistent misses: corners (~1.9 vs 4–6.5), offsides (~0.8 vs 1–3), through balls (~7 vs a rough
+1–5). Noisy between seed sets: won-by-4+ % and the longest dull spell.
+
+- **Stoppage time**: the clock now counts stoppages the engine doesn't simulate (fetching the ball,
+  setting up free kicks and corners, celebrations, treatment and substitutions), so the ball is in
+  play ~60 of 94 minutes as in real matches. This alone brought passes, tackles and shots per
+  match into real ranges. The timeline records the clock per tick.
+- **Player traits** (hidden, 0–1, leaning by role): flair, temper, and new aggression, work rate
+  and directness. They drive challenge frequency, how tight a player presses and how high, how hard
+  he gets back into shape and makes runs, and how forward-looking his passing is; flair and temper
+  as before (take-ons, shooting, one-twos, fouls, cynical fouls, cards, celebrations).
+- **Challenges** are rarer and trait-driven (defenders mostly jockey); cynical fouls when beaten;
+  aerial fouls in contested headers (harness: `foul-aerial`). Forwards counter-press.
+- **Offsides**: forwards drift on the shoulder of the last defender; defenders hold the line
+  rather than following an offside runner; passers judge the line imperfectly.
+- **Keepers**: save chance refitted (placement, reaction time); xG factor refitted to 1.45.
+- **Out of play**: tackles poke the ball through the carrier (often into touch near the line),
+  defenders put it into touch under pressure, glances go wide of the post, blocks ricochet.
+- Squad quality range narrowed to 11–15 (one league, not League Two vs the champions).
+- **Viewer — skips**: in Key moments / Goals, the match fast-forwards underneath a light scrim
+  (with a small "Next key moment 67'" caption) instead of cutting to a blank pitch; longer gaps take
+  a little longer (1.2–3.2 s).
+- **Viewer — animation**: the ball carries on into the goal at the pace and height it went in,
+  stretches the back of the net where it hits, drops and settles while the net springs back
+  (`net.ts`); kicks swing a leg towards the pass/shot; players rise for headers; a runner knocks the
+  ball ahead and gathers it in stride. Goal replays run on until the ball has settled, and the
+  close-up stays on the goal.
 
 ## Done (session 6): attacking AI, crosses, keepers, defending
 
@@ -155,18 +190,12 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-1. **Remaining calibration gaps** (session 6, 40 matches):
-   - Goals 2.0 (1.1–1.8): typical scores look right, the average is lifted by blowouts (11–1,
-     1–12) between the most mismatched random squads (average attribute ~7 vs ~12;
-     `randomTeam` quality 10–15). Decide whether to narrow the quality range or dampen how much
-     attribute gaps swing duels.
-   - Through balls ~25 at 65% success (real: a few, ~35%). Switching them off drops goals by
-     ~1.2, so they're the main lever. Most go to a forward already level with or past his nearest
-     defender.
-   - Corners 1.7 (4–6.5): clearances and blocks rarely go behind; blocked-shot ricochets are
-     mostly picked up. Offsides 0.6 (1–3): defenders tracking men past them stops the line
-     holding. Passes 715 (high, long-standing).
-2. Season loop, transfers/scouting, development/youth, polish (see CLAUDE.md).
+1. **Corners** are the main realism gap left: real ones mostly come from crosses cleared or blocked
+   behind and deflected shots under pressure. Needs a model of clearing under pressure (which way a
+   defender can get it away), not a probability. Then offsides (~0.8) and through-ball volume.
+2. **Season loop** (fixtures, table, calendar), then transfers/scouting, development/youth.
+3. Show player individuality in the UI (a player card: attributes and traits in words, e.g.
+   "tenacious", "likes a shot"), so what the engine does is legible.
 
 ## Open questions / decisions deferred
 
@@ -174,12 +203,12 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
   on a deliberate play). The harness mirrors this. Revisit with ball height.
 - `chooseAction` consumes the match RNG, so calling it outside the loop (a debugger, or a UI
   "what would he do") changes the rest of the match. Fine for now; clone the RNG if needed.
-- No substitutions, stamina or injuries yet.
+- No substitutions, stamina or injuries yet (their stoppage time is on the clock).
 - Players are clamped to the pitch rectangle (no one steps over a line).
 
 ## Notes for the next session
 
 - Read CLAUDE.md first, especially "the one lesson worth internalizing" and the repo layout.
-- `npm test` takes ~40s (six full matches through the harness, plus the viewer tests);
-  `npm run calibrate` ~50s for 20 matches.
+- `npm test` takes ~80s (six full matches through the harness, plus the viewer tests);
+  `npm run calibrate -- 80` ~3 min. Tune on one seed set, confirm on another (`-- 80 201`).
 - Commit and push before ending a session — history doesn't carry across devices.

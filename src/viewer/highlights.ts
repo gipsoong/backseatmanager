@@ -87,9 +87,11 @@ export function animationsAt(
   events: MatchEvent[],
   upTo: number,
   playhead: number,
-): { kind: 'slide' | 'dive'; idx: number; toward: { x: number; y: number; z: number }; age: number }[] {
+): { kind: 'slide' | 'dive' | 'kick' | 'jump'; idx: number; toward: { x: number; y: number; z: number }; age: number }[] {
   const SLIDE_TICKS = 10
   const DIVE_TICKS = 13
+  const KICK_TICKS = 5
+  const JUMP_TICKS = 8
   const out: ReturnType<typeof animationsAt> = []
   for (let i = upTo - 1; i >= 0; i--) {
     const e = events[i]
@@ -98,6 +100,14 @@ export function animationsAt(
     if (since < 0) continue
     if ((e.type === 'tackle' || e.type === 'foul') && e.style === 'slide' && since < SLIDE_TICKS) {
       out.push({ kind: 'slide', idx: e.byIdx, toward: { ...e.pos, z: 0 }, age: since / SLIDE_TICKS })
+    }
+    // Every strike of the ball: a pass, shot or clearance with the foot, or a header (he goes up for it).
+    const kick = e.type === 'pass' || e.type === 'shot' || e.type === 'clearance'
+    if (kick && !e.header && since < KICK_TICKS) {
+      out.push({ kind: 'kick', idx: e.byIdx, toward: { ...e.target, z: 0 }, age: since / KICK_TICKS })
+    }
+    if (e.type === 'deflection' && e.kind === 'header' && since < JUMP_TICKS) {
+      out.push({ kind: 'jump', idx: e.idx, toward: { ...e.contact, z: e.height }, age: since / JUMP_TICKS })
     }
     const save = (e.type === 'possession' && e.via === 'save') || (e.type === 'deflection' && e.kind === 'parry')
     if (save && e.dive && since < DIVE_TICKS) {
@@ -165,7 +175,8 @@ export function replayMoments(events: MatchEvent[], teamOf: (idx: number) => 0 |
   for (let i = 0; i < events.length; i++) {
     const e = events[i]
     if (e.type === 'goal') {
-      add(i, 'goal', e.team, 12, [0, 1, 2], 75, e.pos.x < 1 ? 0 : 105)
+      // Runs on a couple of seconds after it goes in: the ball hitting the net and dropping.
+      add(i, 'goal', e.team, 22, [0, 1, 2], 75, e.pos.x < 1 ? 0 : 105)
     } else if (e.type === 'foul' && e.award === 'penalty') {
       add(i, 'penalty', teamOf(e.onIdx), 15, [0, 1], 25, null)
     } else if (e.type === 'card' && e.color === 'red') {

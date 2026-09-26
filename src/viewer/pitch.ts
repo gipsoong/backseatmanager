@@ -17,11 +17,11 @@ import {
   PITCH_WIDTH,
   type Role,
 } from '../engine/index.ts'
+import { GOAL_DEPTH, type NetState } from './net.ts'
 import { PLAYERS_AT, type Timeline } from './timeline.ts'
 
 /** Metres of grass shown around the pitch in the wide view (room for the goals). */
 const MARGIN = 3.5
-const GOAL_DEPTH = 2
 const SIX_YARD_DEPTH = 5.5
 const SIX_YARD_HALF_WIDTH = 18.32 / 2
 /** Ticks a finished pass or shot line takes to fade out. */
@@ -206,12 +206,12 @@ function drawPitch(ctx: CanvasRenderingContext2D, v: View, cam: Camera): void {
 }
 
 /** Goals as frames with depth: posts, crossbar, and a net that bulges where a goal went in. */
-function drawGoals(ctx: CanvasRenderingContext2D, cam: Camera, ripple: DrawOptions['ripple']): void {
+function drawGoals(ctx: CanvasRenderingContext2D, cam: Camera, net: NetState['bulge'] | null): void {
   for (const goalX of [0, PITCH_LENGTH]) {
     const out = goalX === 0 ? -1 : 1
-    const hit = ripple && Math.abs(ripple.x - goalX) < 1 ? ripple : null
-    const bulge = (y: number, z: number): number =>
-      hit ? 0.9 * Math.exp(-((y - hit.y) ** 2 + (z - 1) ** 2) / 4) * Math.sin(Math.PI * (1 - hit.age)) * (1 - hit.age) : 0
+    const hit = net && net.goalX === goalX ? net : null
+    // The back of the net stretched out around where the ball hit it.
+    const bulge = (y: number, z: number): number => (hit ? hit.amount * Math.exp(-((y - hit.y) ** 2 + (z - hit.z) ** 2) / 2.2) : 0)
     const lo = CENTER.y - GOAL_HALF_WIDTH
     const hi = CENTER.y + GOAL_HALF_WIDTH
     const back = (y: number, z: number): [number, number, number] => [goalX + out * (GOAL_DEPTH + bulge(y, z)), y, z]
@@ -240,9 +240,9 @@ function drawGoals(ctx: CanvasRenderingContext2D, cam: Camera, ripple: DrawOptio
 // ---------------------------------------------------------------------------
 // Frame
 
-/** A short movement that says what a player just did: slid in, or dived. */
+/** A short movement that says what a player just did: slid in, dived, struck the ball, jumped. */
 export interface Animation {
-  kind: 'slide' | 'dive'
+  kind: 'slide' | 'dive' | 'kick' | 'jump'
   idx: number
   /** Where the body stretches towards (pitch metres, z for a dive's height). */
   toward: { x: number; y: number; z: number }
@@ -254,10 +254,11 @@ export interface DrawOptions {
   kits: [Kit, Kit]
   keeperKits: [Kit, Kit]
   showRoles: boolean
-  /** A goal just scored: where the ball hit the net and how long ago (0..1 of the ripple). */
-  ripple: { x: number; y: number; age: number } | null
-  /** After a goal the engine re-spots the ball for kick-off; keep showing it in the net until then. */
-  ballInNet: { x: number; y: number } | null
+  /**
+   * A goal going in: the ball in the goal and the net it's stretching (the engine re-spots the
+   * ball for kick-off the moment it's a goal, so the viewer animates this part itself).
+   */
+  net: NetState | null
   /** The kick in the air (or just finished), and when its flight ended. */
   flight: { kick: Extract<MatchEvent, { type: 'pass' | 'shot' | 'clearance' }>; end: number | null } | null
   animations: Animation[]
@@ -353,11 +354,19 @@ export function drawFrame(
 
   let [bx, by] = mix(0, 4)
   let bz = Number.isNaN(b[2]) ? a[2] : a[2] + (b[2] - a[2]) * f
-  if (opts.ballInNet) {
-    bx = opts.ballInNet.x + (opts.ballInNet.x < 1 ? -1.2 : 1.2)
-    by = opts.ballInNet.y
-    bz = 0.3
+  // Running with the ball: knocked a little ahead and gathered again in stride, not glued to his
+  // feet. The engine keeps it just in front of him; this only varies how far, with his pace.
+  const owner = a[3]
+  if (owner >= 0 && b[3] === owner) {
+    const [px, py] = mix(PLAYERS_AT + owner * 2, 3)
+    const pace = Math.hypot(b[PLAYERS_AT + owner * 2] - a[PLAYERS_AT + owner * 2], b[PLAYERS_AT + owner * 2 + 1] - a[PLAYERS_AT + owner * 2 + 1]) * 10
+    if (pace > 2.5) {
+      const touch = Math.max(0, Math.sin((2 * Math.PI * playhead) / 7)) ** 2 * Math.min(1, (pace - 2.5) / 4)
+      bx = px + (bx - px) * (1 + touch * 1.2)
+      by = py + (by - py) * (1 + touch * 1.2)
+    }
   }
+  if (opts.net) ({ x: bx, y: by, z: bz } = opts.net.ball)
 
   // Far things first, so nearer players and the ball overlap them in the perspective view.
   const players = timeline.state.players
@@ -366,7 +375,9 @@ export function drawFrame(
   const depthOf = (x: number, y: number): number => cam.project(x, y)?.k ?? 0
   players.sort((u, w) => depthOf(u.at[0], u.at[1]) - depthOf(w.at[0], w.at[1]))
 
-  drawGoals(ctx, cam, opts.ripple)
+  // A ball in the goal sits behind the netting.
+  if (opts.net && !cam.perspective) drawBall(ctx, cam, bx, by, bz)
+  drawGoals(ctx, cam, opts.net?.bulge ?? null)
   drawFlight(ctx, cam, timeline, playhead, opts)
   if (!cam.perspective) {
     for (const r of opts.runs) {
@@ -375,7 +386,7 @@ export function drawFrame(
     }
   }
   const ballDepth = depthOf(bx, by)
-  let ballDrawn = false
+  let ballDrawn = !!opts.net && !cam.perspective
   for (const { p, i, at } of players) {
     if (!ballDrawn && depthOf(at[0], at[1]) > ballDepth) {
       drawBall(ctx, cam, bx, by, bz)
@@ -404,8 +415,12 @@ function drawPlayer(
   if (!base) return
   // How far the body is stretched out (towards a tackle or a dive), rising then settling back.
   const stretch = anim ? Math.sin(Math.PI * Math.min(1, anim.age * 1.2)) : 0
+  // A strike: the kicking leg swings through towards where the ball is going.
+  const swing = anim?.kind === 'kick' ? Math.sin(Math.PI * anim.age) : 0
+  // Going up for a header: off the ground and back down.
+  const lift = anim?.kind === 'jump' ? Math.sin(Math.PI * anim.age) : 0
   let lean: { x: number; y: number } | null = null
-  if (anim && stretch > 0.02) {
+  if (anim && (anim.kind === 'slide' || anim.kind === 'dive') && stretch > 0.02) {
     const dx = anim.toward.x - x
     const dy = anim.toward.y - y
     const d = Math.hypot(dx, dy) || 1
@@ -416,7 +431,7 @@ function drawPlayer(
 
   if (cam.perspective) {
     // Standing figure: a rounded bar from the feet to head height, leaning when he slides or dives.
-    const head = cam.project(x, y, 1.8)
+    const head = cam.project(x, y, 1.8 + lift * 0.5)
     if (!head) return
     const w = Math.max(2, 0.55 * base.k)
     ctx.lineCap = 'round'
@@ -428,19 +443,42 @@ function drawPlayer(
     ctx.stroke()
     ctx.strokeStyle = kit.shirt
     ctx.lineWidth = w
+    const feet = lift > 0 ? cam.project(x, y, lift * 0.5) : base
     ctx.beginPath()
-    ctx.moveTo(base.x, base.y - w / 2)
+    ctx.moveTo((feet ?? base).x, (feet ?? base).y - w / 2)
     ctx.lineTo(lean ? lean.x : head.x, lean ? lean.y : head.y)
     ctx.stroke()
     return
   }
 
-  const r = Math.max(6, 1.3 * base.k)
-  // Soft shadow, then (if he's stretching) the body towards the ball, then the shirt.
+  // In the air for a header he's drawn a touch bigger, his shadow left on the grass below.
+  const r = Math.max(6, 1.3 * base.k) * (1 + lift * 0.22)
   ctx.beginPath()
-  ctx.ellipse(base.x + r * 0.2, base.y + r * 0.35, r * 0.95, r * 0.6, 0, 0, Math.PI * 2)
-  ctx.fillStyle = 'rgba(0,0,0,0.18)'
+  ctx.ellipse(base.x + r * (0.2 + lift * 0.35), base.y + r * (0.35 + lift * 0.45), r * 0.95, r * 0.6, 0, 0, Math.PI * 2)
+  ctx.fillStyle = `rgba(0,0,0,${0.18 - lift * 0.06})`
   ctx.fill()
+  if (anim?.kind === 'kick' && swing > 0.05) {
+    // The kicking leg: a short stroke from the body towards the ball's direction.
+    const d = Math.hypot(anim.toward.x - x, anim.toward.y - y) || 1
+    const ahead = cam.project(x + (anim.toward.x - x) / d, y + (anim.toward.y - y) / d)
+    if (ahead) {
+      // Out past the edge of his disc, by up to most of a radius at the top of the swing.
+      const ux = ahead.x - base.x
+      const uy = ahead.y - base.y
+      const ul = Math.hypot(ux, uy) || 1
+      const reach = r * (0.5 + 0.85 * swing)
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'
+      ctx.lineWidth = r * 0.55 + 2
+      ctx.beginPath()
+      ctx.moveTo(base.x, base.y)
+      ctx.lineTo(base.x + (ux / ul) * reach, base.y + (uy / ul) * reach)
+      ctx.stroke()
+      ctx.strokeStyle = kit.shirt
+      ctx.lineWidth = r * 0.55
+      ctx.stroke()
+    }
+  }
   if (lean) {
     ctx.lineCap = 'round'
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'
