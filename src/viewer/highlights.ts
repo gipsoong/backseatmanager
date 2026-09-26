@@ -2,7 +2,7 @@
  * What to show in each viewing mode, and which kick is in the air. Pure functions over the event
  * stream, so they work on whatever the timeline has simulated so far.
  */
-import type { MatchEvent } from '../engine/index.ts'
+import { BOX_DEPTH, BOX_HALF_WIDTH, CENTER, type MatchEvent } from '../engine/index.ts'
 
 export type ViewMode = 'full' | 'key' | 'goals'
 
@@ -219,6 +219,69 @@ export function runsAt(events: MatchEvent[], upTo: number, playhead: number): { 
         ((f.type === 'possession' || f.type === 'offside') && f.idx === e.idx)
     }
     if (!over) out.push({ idx: e.idx, start: e.tick, until: e.until })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Captions
+
+/** How long a caption stays up (ticks), fading out over the last third. */
+export const CAPTION_TICKS = 36
+
+const MOVES: Record<string, string> = { stepOver: 'Step-over', dragBack: 'Drag-back', burst: 'Burst of pace', feint: 'Feint' }
+
+/** What a key action was, in a word or two, and who did it: none for the routine ones. */
+export function captionFor(e: MatchEvent, attacksHigh: (team: 0 | 1, tick: number) => boolean, teamOf: (idx: number) => 0 | 1): { idx: number; text: string } | null {
+  const depth = (team: 0 | 1, x: number): number => (attacksHigh(team, e.tick) ? 105 - x : x)
+  const inBox = (team: 0 | 1, p: { x: number; y: number }): boolean => depth(team, p.x) < BOX_DEPTH && Math.abs(p.y - CENTER.y) < BOX_HALF_WIDTH
+  switch (e.type) {
+    case 'pass': {
+      const team = teamOf(e.byIdx)
+      if (e.header) return null
+      if (e.through) return { idx: e.byIdx, text: 'Through ball' }
+      if (e.lofted && inBox(team, e.target) && Math.abs(e.from.y - CENTER.y) > BOX_HALF_WIDTH - 4) return { idx: e.byIdx, text: 'Cross' }
+      if (Math.hypot(e.target.x - e.from.x, e.target.y - e.from.y) >= 32) return { idx: e.byIdx, text: 'Long ball' }
+      return null
+    }
+    case 'shot': {
+      if (e.penalty) return null
+      if (e.header) return { idx: e.byIdx, text: 'Header' }
+      if (e.finesse) return { idx: e.byIdx, text: 'Finesse' }
+      const team = teamOf(e.byIdx)
+      if (Math.hypot(depth(team, e.from.x), e.from.y - CENTER.y) > 22) return { idx: e.byIdx, text: 'Long shot' }
+      return null
+    }
+    case 'possession':
+      return e.via === 'interception' ? { idx: e.idx, text: 'Interception' } : null
+    case 'tackle':
+      if (e.won) return { idx: e.byIdx, text: e.style === 'slide' ? 'Sliding tackle' : 'Tackle' }
+      return e.beaten ? { idx: e.onIdx, text: MOVES[e.beaten] } : null
+    case 'deflection':
+      if (e.kind === 'block') return { idx: e.idx, text: 'Block' }
+      if (e.kind === 'parry') return { idx: e.idx, text: 'Save' }
+      return null
+    default:
+      return null
+  }
+}
+
+/** Captions showing at `playhead`, newest first, at most two, with how far through they are (0..1). */
+export function captionsAt(
+  events: MatchEvent[],
+  upTo: number,
+  playhead: number,
+  attacksHigh: (team: 0 | 1, tick: number) => boolean,
+  teamOf: (idx: number) => 0 | 1,
+): { idx: number; text: string; age: number }[] {
+  const out: { idx: number; text: string; age: number }[] = []
+  for (let i = upTo - 1; i >= 0 && out.length < 2; i--) {
+    const e = events[i]
+    const age = (playhead - e.tick) / CAPTION_TICKS
+    if (age > 1) break
+    if (age < 0) continue
+    const c = captionFor(e, attacksHigh, teamOf)
+    if (c && !out.some((o) => o.idx === c.idx)) out.push({ ...c, age })
   }
   return out
 }

@@ -6,6 +6,7 @@ import {
   type ReplayMoment,
   type ViewMode,
   animationsAt,
+  captionsAt,
   flightAt,
   highlightWindows,
   replayMoments,
@@ -89,6 +90,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const [cutTo, setCutTo] = useState<string | null>(null)
   const [replayAngle, setReplayAngle] = useState<string | null>(null)
   const [showRoles, setShowRoles] = useState(false)
+  const [showCaptions, setShowCaptions] = useState(true)
   const [tab, setTab] = useState<Tab>('commentary')
   const [tick, setTick] = useState(0)
   const [recorded, setRecorded] = useState(timeline.recorded)
@@ -100,10 +102,10 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const coverRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<View>(viewFor(600, 1))
   // Values the animation loop reads without restarting.
-  const live = useRef({ playing, speed, showRoles, mode })
+  const live = useRef({ playing, speed, showRoles, showCaptions, mode })
   useEffect(() => {
-    live.current = { playing, speed, showRoles, mode }
-  }, [playing, speed, showRoles, mode])
+    live.current = { playing, speed, showRoles, showCaptions, mode }
+  }, [playing, speed, showRoles, showCaptions, mode])
 
   const startReplay = useCallback(
     (moment: ReplayMoment): void => {
@@ -155,6 +157,9 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       if (coverRef.current) coverRef.current.style.opacity = String(opacity)
     }
 
+    const teamOf = (idx: number): 0 | 1 => timeline.state.players[idx].team
+    const attacksHigh = (team: 0 | 1, tick: number): boolean =>
+      ownGoalX(team, timeline.halfTimeTick !== null && tick > timeline.halfTimeTick ? 2 : 1) === 0
     const draw = (ph: number, cam: Camera, roles: boolean): void => {
       const canvas = canvasRef.current
       if (!canvas) return
@@ -174,6 +179,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         keeperKits,
         showRoles: roles,
         net,
+        captions: live.current.showCaptions ? captionsAt(events, upTo, ph, attacksHigh, teamOf) : [],
         flight: pending ? null : flightAt(events, upTo),
         animations: animationsAt(events, timeline.indexAfter(t + ANIMATION_LEAD), ph),
         runs: runsAt(events, upTo, ph).map((r) => {
@@ -409,6 +415,10 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
           <label className="toggle">
             <input id="show-roles" type="checkbox" checked={showRoles} onChange={(e) => setShowRoles(e.target.checked)} />
             Roles
+          </label>
+          <label className="toggle">
+            <input id="show-captions" type="checkbox" checked={showCaptions} onChange={(e) => setShowCaptions(e.target.checked)} />
+            Captions
           </label>
           <div className="scrubber">
             <input

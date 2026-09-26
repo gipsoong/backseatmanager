@@ -376,8 +376,9 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       return
     }
     case 'shot': {
-      const speed = 20 + (p.def.attrs.shooting / 20) * 9 + s.rng.range(0, 2)
-      shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out)
+      // A curled shot trades pace for placement.
+      const speed = 20 + (p.def.attrs.shooting / 20) * 9 + s.rng.range(0, 2) - (action.finesse ? 3 : 0)
+      shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out, action.finesse)
       return
     }
   }
@@ -394,6 +395,7 @@ function shoot(
   restart: RestartType | null,
   header: boolean,
   out: MatchEvent[],
+  finesse = false,
 ): void {
   const assistIdx = s.ball.receivedFromIdx
   const time = dist(s.ball.pos, target) / speed
@@ -417,6 +419,7 @@ function shoot(
     xg,
     penalty: restart === 'penalty',
     header,
+    finesse,
   })
 }
 

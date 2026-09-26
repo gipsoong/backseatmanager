@@ -187,6 +187,8 @@ export type MatchEvent = EventBase &
         xg: number
         penalty: boolean
         header: boolean
+        /** Curled and placed rather than driven. */
+        finesse: boolean
       }
     | {
         type: 'possession'

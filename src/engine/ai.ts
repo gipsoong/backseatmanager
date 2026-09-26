@@ -288,7 +288,7 @@ function nearestDist(ps: PlayerState[], p: Vec): number {
 // Ball-carrier decisions
 
 export type Action =
-  | { kind: 'shot'; target: Vec; xg: number; height: number }
+  | { kind: 'shot'; target: Vec; xg: number; height: number; finesse: boolean }
   | { kind: 'pass'; toIdx: number; target: Vec; lofted: boolean; through?: boolean }
   | { kind: 'clearance'; target: Vec }
   | { kind: 'dribble'; target: Vec }
@@ -472,13 +472,16 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       const gk = goalkeeperOf(s, 1 - p.team as Side)
       const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
       const side = gy > CENTER.y ? -1 : 1
-      const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * rng.range(0.5, 1)
       const dGoal = dist(a, vec(PITCH_LENGTH, CENTER.y))
-      const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28)
+      // From the edge of the box a player with flair may curl it rather than drive it: placed
+      // right into the far corner, more accurately, but with less pace on it (see execute).
+      const finesse = dGoal > 11 && dGoal < 26 && rng.chance(0.1 + p.def.traits.flair * 0.45)
+      const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * (finesse ? rng.range(0.8, 1) : rng.range(0.5, 1))
+      const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28) * (finesse ? 0.8 : 1)
       const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
       // Height as it reaches the line: aimed under the bar, with error growing with distance.
       const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.45)
-      return { kind: 'shot', target, xg: q, height }
+      return { kind: 'shot', target, xg: q, height, finesse }
     }
   }
 

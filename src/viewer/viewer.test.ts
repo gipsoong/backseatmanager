@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
-import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
+import { ANIMATION_LEAD, CAPTION_TICKS, animationsAt, captionsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
 import { GOAL_DEPTH, netAt } from './net.ts'
 import { describeTraits, playerLines } from './players.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
@@ -125,6 +125,22 @@ describe('strikes and headers', () => {
     if (!header || header.type !== 'deflection') throw new Error('no headers')
     const at = animationsAt(events, full.indexAfter(header.tick + ANIMATION_LEAD), header.tick)
     expect(at.some((a) => a.kind === 'jump' && a.idx === header.idx)).toBe(true)
+  })
+})
+
+describe('captions', () => {
+  const events = full.state.events
+  const teamOf = (idx: number) => full.state.players[idx].team
+  const attacksHigh = (team: 0 | 1, tick: number) => ownGoalX(team, full.halfTimeTick !== null && tick > full.halfTimeTick ? 2 : 1) === 0
+  it('names an interception above the player who made it, for a moment', () => {
+    const e = events.find((x) => x.type === 'possession' && x.via === 'interception')
+    if (!e || e.type !== 'possession') throw new Error('no interceptions')
+    const at = (ph: number) => captionsAt(events, full.indexAfter(ph), ph, attacksHigh, teamOf)
+    expect(at(e.tick).some((c) => c.idx === e.idx && c.text === 'Interception')).toBe(true)
+    expect(at(e.tick + CAPTION_TICKS + 1).some((c) => c.idx === e.idx && c.text === 'Interception')).toBe(false)
+  })
+  it('never shows more than two at once', () => {
+    for (let ph = 0; ph < full.lastTick; ph += 97) expect(captionsAt(events, full.indexAfter(ph), ph, attacksHigh, teamOf).length).toBeLessThanOrEqual(2)
   })
 })
 

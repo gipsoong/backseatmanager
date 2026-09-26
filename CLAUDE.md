@@ -74,7 +74,9 @@ real football.
 
 **Tone:** classy and understated, not arcadey. No "STEP-OVER!"-style floating labels, no
 screen-shake, no big "GOAL!!!" graphics. A quiet broadcast-style strip (scorer, minute, assist)
-and a subtle net ripple communicate a goal better than fireworks.
+and a subtle net ripple communicate a goal better than fireworks. (Session 9, at the owner's
+request: key actions get a small caption above the player — "Interception", "Cross", "Finesse" —
+in the broadcast style: plain case, no exclamation marks, fading after a second, toggleable.)
 
 **Variation:** goal celebrations, tackle types, dribble moves, save types, etc. should be genuinely
 varied (driven by hidden per-player traits like flair/temper), or the match feels repetitive fast.

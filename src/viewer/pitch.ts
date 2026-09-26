@@ -262,6 +262,8 @@ export interface DrawOptions {
    * ball for kick-off the moment it's a goal, so the viewer animates this part itself).
    */
   net: NetState | null
+  /** Quiet captions naming a key action, above the player who did it. */
+  captions: { idx: number; text: string; age: number }[]
   /** The kick in the air (or just finished), and when its flight ended. */
   flight: { kick: Extract<MatchEvent, { type: 'pass' | 'shot' | 'clearance' }>; end: number | null } | null
   animations: Animation[]
@@ -400,6 +402,36 @@ export function drawFrame(
     drawPlayer(ctx, cam, at[0], at[1], kit, p.def.shirt, anim, opts.showRoles ? p.slot.role : null)
   }
   if (!ballDrawn) drawBall(ctx, cam, bx, by, bz)
+  if (!cam.perspective) {
+    for (const c of opts.captions) {
+      const pl = players.find((q) => q.i === c.idx)
+      if (pl) drawCaption(ctx, cam, pl.at, c.text, c.age)
+    }
+  }
+}
+
+/** A small broadcast-style label just above a player, fading as it ages. */
+function drawCaption(ctx: CanvasRenderingContext2D, cam: Camera, at: [number, number], text: string, age: number): void {
+  const p = cam.project(at[0], at[1])
+  if (!p) return
+  const r = Math.max(6, 1.3 * p.k)
+  const alpha = age < 0.66 ? 1 : 1 - (age - 0.66) / 0.34
+  const size = cam.closeUp ? 14 : 11
+  ctx.font = `600 ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`
+  const w = ctx.measureText(text).width + 10
+  const h = size + 6
+  const x = p.x - w / 2
+  const y = p.y - r - h - 4
+  ctx.globalAlpha = alpha
+  ctx.fillStyle = 'rgba(16,21,18,0.78)'
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, 3)
+  ctx.fill()
+  ctx.fillStyle = '#f3f5f1'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, p.x, y + h / 2 + 0.5)
+  ctx.globalAlpha = 1
 }
 
 const easeOut = (x: number): number => 1 - (1 - x) ** 3
