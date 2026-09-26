@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { randomTeam } from './engine/index.ts'
+import { draftLeague } from './draft/draft.ts'
+import { Draft } from './screens/Draft.tsx'
 import { Hub } from './screens/Hub.tsx'
 import { Match } from './screens/Match.tsx'
 import { PickTeam } from './screens/PickTeam.tsx'
@@ -18,6 +20,7 @@ type Screen =
   | { kind: 'loading' }
   | { kind: 'start' }
   | { kind: 'pick'; season: Season }
+  | { kind: 'draft'; seed: number }
   | { kind: 'hub' }
   | { kind: 'match'; timeline: Timeline }
   | { kind: 'friendly' }
@@ -66,12 +69,29 @@ export default function App() {
   }
 
   const newSeason = (): void => setScreen({ kind: 'pick', season: createSeason(randomSeed(), 0) })
+  const newDraft = (): void => setScreen({ kind: 'draft', seed: randomSeed() })
 
   return (
     <main>
       {screen.kind === 'loading' && <p className="meta">Loading…</p>}
       {screen.kind === 'start' && (
-        <Start saved={season} onContinue={() => setScreen({ kind: 'hub' })} onNew={newSeason} onFriendly={() => setScreen({ kind: 'friendly' })} />
+        <Start
+          saved={season}
+          onContinue={() => setScreen({ kind: 'hub' })}
+          onNew={newSeason}
+          onDraft={newDraft}
+          onFriendly={() => setScreen({ kind: 'friendly' })}
+        />
+      )}
+      {screen.kind === 'draft' && (
+        <Draft
+          seed={screen.seed}
+          onBack={() => setScreen({ kind: 'start' })}
+          onDone={(d, name) => {
+            void commit({ ...createSeason(screen.seed, 0, new Date(), draftLeague(d, name)), mode: 'draft' })
+            setScreen({ kind: 'hub' })
+          }}
+        />
       )}
       {screen.kind === 'pick' && (
         <PickTeam
@@ -89,7 +109,7 @@ export default function App() {
           busy={busy}
           onWatch={() => watch(season)}
           onSimulate={() => void simulateMatchday(season)}
-          onNewSeason={newSeason}
+          onNewSeason={season.mode === 'draft' ? newDraft : newSeason}
           onLineup={(lineup) => void commit({ ...season, lineup })}
         />
       )}

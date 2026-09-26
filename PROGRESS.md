@@ -4,11 +4,18 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 ## Current milestone
 
-**3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries
-and team selection (session 9). Next: a 38-0-style draft mode (real Premier League players,
-2010–now; draft an XI + 5 subs; no transfers), then transfers for the club mode.
+**3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
+team selection and a 38-0-style draft mode (session 9). Next: transfers for the club mode.
 
-## Done (session 9): cross goals, defensive commentary, captions, squads, corners, offsides
+## Done (session 9): cross goals, defensive commentary, captions, squads, corners, offsides, draft
+
+- **Draft mode** (38-0 style): pick 4-3-3 or 4-4-2, then 16 rounds, each offering one Premier
+  League club-decade (e.g. Chelsea 2010s); put the pick in an open starting place (fit shown; a
+  keeper only in goal) or on the five-man bench. Then a 38-match season against 19 club-decades,
+  with the drafted players missing from their old sides. Team rating = starters' overalls, less
+  out of position. 20 pools, ~380 players; overalls are our own rough estimates, from memory, not
+  checked one by one. A sensibly drafted side (rating ~85) takes ~66–70 points: a contender,
+  not unbeaten.
 
 - **Cross-heavy goals** (owner's report, confirmed): 41% of goals came from crosses. Keepers were
   judged at the edge of their reach instead of on the ball's line past them, and contested headers
@@ -232,8 +239,8 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-1. **Draft mode** (38-0 style): Premier League players 2010–now, draft an XI + 5 subs, play a
-   season. No transfers or scouting in this mode.
+1. **Draft mode polish**: more club-decades (Wolves, Leeds, Burnley, Swansea, …); saving a draft
+   in progress; a season summary (the record, 38-0 or not) at the end.
 2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
    (milestone 5). End of season: player ageing, a new season with the same clubs.
 3. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;

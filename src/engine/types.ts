@@ -41,6 +41,8 @@ export interface PlayerDef {
   role: Role
   attrs: Attributes
   traits: Traits
+  /** A real player's overall (draft mode), shown instead of one worked out from his attributes. */
+  overall?: number
 }
 
 /** Shirt colours. `family` is used to spot clashes between two kits. */

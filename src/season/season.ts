@@ -80,6 +80,8 @@ export interface Season {
   stats: Record<string, SeasonStats>
   /** The manager's chosen eleven (ids, in formation slot order), or null to let the staff pick. */
   lineup: string[] | null
+  /** A drafted side against clubs of the past, rather than a club in a league of made-up ones. */
+  mode?: 'draft'
 }
 
 /**
@@ -105,10 +107,12 @@ export function roundRobin(n: number): [number, number][][] {
   return rounds
 }
 
-/** A new season: `LEAGUE_SIZE` teams, home and away against everyone, starting in August. */
-export function createSeason(seed: number, userTeam: number, today = new Date()): Season {
-  const teams = leagueTeams(seed, LEAGUE_SIZE)
-  const first = roundRobin(LEAGUE_SIZE)
+/**
+ * A new season, home and away against everyone, starting in August: `LEAGUE_SIZE` made-up clubs,
+ * or the given teams.
+ */
+export function createSeason(seed: number, userTeam: number, today = new Date(), teams = leagueTeams(seed, LEAGUE_SIZE)): Season {
+  const first = roundRobin(teams.length)
   // Second half of the season: the same rounds with home and away swapped.
   const rounds = [...first, ...first.map((r) => r.map(([h, a]) => [a, h] as [number, number]))]
   let id = 0
@@ -185,7 +189,7 @@ function firstSaturdayOfAugust(today: Date): string {
 }
 
 /** Home and away against everyone. */
-export const MATCHDAYS = (LEAGUE_SIZE - 1) * 2
+export const matchdays = (s: Season): number => (s.teams.length - 1) * 2
 
 /** The date of a matchday: weekly on Saturdays from the start. */
 export function matchdayDate(s: Season, matchday: number): Date {
@@ -200,7 +204,7 @@ export const fixturesOn = (s: Season, matchday: number): Fixture[] => s.fixtures
 export const userFixture = (s: Season, matchday: number): Fixture | undefined =>
   fixturesOn(s, matchday).find((f) => f.home === s.userTeam || f.away === s.userTeam)
 
-export const isOver = (s: Season): boolean => s.matchday > MATCHDAYS
+export const isOver = (s: Season): boolean => s.matchday > matchdays(s)
 
 /** What a finished match produced: the score, the scorers, and every player's part in it. */
 export function resultOf(m: MatchState): Result {
@@ -304,12 +308,12 @@ export function table(s: Season): TableRow[] {
   )
 }
 
-/** A player's overall, 1-100. */
-export const playerRating = (p: PlayerDef): number => Math.round(ability(p) * 5)
+/** A player's overall, 1-100: a real player's own, otherwise from his attributes. */
+export const playerRating = (p: PlayerDef): number => p.overall ?? Math.round(ability(p) * 5)
 
 /** A squad's overall strength, 1-100: its first eleven's average. */
 export function squadRating(t: TeamDef): number {
-  return Math.round((t.players.reduce((n, p) => n + ability(p), 0) / t.players.length) * 5)
+  return Math.round(t.players.reduce((n, p) => n + playerRating(p), 0) / t.players.length)
 }
 
 /** The league's leading scorers: player, club, goals (then fewer games first). */

@@ -89,7 +89,7 @@ const ROLE_FOCUS: Record<Role, (keyof Attributes)[]> = {
   ST: ['shooting', 'composure', 'pace'],
 }
 
-function makeAttributes(rng: Rng, role: Role, quality: number): Attributes {
+export function makeAttributes(rng: Rng, role: Role, quality: number): Attributes {
   const base = (): number => Math.round(Math.max(1, Math.min(20, quality - 3 + rng.gauss() * 2)))
   const attrs: Attributes = {
     pace: base(),
@@ -107,7 +107,7 @@ function makeAttributes(rng: Rng, role: Role, quality: number): Attributes {
 }
 
 /** Hidden traits, spread across the whole range but leaning the way players in a role tend to. */
-function makeTraits(rng: Rng, role: Role): Traits {
+export function makeTraits(rng: Rng, role: Role): Traits {
   const lean = (k: number): number => clamp(rng.next() * 0.8 + k * 0.2 + rng.gauss() * 0.05, 0, 1)
   const attacker = role === 'W' || role === 'WM' || role === 'ST'
   const defender = role === 'CB' || role === 'DM' || role === 'FB'

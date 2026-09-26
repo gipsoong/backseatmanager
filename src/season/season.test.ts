@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runMatch } from '../engine/index.ts'
-import { LEAGUE_SIZE, MATCHDAYS, type Result, autoPick, completeMatchday, createSeason, fitnessFor, fixturesOn, isOver, matchTeam, matchdayDate, resultOf, roundRobin, squadOf, table, userFixture } from './season.ts'
+import { LEAGUE_SIZE, type Result, autoPick, completeMatchday, createSeason, fitnessFor, matchdays, fixturesOn, isOver, matchTeam, matchdayDate, resultOf, roundRobin, squadOf, table, userFixture } from './season.ts'
 
 describe('fixtures', () => {
   it('pairs everyone once per round, and everyone with everyone over the rounds', () => {
@@ -18,10 +18,10 @@ describe('fixtures', () => {
 
   it('has every team at home and away against each other once, one game a matchday', () => {
     const s = createSeason(7, 0, new Date('2026-03-01'))
-    expect(s.fixtures).toHaveLength((LEAGUE_SIZE * MATCHDAYS) / 2)
+    expect(s.fixtures).toHaveLength((LEAGUE_SIZE * matchdays(s)) / 2)
     const pairs = new Set(s.fixtures.map((f) => `${f.home}>${f.away}`))
     expect(pairs.size).toBe(LEAGUE_SIZE * (LEAGUE_SIZE - 1))
-    for (let md = 1; md <= MATCHDAYS; md++) {
+    for (let md = 1; md <= matchdays(s); md++) {
       const teams = fixturesOn(s, md).flatMap((f) => [f.home, f.away])
       expect(new Set(teams).size).toBe(LEAGUE_SIZE)
     }

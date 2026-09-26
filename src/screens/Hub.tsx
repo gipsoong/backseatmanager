@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import type { Kit, TeamDef } from '../engine/index.ts'
 import { ordinal } from './format.ts'
-import { MATCHDAYS, type Season, fixturesOn, isOver, matchdayDate, squadOf, table, topScorers, userFixture } from '../season/season.ts'
+import { type Season, fixturesOn, isOver, matchdayDate, matchdays, squadOf, table, topScorers, userFixture } from '../season/season.ts'
 import { Squad } from './Squad.tsx'
 import { surname } from '../viewer/commentary.ts'
 
@@ -28,7 +28,7 @@ export function Hub({
   onLineup: (ids: string[] | null) => void
 }) {
   const [tab, setTab] = useState<'table' | 'fixtures' | 'squad' | 'scorers'>('table')
-  const [shown, setShown] = useState(Math.min(season.matchday, MATCHDAYS))
+  const [shown, setShown] = useState(Math.min(season.matchday, matchdays(season)))
   const me = season.teams[season.userTeam]
   const rows = table(season)
   const over = isOver(season)
@@ -40,12 +40,12 @@ export function Hub({
     <div className="hub">
       <header className="top">
         <div className="fixture">
-          <p className="eyebrow">Matchday · Season {season.startDate.slice(0, 4)}</p>
+          <p className="eyebrow">{season.mode === 'draft' ? 'Draft · Premier League 2010–now' : `Matchday · Season ${season.startDate.slice(0, 4)}`}</p>
           <h1>
             <Swatch kit={me.kit} /> {me.name}
           </h1>
           <p className="meta">
-            {ordinal(place)} of {season.teams.length} · {over ? 'Season over' : `Matchday ${season.matchday} of ${MATCHDAYS}`}
+            {ordinal(place)} of {season.teams.length} · {over ? 'Season over' : `Matchday ${season.matchday} of ${matchdays(season)}`}
           </p>
         </div>
       </header>
@@ -174,7 +174,7 @@ export function Hub({
                 <span>
                   Matchday {shown} · {dateFmt.format(matchdayDate(season, shown))}
                 </span>
-                <button type="button" className="btn ghost" onClick={() => setShown((m) => Math.min(MATCHDAYS, m + 1))} disabled={shown >= MATCHDAYS} aria-label="Next matchday">
+                <button type="button" className="btn ghost" onClick={() => setShown((m) => Math.min(matchdays(season), m + 1))} disabled={shown >= matchdays(season)} aria-label="Next matchday">
                   ›
                 </button>
               </div>

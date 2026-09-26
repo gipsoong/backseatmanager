@@ -161,8 +161,15 @@ pulling the repo.
   seed, double round-robin fixtures with a match seed each, weekly dates, results, table),
   `simulate.ts` + `simWorker.ts` (fixtures the manager doesn't watch, played by the full engine
   in Web Workers), `store.ts` (the save, in IndexedDB via `idb`).
-- `src/screens/` — Start, PickTeam, Hub (next fixture, table, fixtures, squad, scorers), Squad
-  (fitness, injuries, season stats, picking the eleven), Match.
+- `src/draft/` — draft mode (session 9), after 38-0: `pools.ts` holds Premier League clubs by
+  decade (2010s, 2020s) with their notable players, a position and an overall each (our own
+  estimates; a player is in one pool only). `draft.ts` runs the 16 rounds (11 starters + 5 subs,
+  one club-decade offered per round), turns pool players into engine players (attributes seeded
+  from the name, scaled to the overall; `PlayerDef.overall` is shown instead of a computed
+  rating) and builds the 20-team league of the drafted side and 19 club-decades (38 matchdays).
+  No transfers in this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
+- `src/screens/` — Start, PickTeam, Draft, Hub (next fixture, table, fixtures, squad, scorers),
+  Squad (fitness, injuries, season stats, picking the eleven), Match.
 - Squads (session 9): each club has an eleven and a bench of seven (`TeamDef.bench`). In a match,
   players tire (`energy`, by stamina and effort, slowing them), managers make up to five
   substitutions in three stoppages, and players get injured (fouls, or strain when exhausted).
