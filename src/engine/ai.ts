@@ -336,7 +336,10 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
 
   // Under pressure deep in our own half with nothing on (or a keeper with it in his hands): get rid of it.
   const keeper = p.slot.role === 'GK'
-  if (best.kind !== 'pass' && a.x < 30 && (keeper || nearestDist(opps, p.pos) < 3)) {
+  // A pass that's more likely to be lost than kept (utility below zero) is no better than no pass:
+  // near our own goal, go long instead of playing it through the man waiting for it.
+  const nothingOn = best.kind !== 'pass' || bestU < 0
+  if (nothingOn && a.x < 30 && (keeper || nearestDist(opps, p.pos) < 3)) {
     // Long, and away from whoever is closing him down: of a spread of directions (upfield first,
     // then towards the touchlines), take the one whose first few metres are clearest.
     const len = rng.range(35, 55)
