@@ -4,7 +4,7 @@ import { Hub } from './screens/Hub.tsx'
 import { Match } from './screens/Match.tsx'
 import { PickTeam } from './screens/PickTeam.tsx'
 import { Start } from './screens/Start.tsx'
-import { type Result, type Season, completeMatchday, createSeason, fixturesOn, resultOf, userFixture } from './season/season.ts'
+import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, matchTeam, resultOf, userFixture } from './season/season.ts'
 import { simulate } from './season/simulate.ts'
 import { loadSeason, saveSeason } from './season/store.ts'
 import { MatchViewer } from './viewer/MatchViewer.tsx'
@@ -44,7 +44,7 @@ export default function App() {
   const watch = (s: Season): void => {
     const f = userFixture(s, s.matchday)!
     others.current = simulate(s, fixturesOn(s, s.matchday).filter((g) => g.id !== f.id))
-    setScreen({ kind: 'match', timeline: new Timeline(s.teams[f.home], s.teams[f.away], f.seed) })
+    setScreen({ kind: 'match', timeline: new Timeline(matchTeam(s, f.home), matchTeam(s, f.away), f.seed, fitnessFor(s)) })
   }
 
   const finishWatched = async (s: Season, timeline: Timeline): Promise<void> => {
@@ -84,7 +84,14 @@ export default function App() {
         />
       )}
       {screen.kind === 'hub' && season && (
-        <Hub season={season} busy={busy} onWatch={() => watch(season)} onSimulate={() => void simulateMatchday(season)} onNewSeason={newSeason} />
+        <Hub
+          season={season}
+          busy={busy}
+          onWatch={() => watch(season)}
+          onSimulate={() => void simulateMatchday(season)}
+          onNewSeason={newSeason}
+          onLineup={(lineup) => void commit({ ...season, lineup })}
+        />
       )}
       {screen.kind === 'match' && season && (
         <Match season={season} timeline={screen.timeline} busy={busy} onDone={() => void finishWatched(season, screen.timeline)} />

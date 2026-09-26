@@ -20,6 +20,12 @@ export interface PlayerLine {
   fouls: number
   yellow: boolean
   red: boolean
+  /** Clock when he came on (substitutes), when he went off (substituted, sent off); null if not. */
+  on: string | null
+  off: string | null
+  /** Played any part so far: started, or came on. */
+  played: boolean
+  injured: boolean
   rating: number
 }
 
@@ -39,11 +45,17 @@ const blank = (): PlayerLine => ({
   fouls: 0,
   yellow: false,
   red: false,
+  on: null,
+  off: null,
+  played: false,
+  injured: false,
   rating: 6,
 })
 
 export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine[] {
   const lines = match.players.map(blank)
+  const starters = new Set(match.teams.flatMap((t, team) => t.players.map((d) => match.players.findIndex((p) => p.team === team && p.def === d))))
+  for (const i of starters) lines[i].played = true
   const teamOf = (idx: number): 0 | 1 => match.players[idx].team
   const conceded: [number, number] = [0, 0]
   // The last pass still waiting to be received, and who last received one (for key passes).
@@ -94,7 +106,18 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
         break
       case 'card':
         if (e.color === 'yellow') lines[e.idx].yellow = true
-        else lines[e.idx].red = true
+        else {
+          lines[e.idx].red = true
+          lines[e.idx].off = e.clock
+        }
+        break
+      case 'sub':
+        lines[e.onIdx].on = e.clock
+        lines[e.onIdx].played = true
+        lines[e.offIdx].off = e.clock
+        break
+      case 'injury':
+        lines[e.idx].injured = true
         break
       case 'out':
       case 'offside':
@@ -105,6 +128,7 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
   }
   lines.forEach((l, i) => {
     const p = match.players[i]
+    if (!l.played) return
     const role = p.slot.role
     const defensive = role === 'GK' || role === 'CB' || role === 'FB' || role === 'DM'
     const accuracy = l.passes >= 5 ? l.passesCompleted / l.passes - 0.8 : 0

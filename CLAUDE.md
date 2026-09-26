@@ -160,7 +160,13 @@ pulling the repo.
   seed, double round-robin fixtures with a match seed each, weekly dates, results, table),
   `simulate.ts` + `simWorker.ts` (fixtures the manager doesn't watch, played by the full engine
   in Web Workers), `store.ts` (the save, in IndexedDB via `idb`).
-- `src/screens/` — Start, PickTeam, Hub (next fixture, table, fixtures by matchday), Match.
+- `src/screens/` — Start, PickTeam, Hub (next fixture, table, fixtures, squad, scorers), Squad
+  (fitness, injuries, season stats, picking the eleven), Match.
+- Squads (session 9): each club has an eleven and a bench of seven (`TeamDef.bench`). In a match,
+  players tire (`energy`, by stamina and effort, slowing them), managers make up to five
+  substitutions in three stoppages, and players get injured (fouls, or strain when exhausted).
+  Between matchdays the season carries fitness (partial recovery) and injuries; the staff pick
+  (`autoPick`) weighs fitness, so starters get rested. Harness: `sub-*` and `injury` invariants.
 - `src/App.tsx` — which screen is showing, and the season state: watching a match plays the rest
   of the matchday in the background; "Continue to results" records the matchday and saves.
   A match plays the same whether watched or simulated (same seed), so results never disagree.

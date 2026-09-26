@@ -181,6 +181,19 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
           add(e, text, 'info', teamOf(e.onIdx))
         }
         break
+      case 'injury':
+        add(e, vary(e.tick, [`${name(e.idx)} is down and needs treatment.`, `${name(e.idx)} is struggling; that looks like an injury.`]), 'info', teamOf(e.idx))
+        break
+      case 'sub':
+        add(
+          e,
+          e.reason === 'injury'
+            ? `${teamName(e.team)} change: ${name(e.onIdx)} replaces the injured ${name(e.offIdx)}.`
+            : `${teamName(e.team)} change: ${name(e.onIdx)} on for ${name(e.offIdx)}.`,
+          'info',
+          e.team,
+        )
+        break
       case 'card':
         add(e, e.color === 'yellow' ? `Yellow card for ${name(e.idx)}.` : `Red card. ${name(e.idx)} is sent off.`, 'card', teamOf(e.idx))
         break

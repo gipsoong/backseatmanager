@@ -11,7 +11,8 @@ const db = () =>
 
 export async function loadSeason(): Promise<Season | null> {
   const s = (await (await db()).get('saves', 'season')) as Season | undefined
-  return s?.version === 1 ? s : null
+  // An older save (from before squads and fitness) can't be carried on.
+  return s?.version === 2 ? s : null
 }
 
 export async function saveSeason(s: Season): Promise<void> {

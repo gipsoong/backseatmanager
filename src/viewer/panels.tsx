@@ -183,36 +183,46 @@ export function Players({
   }
   return (
     <div className="lineups">
-      {([0, 1] as const).map((team) => (
-        <section key={team}>
-          <h3>{match.teams[team].name}</h3>
-          <ol>
-            {match.players.map((p, i) =>
-              p.team !== team ? null : (
-                <li key={i}>
-                  <button type="button" className={`player-row${p.onPitch ? '' : ' off'}`} onClick={() => setPicked(i)}>
-                    <span className="shirt" style={{ background: kitOf(i).shirt, color: kitOf(i).number }}>
-                      {p.def.shirt}
-                    </span>
-                    <span className="who">
-                      <span className="name">
-                        {p.def.name}
-                        {Array.from({ length: Math.min(lines[i].goals, 3) }, (_, g) => (
-                          <span key={g} className="goal-dot" title="Goal" />
-                        ))}
-                        {lines[i].red ? <span className="booking red" /> : lines[i].yellow ? <span className="booking yellow" /> : null}
-                      </span>
-                      <span className="line">{summary(lines[i], p.slot.role === 'GK') || p.slot.role}</span>
-                    </span>
-                    <span className="pos">{p.slot.role}</span>
-                    <span className="rating">{lines[i].rating.toFixed(1)}</span>
-                  </button>
-                </li>
-              ),
-            )}
-          </ol>
-        </section>
-      ))}
+      {([0, 1] as const).map((team) => {
+        const bench = new Set(match.teams[team].bench)
+        const row = (i: number) => {
+          const p = match.players[i]
+          const l = lines[i]
+          const status = l.off ? `off ${l.off}` : l.on ? `on ${l.on}` : ''
+          const line = [status, summary(l, p.slot.role === 'GK')].filter(Boolean).join(' · ')
+          return (
+            <li key={i}>
+              <button type="button" className={`player-row${l.off ? ' off' : ''}${l.played ? '' : ' unused'}`} onClick={() => setPicked(i)}>
+                <span className="shirt" style={{ background: kitOf(i).shirt, color: kitOf(i).number }}>
+                  {p.def.shirt}
+                </span>
+                <span className="who">
+                  <span className="name">
+                    {p.def.name}
+                    {Array.from({ length: Math.min(l.goals, 3) }, (_, g) => (
+                      <span key={g} className="goal-dot" title="Goal" />
+                    ))}
+                    {l.red ? <span className="booking red" /> : l.yellow ? <span className="booking yellow" /> : null}
+                    {l.injured && <span className="injury" title="Injured" />}
+                  </span>
+                  <span className="line">{l.played ? line || p.slot.role : 'Unused substitute'}</span>
+                </span>
+                <span className="pos">{p.def.role}</span>
+                <span className="rating">{l.played ? l.rating.toFixed(1) : '–'}</span>
+              </button>
+            </li>
+          )
+        }
+        const idxs = match.players.map((p, i) => (p.team === team ? i : -1)).filter((i) => i >= 0)
+        return (
+          <section key={team}>
+            <h3>{match.teams[team].name}</h3>
+            <ol>{idxs.filter((i) => !bench.has(match.players[i].def)).map(row)}</ol>
+            <h4>Substitutes</h4>
+            <ol>{idxs.filter((i) => bench.has(match.players[i].def)).map(row)}</ol>
+          </section>
+        )
+      })}
     </div>
   )
 }

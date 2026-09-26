@@ -31,8 +31,8 @@ export class Timeline {
   private clock: Float64Array
   private stats: [TeamStats, TeamStats][] = []
 
-  constructor(home: TeamDef, away: TeamDef, seed: number) {
-    this.state = createMatch(home, away, { seed })
+  constructor(home: TeamDef, away: TeamDef, seed: number, fitness?: Record<string, number>) {
+    this.state = createMatch(home, away, { seed, fitness })
     this.stride = PLAYERS_AT + this.state.players.length * 2
     this.frames = new Float32Array(this.stride * 70_000)
     this.clock = new Float64Array(70_000)
@@ -77,7 +77,7 @@ export class Timeline {
     }
     // The half-time whistle's tick belongs to the first half: the engine has already reset the
     // clock for the second by the time it's recorded.
-    this.clock[s.tick] = s.tick === this.halfTimeTick ? this.clock[s.tick - 1] + 1 : halfElapsed(s)
+    this.clock[s.tick] = s.tick === this.halfTimeTick ? (s.firstHalfElapsed ?? 0) : halfElapsed(s)
     const o = s.tick * this.stride
     const f = this.frames
     f[o] = s.ball.pos.x

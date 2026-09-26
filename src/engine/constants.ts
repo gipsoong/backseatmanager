@@ -63,3 +63,13 @@ export const CELEBRATION_TICKS = 70
 export const AERIAL_FOUL_CHANCE = 0.1
 /** A save above this height (m) is tipped over the bar rather than palmed wide. */
 export const TIP_OVER_HEIGHT = 1.8
+/** Energy used per tick just being on the pitch, and on top of that at full sprint (× 1 at stamina 10). */
+export const ENERGY_PER_TICK = 6e-6
+export const EFFORT_ENERGY_PER_TICK = 2.8e-5
+/** Below this much energy a player is taken off at the hour mark (rising towards the end). */
+export const SUB_ENERGY = 0.56
+export const MAX_SUBS = 5
+/** Chance a foul injures the player fouled (fresh; more when tired). */
+export const INJURY_FROM_FOUL = 0.012
+/** Per-tick chance scale of a muscle strain when running on empty. */
+export const STRAIN_PER_TICK = 2e-6

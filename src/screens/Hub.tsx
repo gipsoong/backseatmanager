@@ -2,7 +2,8 @@
 import { useState } from 'react'
 import type { Kit, TeamDef } from '../engine/index.ts'
 import { ordinal } from './format.ts'
-import { MATCHDAYS, type Season, fixturesOn, isOver, matchdayDate, table, userFixture } from '../season/season.ts'
+import { MATCHDAYS, type Season, fixturesOn, isOver, matchdayDate, squadOf, table, topScorers, userFixture } from '../season/season.ts'
+import { Squad } from './Squad.tsx'
 import { surname } from '../viewer/commentary.ts'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -17,14 +18,16 @@ export function Hub({
   onWatch,
   onSimulate,
   onNewSeason,
+  onLineup,
 }: {
   season: Season
   busy: boolean
   onWatch: () => void
   onSimulate: () => void
   onNewSeason: () => void
+  onLineup: (ids: string[] | null) => void
 }) {
-  const [tab, setTab] = useState<'table' | 'fixtures'>('table')
+  const [tab, setTab] = useState<'table' | 'fixtures' | 'squad' | 'scorers'>('table')
   const [shown, setShown] = useState(Math.min(season.matchday, MATCHDAYS))
   const me = season.teams[season.userTeam]
   const rows = table(season)
@@ -85,6 +88,7 @@ export function Hub({
           {last?.result && (
             <p className="last">
               Last time: {season.teams[last.home].shortName} {last.result.score[0]}–{last.result.score[1]} {season.teams[last.away].shortName}
+              {potm(season, last.result) && <> · Player of the match: {potm(season, last.result)}</>}
             </p>
           )}
         </section>
@@ -97,8 +101,29 @@ export function Hub({
             <button type="button" role="tab" aria-selected={tab === 'fixtures'} onClick={() => setTab('fixtures')}>
               Fixtures
             </button>
+            <button type="button" role="tab" aria-selected={tab === 'squad'} onClick={() => setTab('squad')}>
+              Squad
+            </button>
+            <button type="button" role="tab" aria-selected={tab === 'scorers'} onClick={() => setTab('scorers')}>
+              Scorers
+            </button>
           </div>
-          {tab === 'table' ? (
+          {tab === 'squad' && <Squad season={season} onLineup={onLineup} />}
+          {tab === 'scorers' && (
+            <ol className="scorers-list">
+              {topScorers(season, 10).map((r) => (
+                <li key={r.player.id} className={r.club === season.userTeam ? 'mine' : undefined}>
+                  <span className="name">
+                    <Swatch kit={season.teams[r.club].kit} /> {r.player.name}
+                  </span>
+                  <span className="muted">{season.teams[r.club].name}</span>
+                  <span className="goals">{r.goals}</span>
+                </li>
+              ))}
+              {topScorers(season).length === 0 && <li className="muted">No goals yet.</li>}
+            </ol>
+          )}
+          {tab === 'table' && (
             <table className="league">
               <thead>
                 <tr>
@@ -139,7 +164,8 @@ export function Hub({
                 })}
               </tbody>
             </table>
-          ) : (
+          )}
+          {tab === 'fixtures' && (
             <div className="fixtures">
               <div className="md-nav">
                 <button type="button" className="btn ghost" onClick={() => setShown((m) => Math.max(1, m - 1))} disabled={shown <= 1} aria-label="Previous matchday">
@@ -180,4 +206,12 @@ function TeamName({ team }: { team: TeamDef }) {
       <Swatch kit={team.kit} /> {team.name}
     </span>
   )
+}
+
+/** The best-rated player in a result, by name (his rating). */
+function potm(season: Season, r: NonNullable<ReturnType<typeof fixturesOn>[number]['result']>): string | null {
+  const best = [...r.appearances].sort((a, b) => b.rating - a.rating)[0]
+  if (!best) return null
+  const p = season.teams.flatMap(squadOf).find((q) => q.id === best.id)
+  return p ? `${p.name} (${best.rating.toFixed(1)})` : null
 }

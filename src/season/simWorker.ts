@@ -10,9 +10,10 @@ export interface SimRequest {
   home: TeamDef
   away: TeamDef
   seed: number
+  fitness: Record<string, number>
 }
 
 self.onmessage = (e: MessageEvent<SimRequest>) => {
-  const { id, home, away, seed } = e.data
-  self.postMessage({ id, result: resultOf(runMatch(home, away, { seed })) })
+  const { id, home, away, seed, fitness } = e.data
+  self.postMessage({ id, result: resultOf(runMatch(home, away, { seed, fitness })) })
 }

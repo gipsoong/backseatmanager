@@ -14,6 +14,7 @@ import {
   BOX_HALF_WIDTH,
   CENTER,
   GOAL_HALF_WIDTH,
+  HALFWAY_X,
   PITCH_LENGTH,
   PITCH_WIDTH,
   POST_RADIUS,
@@ -36,6 +37,12 @@ import {
 } from './geometry.ts'
 import {
   AERIAL_FOUL_CHANCE,
+  EFFORT_ENERGY_PER_TICK,
+  ENERGY_PER_TICK,
+  INJURY_FROM_FOUL,
+  MAX_SUBS,
+  STRAIN_PER_TICK,
+  SUB_ENERGY,
   TIP_OVER_HEIGHT,
   AERIAL_HEIGHT,
   HEADER_RECOVERY_TICKS,
@@ -91,8 +98,10 @@ import {
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
-import { FORMATIONS } from './teams.ts'
+import { FORMATIONS, ability, fitFor } from './teams.ts'
 import type {
+  PlayerDef,
+  Slot,
   Frame,
   Kick,
   MatchConfig,
@@ -125,31 +134,42 @@ const emptyStats = (): TeamStats => ({
   offsides: 0,
   yellowCards: 0,
   redCards: 0,
+  subs: 0,
 })
 
 export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): MatchState {
   const rng = new Rng(config.seed)
   const teams: [TeamDef, TeamDef] = [home, away]
   const players: PlayerState[] = []
+  const player = (team: Side, def: PlayerDef, slot: Slot, onPitch: boolean): PlayerState => {
+    const baseSpeed = 5.8 + (def.attrs.pace / 20) * 2.8
+    const energy = config.fitness?.[def.id] ?? 1
+    return {
+      idx: players.length,
+      team,
+      def,
+      slot,
+      pos: onPitch ? vec(0, 0) : vec(HALFWAY_X, -2),
+      vel: vec(0, 0),
+      baseSpeed,
+      maxSpeed: speedFor(baseSpeed, energy),
+      energy,
+      injured: false,
+      onPitch,
+      yellowCards: 0,
+      tackleReadyAt: 0,
+      touchReadyAt: 0,
+      runUntil: 0,
+      runTo: null,
+    }
+  }
   for (const team of [0, 1] as const) {
     const slots = FORMATIONS[teams[team].formation]
-    teams[team].players.forEach((def, i) => {
-      players.push({
-        idx: players.length,
-        team,
-        def,
-        slot: slots[i],
-        pos: vec(0, 0),
-        vel: vec(0, 0),
-        maxSpeed: 5.8 + (def.attrs.pace / 20) * 2.8,
-        onPitch: true,
-        yellowCards: 0,
-        tackleReadyAt: 0,
-        touchReadyAt: 0,
-        runUntil: 0,
-        runTo: null,
-      })
-    })
+    teams[team].players.forEach((def, i) => players.push(player(team, def, slots[i], true)))
+  }
+  // Substitutes after both starting elevens, off the pitch until they come on (into a starter's slot).
+  for (const team of [0, 1] as const) {
+    for (const def of teams[team].bench) players.push(player(team, def, { role: def.role, depth: 0, y: CENTER.y, attackDepth: 0 }, false))
   }
   const halfTicks = Math.round((config.halfLengthMinutes ?? 45) * TICKS_PER_MINUTE)
   const s: MatchState = {
@@ -160,6 +180,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
     half: 1,
     addedTicks: rng.int(0, 3) * TICKS_PER_MINUTE + rng.int(0, 59) * 10,
     deadTicks: 0,
+    firstHalfElapsed: null,
     halfTicks,
     players,
     ball: emptyBall(),
@@ -168,6 +189,9 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
     stats: [emptyStats(), emptyStats()],
     events: [],
     decisionAt: 0,
+    subbedOn: [[], []],
+    subWindows: [0, 0],
+    subbedOff: [[], []],
     possessedSince: 0,
     dribbleTarget: null,
   }
@@ -251,7 +275,8 @@ export function step(s: MatchState): MatchEvent[] {
   // 4. challenges
   if (s.phase.kind === 'play' && s.ball.ownerIdx !== null) challenges(s, out)
 
-  // 5. clock
+  // 5. clock, and legs
+  if (s.phase.kind === 'play') tire(s, out)
   if (s.phase.kind === 'play') {
     const t = s.ball.lastTouchIdx
     if (t !== null) s.stats[s.players[t].team].possessionTicks++
@@ -952,6 +977,8 @@ function commitFoul(s: MatchState, o: PlayerState, c: PlayerState, style: Tackle
   const award = inPenaltyArea(pos, ownGoalX(o.team, s.half)) ? 'penalty' : 'freeKick'
   s.stats[o.team].fouls++
   emit(s, out, { type: 'foul', byIdx: o.idx, onIdx: c.idx, pos, award, style, ...(aerial ? { aerial } : {}) })
+  // Now and then he doesn't get up: more often from a slide, and when he's tired.
+  if (!c.injured && s.rng.chance(INJURY_FROM_FOUL * (style === 'slide' ? 1.5 : 1) * (1.6 - c.energy))) injure(s, c, out)
   const cardRoll = s.rng.next()
   if (cardRoll < 0.001) sendOff(s, o, out)
   // Referees think twice before a second yellow.
@@ -963,6 +990,75 @@ function commitFoul(s: MatchState, o: PlayerState, c: PlayerState, style: Tackle
   }
   const spot = award === 'penalty' ? penaltySpot(ownGoalX(o.team, s.half)) : pos
   setRestart(s, award, c.team, spot)
+}
+
+/** Top speed for a player with `energy` left: a tired player loses up to a fifth of his pace. */
+const speedFor = (base: number, energy: number): number => base * (0.8 + 0.2 * energy)
+
+/**
+ * Every player on the pitch uses energy: a little just being out there, more the harder he runs,
+ * and faster if his stamina is low. Running on empty risks a muscle injury.
+ */
+function tire(s: MatchState, out: MatchEvent[]): void {
+  for (const p of s.players) {
+    if (!p.onPitch) continue
+    const effort = (len(p.vel) / p.baseSpeed) ** 2
+    const lasts = 1.4 - (p.def.attrs.stamina / 20) * 0.8
+    p.energy = Math.max(0, p.energy - (ENERGY_PER_TICK + EFFORT_ENERGY_PER_TICK * effort) * lasts)
+    p.maxSpeed = speedFor(p.baseSpeed, p.energy) * (p.injured ? 0.6 : 1)
+    if (!p.injured && p.energy < 0.4 && s.rng.chance(STRAIN_PER_TICK * (0.4 - p.energy) * 10)) injure(s, p, out)
+  }
+}
+
+function injure(s: MatchState, p: PlayerState, out: MatchEvent[]): void {
+  p.injured = true
+  p.maxSpeed = speedFor(p.baseSpeed, p.energy) * 0.6
+  emit(s, out, { type: 'injury', idx: p.idx, weeks: s.rng.int(1, 4) })
+}
+
+/** Players who could come on, for a team: on the bench and never yet on the pitch. */
+function unusedSubs(s: MatchState, team: Side): PlayerState[] {
+  const used = s.subbedOn[team]
+  return s.players.filter((p) => p.team === team && !p.onPitch && !used.includes(p.idx) && !s.subbedOff[team].includes(p.idx) && !p.yellowCards && isBench(s, p))
+}
+
+const isBench = (s: MatchState, p: PlayerState): boolean => s.teams[p.team].bench.includes(p.def)
+
+/**
+ * The manager's changes at a stoppage: an injured player off straight away; from the hour mark,
+ * the most tired (up to two at once), wanting fresher legs as the game goes on. Five substitutions
+ * each; the man taking the restart stays on.
+ */
+function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
+  const minute = (s.half - 1) * 45 + halfElapsed(s) / TICKS_PER_MINUTE
+  for (const team of [0, 1] as const) {
+    let made = 0
+    // As the laws have it: five substitutions, in no more than three stoppages.
+    if (s.subWindows[team] >= 3) continue
+    while (s.stats[team].subs < MAX_SUBS && made < (minute < 70 ? 1 : 2)) {
+      const onField = s.players.filter((p) => p.onPitch && p.team === team && p.idx !== r.takerIdx)
+      const hurt = onField.find((p) => p.injured)
+      // The longer the game goes, the fresher legs the manager wants.
+      const threshold = minute < 58 ? 0 : SUB_ENERGY + (Math.min(minute, 88) - 58) * 0.005
+      const tired = onField.filter((p) => p.slot.role !== 'GK' && p.energy < threshold).sort((a, b) => a.energy - b.energy)[0]
+      const off = hurt ?? tired
+      if (!off) break
+      const bench = unusedSubs(s, team)
+      const on = bench.sort((a, b) => fitFor(b.def, off.slot.role) * ability(b.def) - fitFor(a.def, off.slot.role) * ability(a.def))[0]
+      if (!on || fitFor(on.def, off.slot.role) === 0) break
+      on.onPitch = true
+      on.slot = off.slot
+      on.pos = { ...off.pos }
+      on.vel = vec(0, 0)
+      off.onPitch = false
+      off.vel = vec(0, 0)
+      s.stats[team].subs++
+      s.subbedOn[team].push(on.idx)
+      s.subbedOff[team].push(off.idx)
+      if (made++ === 0) s.subWindows[team]++
+      emit(s, out, { type: 'sub', team, offIdx: off.idx, onIdx: on.idx, reason: off.injured ? 'injury' : 'tired' })
+    }
+  }
 }
 
 function sendOff(s: MatchState, p: PlayerState, out: MatchEvent[]): void {
@@ -997,6 +1093,10 @@ function setRestart(s: MatchState, type: RestartType, team: Side, spot: Vec): vo
 function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {
   if (s.phase.kind !== 'restart') return
   const r = s.phase.restart
+  if (!r.subsDone) {
+    r.subsDone = true
+    substitutions(s, r, out)
+  }
   const taker = s.players[r.takerIdx]
   const minWait = r.type === 'kickoff' || r.type === 'penalty' ? 20 : 8
   if (s.tick - r.since < minWait) return
@@ -1086,6 +1186,7 @@ function checkPeriodEnd(s: MatchState, out: MatchEvent[]): void {
     return
   }
   emit(s, out, { type: 'halfTime' })
+  s.firstHalfElapsed = halfElapsed(s)
   s.half = 2
   s.halfStartTick = s.tick
   s.deadTicks = 0

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runMatch } from '../engine/index.ts'
-import { LEAGUE_SIZE, MATCHDAYS, type Result, completeMatchday, createSeason, fixturesOn, isOver, matchdayDate, resultOf, roundRobin, table, userFixture } from './season.ts'
+import { LEAGUE_SIZE, MATCHDAYS, type Result, autoPick, completeMatchday, createSeason, fitnessFor, fixturesOn, isOver, matchTeam, matchdayDate, resultOf, roundRobin, squadOf, table, userFixture } from './season.ts'
 
 describe('fixtures', () => {
   it('pairs everyone once per round, and everyone with everyone over the rounds', () => {
@@ -49,7 +49,7 @@ describe('fixtures', () => {
 })
 
 describe('results and the table', () => {
-  const win = (h: number, a: number): Result => ({ score: [h, a], goals: [], xg: [0, 0] })
+  const win = (h: number, a: number): Result => ({ score: [h, a], goals: [], xg: [0, 0], appearances: [], injuries: [] })
 
   it('records a matchday and moves on; refuses a matchday with a result missing', () => {
     const s = createSeason(3, 0, new Date('2026-03-01'))
@@ -84,5 +84,39 @@ describe('results and the table', () => {
     expect(b).toEqual(a)
     expect(a.goals.filter((g) => g.team === 0)).toHaveLength(a.score[0])
     expect(isOver(s)).toBe(false)
+  })
+})
+
+describe('squads, fitness and injuries', () => {
+  it('picks a full eleven of available players, with a bench from the rest', () => {
+    const s = createSeason(9, 0, new Date('2026-03-01'))
+    const xi = autoPick(s, 0)
+    expect(new Set(xi).size).toBe(11)
+    const t = matchTeam(s, 0)
+    expect(t.players).toHaveLength(11)
+    expect(t.bench.length).toBeGreaterThan(0)
+    expect(t.bench.some((p) => t.players.includes(p))).toBe(false)
+  })
+
+  it('carries tiredness and injuries into the next matchdays', () => {
+    let s = createSeason(9, 0, new Date('2026-03-01'))
+    const today = fixturesOn(s, 1)
+    const results = new Map(
+      today.map((f) => {
+        const m = runMatch(matchTeam(s, f.home), matchTeam(s, f.away), { seed: f.seed, fitness: fitnessFor(s) })
+        return [f.id, resultOf(m)] as const
+      }),
+    )
+    const r = results.get(today[0].id)!
+    expect(r.appearances.length).toBeGreaterThanOrEqual(22)
+    s = completeMatchday(s, results)
+    const played = r.appearances.find((a) => a.minutes >= 89)!
+    expect(s.condition[played.id].fitness).toBeLessThan(1)
+    expect(s.stats[played.id].apps).toBe(1)
+    const rested = squadOf(s.teams[today[0].home]).find((p) => !r.appearances.some((a) => a.id === p.id))
+    if (rested) expect(s.condition[rested.id].fitness).toBe(1)
+    // Someone injured sits out at least the next matchday.
+    const hurt = [...results.values()].flatMap((x) => x.injuries)[0]
+    if (hurt) expect(autoPick(s, s.teams.findIndex((t) => squadOf(t).some((p) => p.id === hurt.id)))).not.toContain(hurt.id)
   })
 })

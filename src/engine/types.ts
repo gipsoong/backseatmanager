@@ -16,6 +16,8 @@ export interface Attributes {
   positioning: number
   composure: number
   keeping: number
+  /** How long he lasts: the lower it is, the sooner he tires over a match. */
+  stamina: number
 }
 
 /** Hidden traits, 0–1. Drive how a player goes about things rather than how good he is. */
@@ -56,6 +58,8 @@ export interface TeamDef {
   block: Block
   /** Exactly 11, in the formation's slot order (GK first). */
   players: PlayerDef[]
+  /** Substitutes (up to 7), in no particular order. */
+  bench: PlayerDef[]
 }
 
 /** A formation slot in the attacking frame at "neutral" shape. */
@@ -87,6 +91,12 @@ export interface PlayerState {
   runUntil: number
   /** Where a run is going, if it's to a fixed spot (a one-two); null means in behind the line. */
   runTo: Vec | null
+  /** Top speed when fresh; `maxSpeed` falls below it as he tires. */
+  baseSpeed: number
+  /** How much he has left, 0-1: drains as he runs, faster for low stamina. */
+  energy: number
+  /** Hurt: comes off at the next stoppage if there's a substitution left. */
+  injured: boolean
 }
 
 export type KickKind = 'pass' | 'shot' | 'clearance'
@@ -141,6 +151,8 @@ export interface Restart {
   since: number
   /** After a goal: the scorer heads for `spot` and his teammates join him before kick-off. */
   celebration?: { scorerIdx: number; style: Celebration; spot: Vec }
+  /** Substitutions for this stoppage have been considered. */
+  subsDone?: boolean
 }
 
 /** Slide if the tackler went in from beyond standing reach of the ball carrier. */
@@ -163,6 +175,7 @@ export interface TeamStats {
   offsides: number
   yellowCards: number
   redCards: number
+  subs: number
 }
 
 interface EventBase {
@@ -222,6 +235,10 @@ export type MatchEvent = EventBase &
     /** `aerial`: a push or pull as they both go for a ball in the air, not a challenge on a carrier. */
     | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle; aerial?: boolean }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
+    /** A substitution at a stoppage: `on` takes `off`'s place (and his spot on the pitch). */
+    | { type: 'sub'; team: Side; offIdx: number; onIdx: number; reason: 'tired' | 'injury' }
+    /** Hurt, and out for `weeks` matchdays after this one. */
+    | { type: 'injury'; idx: number; weeks: number }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }
     | { type: 'woodwork'; byIdx: number | null; pos: Vec; height: number }
     | { type: 'out'; award: 'throwIn' | 'corner' | 'goalKick'; team: Side; pos: Vec; height: number }
@@ -243,6 +260,8 @@ export interface MatchConfig {
   seed: number
   /** Minutes per half of simulated time. Tests may shorten this. */
   halfLengthMinutes?: number
+  /** Match fitness (0-1) by player id, from the season: how fresh he starts. Default 1. */
+  fitness?: Record<string, number>
 }
 
 export interface MatchState {
@@ -259,12 +278,19 @@ export interface MatchState {
    * fetched for a throw-in, a free kick being set up, a celebration. Counts on the clock only.
    */
   deadTicks: number
+  /** Clock ticks the first half ran, once it's over. */
+  firstHalfElapsed: number | null
   halfTicks: number
   players: PlayerState[]
   ball: BallState
   score: [number, number]
   phase: Phase
   stats: [TeamStats, TeamStats]
+  /** Substitutions made so far, by team: who came on, who went off. */
+  subbedOn: [number[], number[]]
+  subbedOff: [number[], number[]]
+  /** Stoppages used to make substitutions, by team (three allowed). */
+  subWindows: [number, number]
   events: MatchEvent[]
   /** Next tick the ball carrier makes a decision. */
   decisionAt: number

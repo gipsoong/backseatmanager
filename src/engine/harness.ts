@@ -98,11 +98,17 @@ export function checkMatch(
   let stillBallTicks = 0
   let heldTicks = 0
   const tally: [number, number] = [0, 0]
+  // Everyone who has been on the pitch, and substitutions made, by team.
+  const everOn = new Set<number>()
+  const subsMade: [number, number] = [0, 0]
+  // Each player's top speed going into the tick being checked.
+  let topSpeed: number[] = []
 
   const state = runMatch(home, away, config, (s, events) => {
     opts.tamper?.(s)
     const cur = frameOf(s)
     if (opts.keepFrames) frames.push(cur)
+    if (!prev) cur.players.forEach((p, i) => p.onPitch && everOn.add(i))
     if (prev) {
       const v = (rule: string, detail: string): void => {
         violations.push({ tick: s.tick, rule, detail })
@@ -110,6 +116,7 @@ export function checkMatch(
       checkTick(s, prev, cur, events, v)
     }
     prev = cur
+    topSpeed = s.players.map((p) => p.maxSpeed)
   })
 
   function checkTick(s: MatchState, P: Frame, C: Frame, events: MatchEvent[], v: (rule: string, detail: string) => void): void {
@@ -129,11 +136,35 @@ export function checkMatch(
     const restartEv = events.find((e) => e.type === 'restart')
 
     // --- Movement: nobody teleports or outruns their top speed.
-    s.players.forEach((p, i) => {
+    // (Against his top speed as it was during the tick: tiring lowers it at the end of each tick.)
+    s.players.forEach((_, i) => {
       if (!P.players[i].onPitch || !C.players[i].onPitch) return
       const d = dist(P.players[i], C.players[i])
-      if (d > p.maxSpeed * DT + EPS) v('speed', `player ${i} moved ${d.toFixed(3)}m in one tick (max ${(p.maxSpeed * DT).toFixed(3)})`)
+      const top = topSpeed[i] ?? Infinity
+      if (d > top * DT + EPS) v('speed', `player ${i} moved ${d.toFixed(3)}m in one tick (max ${(top * DT).toFixed(3)})`)
     })
+
+    // --- Nobody comes on or goes off except by a substitution at a stoppage, or a red card.
+    const subs = events.filter((e) => e.type === 'sub')
+    s.players.forEach((_, i) => {
+      const was = P.players[i].onPitch
+      const is = C.players[i].onPitch
+      if (!was && is && !subs.some((e) => e.onIdx === i)) v('sub-on', `player ${i} appeared without coming on`)
+      if (was && !is && !subs.some((e) => e.offIdx === i) && !events.some((e) => e.type === 'card' && e.color === 'red' && e.idx === i)) {
+        v('sub-off', `player ${i} left without being substituted or sent off`)
+      }
+    })
+    for (const e of subs) {
+      if (P.phase !== 'restart' && !restartEv) v('sub-stoppage', `substitution in open play`)
+      if (!P.players[e.offIdx].onPitch) v('sub-off', `${e.offIdx} substituted but wasn't on`)
+      if (everOn.has(e.onIdx)) v('sub-on', `${e.onIdx} came on but had already played`)
+      if (++subsMade[e.team] > 5) v('sub-count', `team ${e.team} made a sixth substitution`)
+      // He takes the place of the man coming off (and may then move one tick's worth).
+      const d = dist(P.players[e.offIdx], C.players[e.onIdx])
+      if (d > s.players[e.onIdx].baseSpeed * DT + EPS) v('sub-spot', `${e.onIdx} came on ${d.toFixed(2)}m from where ${e.offIdx} went off`)
+      everOn.add(e.onIdx)
+    }
+    for (const e of events) if (e.type === 'injury' && !P.players[e.idx].onPitch && !C.players[e.idx].onPitch) v('injury', `${e.idx} injured off the pitch`)
 
     // --- Ball stays on the pitch at the end of every tick; an owned ball is at its owner's feet.
     if (C.ball.x < -EPS || C.ball.x > PITCH_LENGTH + EPS || C.ball.y < -EPS || C.ball.y > PITCH_WIDTH + EPS) {

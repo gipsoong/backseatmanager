@@ -75,14 +75,16 @@ const CLUBS = [
   'Westerley',
 ]
 
+const BENCH_ROLES: Role[] = ['GK', 'CB', 'FB', 'DM', 'CM', 'W', 'ST']
+
 /** Role-specific attribute emphasis: which attributes are strengths. */
 const ROLE_FOCUS: Record<Role, (keyof Attributes)[]> = {
   GK: ['keeping', 'positioning', 'composure'],
   CB: ['tackling', 'positioning'],
-  FB: ['pace', 'tackling', 'passing'],
+  FB: ['pace', 'tackling', 'passing', 'stamina'],
   DM: ['tackling', 'passing', 'positioning'],
-  CM: ['passing', 'composure', 'dribbling'],
-  WM: ['pace', 'passing', 'dribbling'],
+  CM: ['passing', 'composure', 'dribbling', 'stamina'],
+  WM: ['pace', 'passing', 'dribbling', 'stamina'],
   W: ['pace', 'dribbling', 'shooting'],
   ST: ['shooting', 'composure', 'pace'],
 }
@@ -98,6 +100,7 @@ function makeAttributes(rng: Rng, role: Role, quality: number): Attributes {
     positioning: base(),
     composure: base(),
     keeping: role === 'GK' ? base() : rng.int(1, 4),
+    stamina: base(),
   }
   for (const k of ROLE_FOCUS[role]) attrs[k] = Math.min(20, attrs[k] + rng.int(2, 5))
   return attrs
@@ -138,6 +141,15 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     attrs: makeAttributes(rng, slot.role, quality),
     traits: makeTraits(rng, slot.role),
   }))
+  // A bench covering every line, a notch below the first team.
+  const bench: PlayerDef[] = BENCH_ROLES.map((role, i) => ({
+    id: `${seed}-${11 + i}`,
+    name: uniqueName(),
+    shirt: 12 + i,
+    role,
+    attrs: makeAttributes(rng, role, quality - 1),
+    traits: makeTraits(rng, role),
+  }))
   const name = rng.pick(CLUBS)
   return {
     name,
@@ -146,6 +158,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     formation: f,
     block: block ?? rng.pick(['low', 'mid', 'high'] as const),
     players,
+    bench,
   }
 }
 
@@ -163,4 +176,29 @@ export function leagueTeams(seed: number, n: number): TeamDef[] {
     shortName: name.slice(0, 3).toUpperCase(),
     kit: kits[i % kits.length],
   }))
+}
+
+/** Which positions a player can fill, best first: his own, then the same line. */
+const LINES: Record<Role, Role[]> = {
+  GK: ['GK'],
+  CB: ['CB', 'FB', 'DM'],
+  FB: ['FB', 'WM', 'CB'],
+  DM: ['DM', 'CM', 'CB'],
+  CM: ['CM', 'DM', 'WM'],
+  WM: ['WM', 'W', 'FB', 'CM'],
+  W: ['W', 'WM', 'ST'],
+  ST: ['ST', 'W'],
+}
+
+/** How well `def` fits a slot: 1 in his own position, less further from it, 0 if not at all. */
+export function fitFor(def: PlayerDef, role: Role): number {
+  const i = LINES[def.role].indexOf(role)
+  return i < 0 ? (role === 'GK' || def.role === 'GK' ? 0 : 0.5) : 1 - i * 0.12
+}
+
+/** A rough overall, 1-20: the average of the attributes that matter in his position. */
+export function ability(def: PlayerDef): number {
+  const { keeping, ...rest } = def.attrs
+  const vals = def.role === 'GK' ? [keeping, rest.positioning, rest.composure] : Object.values(rest)
+  return vals.reduce((a, b) => a + b, 0) / vals.length
 }
