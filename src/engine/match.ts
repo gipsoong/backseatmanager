@@ -36,6 +36,7 @@ import {
 } from './geometry.ts'
 import {
   AERIAL_FOUL_CHANCE,
+  TIP_OVER_HEIGHT,
   AERIAL_HEIGHT,
   HEADER_RECOVERY_TICKS,
   BLOCK_RECOVERY_TICKS,
@@ -584,13 +585,15 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
       takePossession(s, p, contact, height, 'save', out)
       return true
     }
-    // Palmed wide of the post rather than back into the six-yard box.
+    // Palmed wide of the post rather than back into the six-yard box; one heading in high is
+    // tipped over the bar.
     const side = contact.y < CENTER.y ? -1 : 1
     const outward = contact.x < PITCH_LENGTH / 2 ? -1 : 1
+    const high = height > TIP_OVER_HEIGHT
     b.pos = contact
-    b.vel = vec(outward * rng.range(2, 6), side * rng.range(4, 9))
+    b.vel = high ? vec(outward * rng.range(5, 8), side * rng.range(0, 3)) : vec(outward * rng.range(2, 6), side * rng.range(4, 9))
     b.z = height
-    b.vz = rng.range(1, 4)
+    b.vz = high ? rng.range(3, 5) : rng.range(1, 4)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
     emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry', dive: dist(p.pos, contact) > KEEPER_BODY_REACH })

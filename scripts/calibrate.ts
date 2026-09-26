@@ -21,8 +21,8 @@ const TARGETS: Record<string, [number, number]> = {
   'lofted pass %': [8, 20],
   'avg pass length (m)': [15, 21],
   'long balls % (32m+)': [7, 15],
-  // Passes of 12m+ from in front of the defensive line to 4m+ behind it. Rough: data providers
-  // count "through balls" differently; top sides play a few a game.
+  // Passes of 12m+ from in front of the defensive line to 4m+ behind it. Unverified: data
+  // providers count "through balls" differently, so it's shown but not scored.
   'through balls': [1, 5],
   'through ball success %': [25, 60],
   fouls: [9, 14],
@@ -48,6 +48,9 @@ const TARGETS: Record<string, [number, number]> = {
   'tackles final third %': [8, 22],
   'draws % (match)': [15, 35],
 }
+
+/** Shown for reference, not counted in the realism score: no reliable real figure to hold them to. */
+const UNSCORED = new Set(['through balls'])
 
 const got: Record<string, number> = {}
 const add = (k: string, v: number): void => {
@@ -186,10 +189,11 @@ console.log(`${n} matches: ${scores.join(" ")}\nbiggest margin: ${biggest}\n`)
 console.log(`${'per team per match'.padEnd(20)}${'engine'.padStart(8)}   target`)
 for (const [k, [lo, hi]] of Object.entries(TARGETS)) {
   const v = results[k]
-  const flag = v < lo ? '  low' : v > hi ? '  HIGH' : ''
+  const flag = UNSCORED.has(k) ? '  (unscored)' : v < lo ? '  low' : v > hi ? '  HIGH' : ''
   console.log(`${k.padEnd(20)}${v.toFixed(1).padStart(8)}   ${lo}–${hi}${flag}`)
 }
-const inRange = Object.entries(TARGETS).filter(([k, [lo, hi]]) => results[k] >= lo && results[k] <= hi).length
-console.log(`\nrealism: ${inRange}/${Object.keys(TARGETS).length} metrics in real-football ranges (${Math.round((100 * inRange) / Object.keys(TARGETS).length)}%)`)
+const scored = Object.entries(TARGETS).filter(([k]) => !UNSCORED.has(k))
+const inRange = scored.filter(([k, [lo, hi]]) => results[k] >= lo && results[k] <= hi).length
+console.log(`\nrealism: ${inRange}/${scored.length} metrics in real-football ranges (${Math.round((100 * inRange) / scored.length)}%)`)
 console.log(`\ninvariant violations: ${JSON.stringify(rules)}, forced restarts: ${forced}`)
 process.exitCode = Object.keys(rules).length || forced ? 1 : 0

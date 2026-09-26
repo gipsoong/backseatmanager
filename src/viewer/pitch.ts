@@ -57,6 +57,8 @@ export interface Camera {
   perspective: boolean
   /** Screen y of the horizon, for a perspective camera (the stands are drawn above it). */
   horizon?: number
+  /** Close enough to show a kicking leg; from the wide view it reads oddly. */
+  closeUp?: boolean
 }
 
 /** Raised broadcast view of the whole pitch; height shown as a gentle lift. */
@@ -77,6 +79,7 @@ export function zoomCamera(v: View, cx: number, cy: number, zoom: number): Camer
   const y0 = Math.min(Math.max(cy, -MARGIN + halfH), PITCH_WIDTH + MARGIN - halfH)
   return {
     perspective: false,
+    closeUp: true,
     project: (x, y, z = 0) => ({ x: v.width / 2 + (x - x0) * s, y: v.height / 2 + (y - y0) * s - z * s * 0.55, k: s }),
   }
 }
@@ -457,7 +460,7 @@ function drawPlayer(
   ctx.ellipse(base.x + r * (0.2 + lift * 0.35), base.y + r * (0.35 + lift * 0.45), r * 0.95, r * 0.6, 0, 0, Math.PI * 2)
   ctx.fillStyle = `rgba(0,0,0,${0.18 - lift * 0.06})`
   ctx.fill()
-  if (anim?.kind === 'kick' && swing > 0.05) {
+  if (anim?.kind === 'kick' && cam.closeUp && swing > 0.05) {
     // The kicking leg: a short stroke from the body towards the ball's direction.
     const d = Math.hypot(anim.toward.x - x, anim.toward.y - y) || 1
     const ahead = cam.project(x + (anim.toward.x - x) / d, y + (anim.toward.y - y) / d)

@@ -61,3 +61,5 @@ export const SLIDE_TACKLE_DISTANCE = 1.15
 export const CELEBRATION_TICKS = 70
 /** Chance a contested header ends in a foul (by either player), for an average aggression. */
 export const AERIAL_FOUL_CHANCE = 0.1
+/** A save above this height (m) is tipped over the bar rather than palmed wide. */
+export const TIP_OVER_HEIGHT = 1.8

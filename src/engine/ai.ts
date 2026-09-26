@@ -185,7 +185,18 @@ export function xgFrom(a: Vec): number {
  * so carrying on past a good shooting chance is rarely worth it.
  */
 export function threat(a: Vec): number {
-  return 0.005 + 0.03 * (a.x / PITCH_LENGTH) ** 2 + 0.3 * xgFrom(a)
+  return 0.005 + 0.03 * (a.x / PITCH_LENGTH) ** 2 + 0.3 * xgFrom(a) + cutBackValue(a)
+}
+
+/**
+ * Near the byline in the channels there's no shot, but it's where the most dangerous balls come
+ * from: a cut-back to the penalty spot or a cross along the six-yard line.
+ */
+function cutBackValue(a: Vec): number {
+  const toByline = PITCH_LENGTH - a.x
+  const wide = Math.abs(a.y - CENTER.y)
+  if (toByline > 14 || wide < GOAL_HALF_WIDTH + 2 || wide > BOX_HALF_WIDTH + 6) return 0
+  return 0.02 * (1 - toByline / 14)
 }
 
 /** Value of simply keeping the ball, on top of where it is: a shot gives this up. */
