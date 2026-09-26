@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
-import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, replayMoments, windowAt } from './highlights.ts'
+import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
@@ -133,5 +133,19 @@ describe('replays', () => {
       expect(m.tick - m.start).toBeLessThanOrEqual(150)
       expect(m.end).toBeGreaterThan(m.tick)
     }
+  })
+})
+
+describe('runs', () => {
+  const events = full.state.events
+
+  it('shows a run from when it starts until it ends or the runner gets the ball', () => {
+    const run = events.find((e) => e.type === 'run')
+    if (!run || run.type !== 'run') throw new Error('no runs in this match')
+    const active = (ph: number) => runsAt(events, full.indexAfter(ph), ph).some((r) => r.idx === run.idx && r.start === run.tick)
+    expect(active(run.tick)).toBe(true)
+    expect(active(run.until + 1)).toBe(false)
+    const received = events.find((e) => e.type === 'possession' && e.idx === run.idx && e.tick > run.tick && e.tick < run.until)
+    if (received) expect(active(received.tick)).toBe(false)
   })
 })

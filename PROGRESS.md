@@ -7,6 +7,27 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **2. Match viewer** — view modes and ball flight done (session 3). Engine calibrated to real ranges
 except corners and headers.
 
+## Done (session 5): exploits closed, replays of key moments, runs, dribble moves
+
+- **Exploits found from user feedback and closed.** 55% of goals came from forwards charging down
+  a keeper's release (keepers can now hold the ball unchallenged; forwards stand off; the release
+  can't be played at source — harness `keeper-release`); most of the rest from defenders' clearances
+  struck into the man pressing them (defenders now clear away from him; a point-blank strike is only
+  sometimes charged down, and ricochets). Balls struck away from a player can't be played by him
+  where they left unless he's tight enough to charge them down.
+- Honest baseline after that (20 matches): goals ~1.0/team, shots ~5, on target 32%, no exploits.
+  **Open-play chance creation is the main realism gap**: teams rarely work the ball into shooting
+  positions (safe recycling, 88% pass completion; forwards marked, few runs in behind, no through
+  balls into space). This needs a focused attacking-AI pass, not tuning.
+- Replays of key moments with their build-up (from when the team won the ball / took the set piece,
+  5–15s back): goals (3 angles), penalty fouls and red cards (wide + close-up), big chances and
+  last-ditch tackles in the box (wide). Rewatch from the commentary.
+- Run indicators: the engine emits `run` events; the viewer draws a fading dashed arrow to where
+  the runner actually ends up.
+- Dribble moves when a dribbler beats a tackle (step-over, drag-back, burst, feint), chosen from
+  where the tackle came from and his flair/pace, and changing his movement; commentary in the
+  final third.
+
 ## Done (session 4): match presentation
 
 - Highlights modes cut between moments (fade to the grass, clock rolls on, fade in) instead of
@@ -100,10 +121,9 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-0. **Viewer follow-ups**: run indicators for players making runs (engine has `runUntil`, not yet
-   exported in frames); dribble-move variation (skills when beating a man).
-1. **Calibration**: crosses, corners and headed shots (see findings below); shots slightly low
-   (~9); longest dull spell ~40 min (Key moments' cuts hide it when watching).
+0. **Attacking AI** (main realism gap, see session 5): through balls into space behind the line,
+   more and better-timed runs, one-twos/third-man runs, attackers getting free of markers. Then
+   re-calibrate crosses, corners and headers.
 2. Season loop, transfers/scouting, development/youth, polish (see CLAUDE.md).
 
 ## Open questions / decisions deferred

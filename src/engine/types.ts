@@ -136,6 +136,9 @@ export interface Restart {
 /** Slide if the tackler went in from beyond standing reach of the ball carrier. */
 export type TackleStyle = 'slide' | 'standing'
 
+/** How a dribbler got past a tackle: from where the tackler came and the dribbler's traits. */
+export type DribbleMove = 'stepOver' | 'dragBack' | 'burst' | 'feint'
+
 export type Phase = { kind: 'play' } | { kind: 'restart'; restart: Restart } | { kind: 'fullTime' }
 
 export interface TeamStats {
@@ -192,7 +195,18 @@ export type MatchEvent = EventBase &
         kind: 'block' | 'parry' | 'miscontrol' | 'header'
         dive?: boolean
       }
-    | { type: 'tackle'; byIdx: number; onIdx: number; pos: Vec; won: boolean; style: TackleStyle }
+    | {
+        type: 'tackle'
+        byIdx: number
+        onIdx: number
+        pos: Vec
+        won: boolean
+        style: TackleStyle
+        /** When the dribbler got away: how. */
+        beaten?: DribbleMove
+      }
+    /** A forward sets off on a run in behind, until `until`. */
+    | { type: 'run'; idx: number; until: number }
     | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }

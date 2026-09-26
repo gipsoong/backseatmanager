@@ -241,6 +241,7 @@ export function checkMatch(
         const d = dist(C.players[e.byIdx], C.players[e.onIdx])
         if (d > TACKLE_RANGE + EPS) v(`${e.type}-range`, `${e.type} from ${d.toFixed(2)}m`)
         if ((e.style === 'slide') !== d > SLIDE_TACKLE_DISTANCE) v('tackle-style', `${e.style} ${e.type} from ${d.toFixed(2)}m`)
+        if (e.type === 'tackle' && (e.beaten !== undefined) === e.won) v('tackle-beaten', `won=${e.won} but beaten=${e.beaten}`)
         const gained = events.some((g) => g.type === 'possession' && g.idx === e.onIdx)
         if (P.ball.ownerIdx !== e.onIdx && !gained) v(`${e.type}-carrier`, `${e.onIdx} didn't have the ball`)
       }

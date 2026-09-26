@@ -261,6 +261,37 @@ export interface DrawOptions {
   /** The kick in the air (or just finished), and when its flight ended. */
   flight: { kick: Extract<MatchEvent, { type: 'pass' | 'shot' | 'clearance' }>; end: number | null } | null
   animations: Animation[]
+  /** Runs being made: from the runner, towards where he'll actually be when it ends. */
+  runs: { idx: number; to: { x: number; y: number }; progress: number }[]
+}
+
+/** A quiet dashed arrow along a run, fading as it plays out. */
+function drawRun(ctx: CanvasRenderingContext2D, cam: Camera, from: [number, number], to: { x: number; y: number }, progress: number): void {
+  const a = cam.project(from[0], from[1])
+  const b = cam.project(to.x, to.y)
+  if (!a || !b) return
+  const len = Math.hypot(b.x - a.x, b.y - a.y)
+  if (len < 12) return
+  const alpha = 0.75 * (1 - progress * progress)
+  const ux = (b.x - a.x) / len
+  const uy = (b.y - a.y) / len
+  ctx.save()
+  ctx.strokeStyle = `rgba(255,255,255,${alpha})`
+  ctx.fillStyle = `rgba(255,255,255,${alpha})`
+  ctx.lineWidth = 1.5
+  ctx.setLineDash([4, 4])
+  ctx.beginPath()
+  ctx.moveTo(a.x + ux * 10, a.y + uy * 10)
+  ctx.lineTo(b.x - ux * 6, b.y - uy * 6)
+  ctx.stroke()
+  ctx.setLineDash([])
+  ctx.beginPath()
+  ctx.moveTo(b.x, b.y)
+  ctx.lineTo(b.x - ux * 8 - uy * 4, b.y - uy * 8 + ux * 4)
+  ctx.lineTo(b.x - ux * 8 + uy * 4, b.y - uy * 8 - ux * 4)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
 }
 
 /** Trace a kick's actual path from the recorded frames: brighter where the ball has been. */
@@ -337,6 +368,12 @@ export function drawFrame(
 
   drawGoals(ctx, cam, opts.ripple)
   drawFlight(ctx, cam, timeline, playhead, opts)
+  if (!cam.perspective) {
+    for (const r of opts.runs) {
+      const runner = players.find((pl) => pl.i === r.idx)
+      if (runner) drawRun(ctx, cam, runner.at, r.to, r.progress)
+    }
+  }
   const ballDepth = depthOf(bx, by)
   let ballDrawn = false
   for (const { p, i, at } of players) {

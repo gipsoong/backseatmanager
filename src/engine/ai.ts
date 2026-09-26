@@ -574,18 +574,23 @@ export function pickChasers(s: MatchState): Map<number, number> {
   return out
 }
 
-/** Maybe start a run in behind for forwards when a teammate has the ball in midfield. */
-export function maybeStartRuns(s: MatchState): void {
+/** Maybe start a run in behind for forwards when a teammate has the ball in midfield. Returns who set off. */
+export function maybeStartRuns(s: MatchState): PlayerState[] {
   const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
-  if (!owner) return
+  if (!owner) return []
   const a = af(s, owner.team, owner.pos)
-  if (a.x < 35 || a.x > 88) return
+  if (a.x < 35 || a.x > 88) return []
+  const started: PlayerState[] = []
   for (const p of teammatesOf(s, owner.team)) {
     if (p.idx === owner.idx || p.runUntil > s.tick) continue
     if (p.slot.role !== 'ST' && p.slot.role !== 'W' && p.slot.role !== 'WM') continue
     const chance = 0.005 + (p.def.attrs.positioning / 20) * 0.004
-    if (s.rng.chance(chance)) p.runUntil = s.tick + s.rng.int(20, 40)
+    if (s.rng.chance(chance)) {
+      p.runUntil = s.tick + s.rng.int(20, 40)
+      started.push(p)
+    }
   }
+  return started
 }
 
 // ---------------------------------------------------------------------------

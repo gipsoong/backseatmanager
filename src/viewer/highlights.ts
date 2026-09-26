@@ -187,3 +187,27 @@ export function replayMoments(events: MatchEvent[], teamOf: (idx: number) => 0 |
   }
   return out
 }
+
+/**
+ * Runs in progress at `playhead`: who, when it started and when it's due to end. A run is over
+ * early if play stops or the runner gets the ball.
+ */
+export function runsAt(events: MatchEvent[], upTo: number, playhead: number): { idx: number; start: number; until: number }[] {
+  const out: { idx: number; start: number; until: number }[] = []
+  for (let i = upTo - 1; i >= 0; i--) {
+    const e = events[i]
+    if (playhead - e.tick > 45) break
+    if (e.type !== 'run' || playhead > e.until) continue
+    let over = false
+    for (let j = i + 1; j < upTo && !over; j++) {
+      const f = events[j]
+      over =
+        f.type === 'restart' ||
+        f.type === 'goal' ||
+        f.type === 'halfTime' ||
+        ((f.type === 'possession' || f.type === 'offside') && f.idx === e.idx)
+    }
+    if (!over) out.push({ idx: e.idx, start: e.tick, until: e.until })
+  }
+  return out
+}

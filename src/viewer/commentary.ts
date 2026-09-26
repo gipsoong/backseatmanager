@@ -116,6 +116,25 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
         afterGoal = true
         break
       }
+      case 'tackle': {
+        // Only a take-on in the final third is worth a line.
+        if (e.won || !e.beaten) break
+        const t = teamOf(e.onIdx)
+        const x = oppGoalX(t, half) === 105 ? e.pos.x : 105 - e.pos.x
+        if (x < 70) break
+        const c = name(e.onIdx)
+        const o = name(e.byIdx)
+        const text =
+          e.beaten === 'stepOver'
+            ? `${c} steps over it and goes past ${o}.`
+            : e.beaten === 'dragBack'
+              ? `${c} drags it back away from ${o}.`
+              : e.beaten === 'burst'
+                ? `${c} knocks it past ${o} and is away.`
+                : `${c} sells ${o} a dummy.`
+        add(e, text, 'info', t)
+        break
+      }
       case 'foul':
         if (e.award === 'penalty') {
           add(e, `Penalty to ${teamName(teamOf(e.onIdx))}. ${name(e.byIdx)} brings down ${name(e.onIdx)}.`, 'chance', teamOf(e.onIdx))

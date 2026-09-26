@@ -9,10 +9,11 @@ import {
   flightAt,
   highlightWindows,
   replayMoments,
+  runsAt,
   windowAt,
 } from './highlights.ts'
 import { type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
-import type { Timeline } from './timeline.ts'
+import { PLAYERS_AT, type Timeline } from './timeline.ts'
 
 type Goal = Extract<MatchEvent, { type: 'goal' }>
 
@@ -165,6 +166,14 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         ballInNet: pending ? pending.pos : null,
         flight: pending ? null : flightAt(events, upTo),
         animations: animationsAt(events, timeline.indexAfter(t + ANIMATION_LEAD), ph),
+        runs: runsAt(events, upTo, ph).map((r) => {
+          const end = timeline.frame(Math.min(r.until, timeline.lastTick))
+          return {
+            idx: r.idx,
+            to: { x: end[PLAYERS_AT + r.idx * 2], y: end[PLAYERS_AT + r.idx * 2 + 1] },
+            progress: (ph - r.start) / (r.until - r.start),
+          }
+        }),
       })
     }
 

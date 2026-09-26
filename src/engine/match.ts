@@ -91,6 +91,7 @@ import type {
   TeamDef,
   TeamStats,
   Celebration,
+  DribbleMove,
   TackleStyle,
 } from './types.ts'
 
@@ -208,7 +209,9 @@ export function step(s: MatchState): MatchEvent[] {
   else if (s.ball.ownerIdx !== null && s.tick >= s.decisionAt) carrierDecides(s, out)
 
   // 2. movement
-  if (s.phase.kind === 'play') maybeStartRuns(s)
+  if (s.phase.kind === 'play') {
+    for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
+  }
   const chasers = s.phase.kind === 'play' ? pickChasers(s) : new Map<number, number>()
   const phase = s.phase
   for (const p of s.players) {
@@ -812,7 +815,8 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
 
   const skill = o.slot.role === 'GK' ? oa.keeping + 3 : oa.tackling
   const won = rng.chance(clamp(0.5 + (skill - ca.dribbling) * 0.03, 0.2, 0.85))
-  emit(s, out, { type: 'tackle', byIdx: o.idx, onIdx: c.idx, pos: { ...c.pos }, won, style })
+  const beaten = won ? undefined : dribbleMove(s, c, o)
+  emit(s, out, { type: 'tackle', byIdx: o.idx, onIdx: c.idx, pos: { ...c.pos }, won, style, beaten })
   if (won) {
     const b = s.ball
     const dir = norm(add(sub(vec(oppGoalX(o.team, s.half), CENTER.y), b.pos), scale(vec(rng.gauss(), rng.gauss()), 20)))
@@ -827,7 +831,37 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
     c.touchReadyAt = s.tick + 8
   } else {
     o.tackleReadyAt = s.tick + 20
+    // Carry on out of the move, a second ahead.
+    s.dribbleTarget = add(c.pos, scale(c.vel, 1))
+    s.decisionAt = Math.max(s.decisionAt, s.tick + 4)
   }
+}
+
+/**
+ * How the dribbler beats his man, from where the tackle came and who he is: from the front a
+ * showman steps over it and anyone else drags it back; from the side a quicker man bursts
+ * away, a slower one sells a feint. The move changes his movement (and so the ball's) at once.
+ */
+function dribbleMove(s: MatchState, c: PlayerState, o: PlayerState): DribbleMove {
+  const dir = facing(s, c)
+  const toTackler = norm(sub(o.pos, c.pos))
+  const fromFront = dir.x * toTackler.x + dir.y * toTackler.y > 0.4
+  const flair = c.def.traits.flair + s.rng.gauss() * 0.1
+  const move: DribbleMove = fromFront ? (flair > 0.55 ? 'stepOver' : 'dragBack') : c.maxSpeed > o.maxSpeed ? 'burst' : 'feint'
+  // Sideways, away from the tackler; but infield when he's near a line, not off the pitch.
+  let side = vec(-dir.y, dir.x)
+  if (side.x * toTackler.x + side.y * toTackler.y > 0) side = scale(side, -1)
+  const nearLine = c.pos.y < 6 || c.pos.y > PITCH_WIDTH - 6 || c.pos.x < 6 || c.pos.x > PITCH_LENGTH - 6
+  const inward = sub(CENTER, c.pos)
+  if (nearLine && side.x * inward.x + side.y * inward.y < 0) side = scale(side, -1)
+  const v =
+    move === 'burst'
+      ? scale(dir, c.maxSpeed)
+      : move === 'dragBack'
+        ? scale(norm(add(scale(dir, -0.5), side)), c.maxSpeed * 0.6)
+        : scale(norm(add(scale(side, 0.8), scale(dir, 0.6))), c.maxSpeed * 0.75)
+  c.vel = v
+  return move
 }
 
 function sendOff(s: MatchState, p: PlayerState, out: MatchEvent[]): void {
