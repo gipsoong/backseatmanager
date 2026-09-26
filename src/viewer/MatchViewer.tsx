@@ -1,7 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { CENTER, type MatchEvent, PITCH_LENGTH, type TeamStats } from '../engine/index.ts'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CENTER, type MatchEvent, type TeamStats, ownGoalX } from '../engine/index.ts'
 import { type Line, buildCommentary, surname } from './commentary.ts'
-import { ANIMATION_LEAD, type ViewMode, animationsAt, flightAt, highlightWindows, windowAt } from './highlights.ts'
+import {
+  ANIMATION_LEAD,
+  type ReplayMoment,
+  type ViewMode,
+  animationsAt,
+  flightAt,
+  highlightWindows,
+  replayMoments,
+  windowAt,
+} from './highlights.ts'
 import { type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
 import type { Timeline } from './timeline.ts'
 
@@ -28,22 +37,29 @@ const MODES: [ViewMode, string][] = [
 ]
 
 /**
- * Goal replays: the build-up and finish, once from each angle. Rates are match ticks per wall
- * second (the live 1× is 30): the close-up runs in slow motion.
+ * Replays of key moments (see `replayMoments`): the whole move, from each of the moment's angles
+ * in turn. Rates are match ticks per wall second (the live 1× is 30): the close-up is slow motion.
  */
-const REPLAY_ANGLES = [
-  { name: 'Wide', rate: 20 },
+const ANGLE_VIEWS = [
+  { name: 'Wide', rate: 22 },
   { name: 'Close-up', rate: 10 },
   { name: 'Behind the goal', rate: 15 },
 ] as const
-const REPLAY_BEFORE = 60
-const REPLAY_AFTER = 12
-/** The automatic replay starts once the celebration (shown live) is over, as on TV. */
-const AUTO_REPLAY_AFTER = 75
 const ANGLE_FADE_MS = 250
 
+/** Replayable moments among `events`, with teams and goal ends read from the match. */
+function momentsOf(timeline: Timeline, events: MatchEvent[]): ReplayMoment[] {
+  const players = timeline.state.players
+  return replayMoments(
+    events,
+    (idx) => players[idx].team,
+    (team, tick) => ownGoalX(team, timeline.halfTimeTick !== null && tick > timeline.halfTimeTick ? 2 : 1),
+  )
+}
+
 interface Replay {
-  goal: Goal
+  moment: ReplayMoment
+  /** Index into moment.angles. */
   angle: number
   playhead: number
   angleStarted: number
@@ -81,10 +97,14 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     live.current = { playing, speed, showRoles, mode }
   }, [playing, speed, showRoles, mode])
 
-  const startReplay = (goal: Goal): void => {
-    replay.current = { goal, angle: 0, playhead: goal.tick - REPLAY_BEFORE, angleStarted: performance.now(), cx: goal.pos.x, cy: goal.pos.y }
-    setReplayAngle(REPLAY_ANGLES[0].name)
-  }
+  const startReplay = useCallback(
+    (moment: ReplayMoment): void => {
+      const f = timeline.frame(moment.tick)
+      replay.current = { moment, angle: 0, playhead: moment.start, angleStarted: performance.now(), cx: f[0], cy: f[1] }
+      setReplayAngle(ANGLE_VIEWS[moment.angles[0]].name)
+    },
+    [timeline],
+  )
   const endReplay = (): void => {
     replay.current = null
     setReplayAngle(null)
@@ -118,6 +138,8 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     let lastRecordedUpdate = 0
     let windows: [number, number][] = []
     let windowsFor = { events: -1, mode: '' }
+    let moments: ReplayMoment[] = []
+    let momentsFor = -1
     const replayed = new Set<number>()
     // A cut in progress: when it started, where from, and where to (null until the next moment is known).
     let cut: { started: number; from: number; to: number | null } | null = null
@@ -153,16 +175,16 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       const { playing: isPlaying, speed: rate, showRoles: roles, mode: view } = live.current
       const v = viewRef.current
 
-      // A replay holds the live match where it is and plays the goal from each angle in turn.
+      // A replay holds the live match where it is and plays the move from each angle in turn.
       const rep = replay.current
       if (rep) {
-        rep.playhead += dt * REPLAY_ANGLES[rep.angle].rate
-        if (rep.playhead >= rep.goal.tick + REPLAY_AFTER) {
-          if (rep.angle < REPLAY_ANGLES.length - 1) {
+        rep.playhead += dt * ANGLE_VIEWS[rep.moment.angles[rep.angle]].rate
+        if (rep.playhead >= rep.moment.end) {
+          if (rep.angle < rep.moment.angles.length - 1) {
             rep.angle++
-            rep.playhead = rep.goal.tick - REPLAY_BEFORE
+            rep.playhead = rep.moment.start
             rep.angleStarted = now
-            setReplayAngle(REPLAY_ANGLES[rep.angle].name)
+            setReplayAngle(ANGLE_VIEWS[rep.moment.angles[rep.angle]].name)
           } else {
             endReplay()
           }
@@ -172,12 +194,15 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         const r = replay.current
         cover(Math.max(0, 1 - (now - r.angleStarted) / ANGLE_FADE_MS))
         const f = timeline.frame(r.playhead)
-        const goalX = r.goal.pos.x < 1 ? 0 : PITCH_LENGTH
-        // The close-up follows the ball, leaning towards the goal it's heading for.
+        const angle = r.moment.angles[r.angle]
+        const goalX = r.moment.goalX ?? f[0]
+        // The close-up follows the ball (leaning towards the goal, for a goal).
         const k = Math.min(1, dt * 4)
-        r.cx += (f[0] * 0.65 + goalX * 0.35 - r.cx) * k
-        r.cy += (f[1] * 0.65 + CENTER.y * 0.35 - r.cy) * k
-        const cam = r.angle === 0 ? wideCamera(v) : r.angle === 1 ? zoomCamera(v, r.cx, r.cy, 2.6) : behindGoalCamera(v, goalX)
+        const lean = r.moment.goalX === null ? 0 : 0.35
+        r.cx += (f[0] * (1 - lean) + goalX * lean - r.cx) * k
+        r.cy += (f[1] * (1 - lean) + CENTER.y * lean - r.cy) * k
+        const cam =
+          angle === 0 ? wideCamera(v) : angle === 1 ? zoomCamera(v, r.cx, r.cy, 2.6) : behindGoalCamera(v, r.moment.goalX ?? 0)
         draw(r.playhead, cam, false)
         raf = requestAnimationFrame(loop)
         return
@@ -231,13 +256,16 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         playhead.current = Math.min(ph, timeline.lastTick)
         if (timeline.done && playhead.current >= timeline.lastTick && !cut) setPlaying(false)
 
-        // Once the celebration is over, show the goal again.
+        // Replay a moment once it has played out (a goal once the celebration is over).
         if (!cut) {
-          const goal = lastGoalBefore(timeline.eventsUpTo(playhead.current))
-          const at = goal ? goal.tick + AUTO_REPLAY_AFTER : -1
-          if (goal && !replayed.has(goal.tick) && before < at && playhead.current >= at) {
-            replayed.add(goal.tick)
-            startReplay(goal)
+          if (momentsFor !== events.length) {
+            moments = momentsOf(timeline, events)
+            momentsFor = events.length
+          }
+          const due = moments.find((m) => !replayed.has(m.tick) && before < m.autoAt && playhead.current >= m.autoAt)
+          if (due) {
+            replayed.add(due.tick)
+            startReplay(due)
           }
         }
       }
@@ -253,8 +281,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     }
     raf = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(raf)
-    // startReplay/endReplay only touch refs and state setters, so they needn't restart the loop.
-  }, [timeline, kits, keeperKits])
+  }, [timeline, kits, keeperKits, startReplay])
 
   const seek = (t: number): void => {
     if (replay.current) endReplay()
@@ -269,6 +296,12 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const goalStrip = currentGoal(events)
   // Only goals already seen: marking future ones on the scrubber would give the result away.
   const goalsSoFar = events.filter((e): e is Goal => e.type === 'goal')
+  // Moments that can be replayed from the commentary, by the tick of their line.
+  const replayable = useMemo(() => {
+    const byTick = new Map<number, ReplayMoment>()
+    for (const m of momentsOf(timeline, events)) if (m.end <= tick) byTick.set(m.tick, m)
+    return byTick
+  }, [timeline, events, tick])
   // Rough full length so the scrubber doesn't jump around while the rest simulates.
   const total = timeline.done ? timeline.lastTick : Math.max(recorded, match.halfTicks * 2 + 3000)
   const name = (idx: number): string => surname(match.players[idx].def.name)
@@ -379,9 +412,10 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
               seek(l.kind === 'goal' || l.kind === 'chance' ? l.tick - 60 : l.tick)
               setPlaying(true)
             }}
+            replayable={replayable}
             onReplay={(l) => {
-              const goal = goalsSoFar.find((g) => g.tick === l.tick)
-              if (goal) startReplay(goal)
+              const m = replayable.get(l.tick)
+              if (m) startReplay(m)
             }}
           />
         ) : (
@@ -396,11 +430,13 @@ function Commentary({
   lines,
   kits,
   onPick,
+  replayable,
   onReplay,
 }: {
   lines: Line[]
   kits: { shirt: string }[]
   onPick: (l: Line) => void
+  replayable: Map<number, ReplayMoment>
   onReplay: (l: Line) => void
 }) {
   if (lines.length === 0) return <p className="empty">Press play for kick-off.</p>
@@ -413,7 +449,7 @@ function Commentary({
             <span className="dot" style={{ background: l.team === null ? 'transparent' : kits[l.team].shirt }} />
             <span className="text">{l.text}</span>
           </button>
-          {l.kind === 'goal' && (
+          {replayable.has(l.tick) && (l.kind === 'goal' || l.kind === 'chance' || l.kind === 'card') && (
             <button type="button" className="line-replay" onClick={() => onReplay(l)}>
               Replay
             </button>

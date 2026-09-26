@@ -36,6 +36,7 @@ import {
 } from './geometry.ts'
 import {
   AERIAL_HEIGHT,
+  CHARGE_DOWN_CHANCE,
   CHARGE_DOWN_REACH,
   CONTROLLABLE_SPEED,
   CROSSBAR_HEIGHT,
@@ -511,6 +512,12 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   const attrs = p.def.attrs
   const fromOpponent = k !== null && k.team !== p.team && !b.touchedSinceKick
 
+  // Struck at him from point-blank range: he only sometimes gets anything on it (a reflex), and
+  // when he does it ricochets off him rather than being controlled.
+  if (fromOpponent && s.tick - k.tick <= 1 && dist(contact, k.from) < 1.5 && p.slot.role !== 'GK') {
+    return rng.chance(CHARGE_DOWN_CHANCE) ? deflect('block', 0.45) : miss()
+  }
+
   // A keeper coming for a cross: catch it or punch it clear.
   if (isKeeper && height > AERIAL_HEIGHT && fromOpponent && k?.kind !== 'shot' && speed < CONTROLLABLE_SPEED) {
     const pClaim = clamp(0.75 + (attrs.keeping - 12) * 0.02, 0.4, 0.95)
@@ -525,7 +532,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   if (isKeeper && (speed >= CONTROLLABLE_SPEED || k?.kind === 'shot') && fromOpponent) {
     const reach = reachOf(s, p)
     const off = dist(p.pos, contact) / reach
-    const pSave = clamp(0.9 - off * off * 0.75 - Math.max(0, speed - 22) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.95)
+    const pSave = clamp(0.8 - off * off * 0.75 - Math.max(0, speed - 22) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.92)
     if (!rng.chance(pSave)) return miss()
     if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
       takePossession(s, p, contact, height, 'save', out)

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createMatch, frameOf, randomTeam, step } from '../engine/index.ts'
+import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
-import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, windowAt } from './highlights.ts'
+import { ANIMATION_LEAD, animationsAt, flightAt, highlightWindows, replayMoments, windowAt } from './highlights.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
@@ -107,5 +107,31 @@ describe('animations', () => {
     expect(thisOne(slide.tick)).toBe(true)
     expect(thisOne(slide.tick - ANIMATION_LEAD - 1)).toBe(false)
     expect(thisOne(slide.tick + 30)).toBe(false)
+  })
+})
+
+describe('replays', () => {
+  const events = full.state.events
+  const teamOf = (idx: number) => full.state.players[idx].team
+  const goalXOf = (team: 0 | 1, tick: number) => ownGoalX(team, full.halfTimeTick !== null && tick > full.halfTimeTick ? 2 : 1)
+  const moments = replayMoments(events, teamOf, goalXOf)
+
+  it('replays every goal and every penalty foul, after the fact', () => {
+    for (const e of events) {
+      const wanted = e.type === 'goal' || (e.type === 'foul' && e.award === 'penalty')
+      if (!wanted) continue
+      const m = moments.find((x) => x.tick === e.tick)
+      expect(m, `${e.type} at ${e.clock}`).toBeDefined()
+      expect(m!.autoAt).toBeGreaterThan(e.tick)
+    }
+    expect(moments.filter((m) => m.kind === 'goal').every((m) => m.angles.length === 3)).toBe(true)
+  })
+
+  it('starts each replay where the move began, between 5 and 15 seconds before the moment', () => {
+    for (const m of moments) {
+      expect(m.tick - m.start).toBeGreaterThanOrEqual(50)
+      expect(m.tick - m.start).toBeLessThanOrEqual(150)
+      expect(m.end).toBeGreaterThan(m.tick)
+    }
   })
 })

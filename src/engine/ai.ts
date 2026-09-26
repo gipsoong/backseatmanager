@@ -17,6 +17,7 @@ import {
   clamp,
   closestT,
   dist,
+  distToSegment,
   projectT,
   len,
   lerp,
@@ -318,8 +319,8 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
   // Shot: only from where a shot is physically sensible.
   if (opts.allowShot) {
     const q = shotQuality(s, p, ball, opts.maxShotDistance)
-    const eagerness = 0.9 + p.def.traits.flair * 0.4 + attrs.shooting / 40
-    if (q > 0.03 && q * eagerness > bestU) {
+    const eagerness = 0.8 + p.def.traits.flair * 0.3 + attrs.shooting / 50
+    if (q > 0.025 && q * eagerness > bestU) {
       const gk = goalkeeperOf(s, 1 - p.team as Side)
       const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
       const side = gy > CENTER.y ? -1 : 1
@@ -336,9 +337,24 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
   // Under pressure deep in our own half with nothing on (or a keeper with it in his hands): get rid of it.
   const keeper = p.slot.role === 'GK'
   if (best.kind !== 'pass' && a.x < 30 && (keeper || nearestDist(opps, p.pos) < 3)) {
-    // Long and often towards a touchline: safety first.
-    const y = rng.chance(0.85) ? rng.range(10, 58) : rng.chance(0.5) ? rng.range(-4, 8) : rng.range(60, 72)
-    return { kind: 'clearance', target: wf(s, p.team, vec(a.x + rng.range(35, 55), y)) }
+    // Long, and away from whoever is closing him down: of a spread of directions (upfield first,
+    // then towards the touchlines), take the one whose first few metres are clearest.
+    const len = rng.range(35, 55)
+    const candidates = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05].map((angle) => {
+      const dir = vec(Math.cos(angle), Math.sin(angle))
+      return wf(s, p.team, vec(a.x + dir.x * len, a.y + dir.y * len))
+    })
+    const clearance = (target: Vec): number => {
+      const near = lerp(ball, target, Math.min(1, 6 / Math.max(dist(ball, target), 1)))
+      let gap = Infinity
+      for (const o of opps) {
+        if (projectT(ball, near, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
+        gap = Math.min(gap, distToSegment(ball, near, o.pos))
+      }
+      return gap
+    }
+    const clear = candidates.find((t) => clearance(t) > 2) ?? candidates.reduce((x, y) => (clearance(y) > clearance(x) ? y : x))
+    return { kind: 'clearance', target: clear }
   }
   return best
 }
