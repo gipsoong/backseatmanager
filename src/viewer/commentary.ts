@@ -38,8 +38,14 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
     lines.push({ tick: e.tick, clock: e.clock, text, kind, team })
   }
   const shotLive = (e: MatchEvent): boolean => lastShot !== null && e.tick - lastShot.tick <= 20
+  /** x in `team`'s attacking frame: 0 at its own goal line, 105 at the one it attacks. */
+  const attackX = (team: Side, x: number): number => (oppGoalX(team, half) === 105 ? x : 105 - x)
+  // The last pass or clearance, for who an interception was cut out from.
+  let lastKick: { tick: number; byIdx: number; lofted: boolean; through: boolean } | null = null
 
   for (const e of events) {
+    if (e.type === 'pass') lastKick = { tick: e.tick, byIdx: e.byIdx, lofted: e.lofted, through: e.through }
+    else if (e.type === 'clearance') lastKick = { tick: e.tick, byIdx: e.byIdx, lofted: true, through: false }
     switch (e.type) {
       case 'restart':
         if (e.restart === 'kickoff' && !afterGoal) {
@@ -67,7 +73,22 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
         add(e, text, 'chance', t)
         break
       }
-      case 'possession':
+      case 'possession': {
+        const t = teamOf(e.idx)
+        const ax = attackX(t, e.contact.x)
+        const kicked = lastKick && e.tick - lastKick.tick <= 40 ? lastKick : null
+        if (e.via === 'interception' && kicked) {
+          const by = name(kicked.byIdx)
+          if (ax > 70) {
+            // Won high up the pitch: the start of a chance, as often as not.
+            add(e, vary(e.tick, [`${name(e.idx)} reads it and nicks the ball off ${by}.`, `Intercepted high up the pitch by ${name(e.idx)}.`]), 'info', t)
+          } else if (ax < 25 && (kicked.lofted || kicked.through)) {
+            add(e, vary(e.tick, [`${name(e.idx)} cuts it out.`, `Good defending from ${name(e.idx)}, who gets across to intercept.`]), 'info', t)
+          }
+        }
+        if (e.via === 'save' && !shotLive(e) && e.height > 1 && kicked?.lofted && ax < 18) {
+          add(e, vary(e.tick, [`${name(e.idx)} comes to claim it.`, `Safe hands from ${name(e.idx)}.`]), 'info', t)
+        }
         if (e.via === 'save' && shotLive(e)) {
           const text = e.dive
             ? vary(e.tick, [`Diving save! ${name(e.idx)} holds on to it.`, `${name(e.idx)} flings himself across and gathers.`])
@@ -76,6 +97,7 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
           lastShot = null
         }
         break
+      }
       case 'deflection':
         if (e.kind === 'parry' && shotLive(e)) {
           const text = e.dive
@@ -117,10 +139,23 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
         break
       }
       case 'tackle': {
-        // Only a take-on in the final third is worth a line.
-        if (e.won || !e.beaten) break
+        if (e.won) {
+          // Winning it back high up the pitch, or a last-ditch tackle in his own box.
+          const t = teamOf(e.byIdx)
+          const ax = attackX(t, e.pos.x)
+          const inBox = ax < 16.5 && Math.abs(e.pos.y - CENTER.y) < 20.16
+          if (ax > 65) {
+            add(e, vary(e.tick, [`${name(e.byIdx)} wins it back from ${name(e.onIdx)} high up the pitch.`, `${name(e.onIdx)} is dispossessed by ${name(e.byIdx)}.`, `${name(e.byIdx)} robs ${name(e.onIdx)}.`]), 'info', t)
+          } else if (inBox) {
+            const how = e.style === 'slide' ? 'A superb sliding tackle' : 'A crucial tackle'
+            add(e, `${how} from ${name(e.byIdx)} to stop ${name(e.onIdx)}.`, 'info', t)
+          }
+          break
+        }
+        // Otherwise only a take-on in the final third is worth a line.
+        if (!e.beaten) break
         const t = teamOf(e.onIdx)
-        const x = oppGoalX(t, half) === 105 ? e.pos.x : 105 - e.pos.x
+        const x = attackX(t, e.pos.x)
         if (x < 70) break
         const c = name(e.onIdx)
         const o = name(e.byIdx)
