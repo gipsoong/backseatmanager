@@ -109,7 +109,7 @@ import type {
   TackleStyle,
 } from './types.ts'
 
-const XG_CALIBRATION = 1.45
+const XG_CALIBRATION = 1.3
 
 type EventBody = MatchEvent extends infer E ? (E extends MatchEvent ? Omit<E, 'tick' | 'clock'> : never) : never
 
@@ -581,11 +581,15 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
 
   if (isKeeper && (speed >= CONTROLLABLE_SPEED || k?.kind === 'shot') && fromOpponent) {
     const reach = reachOf(s, p)
-    const off = dist(p.pos, contact) / reach
+    // How far off his body the ball will pass: its line of travel from here, not the point where it
+    // first came within reach (the edge of his dive, for a ball coming across him).
+    const ahead = add(contact, b.vel)
+    const passes = dist(p.pos, lerp(contact, ahead, clamp(projectT(contact, ahead, p.pos), 0, 1)))
+    const off = Math.min(1, passes / reach)
     // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
     // to react (struck from close in); one towards the edge of his reach is a real test.
     const flight = k ? (s.tick - k.tick) * DT : 1
-    const pSave = clamp(0.97 - off * off * 0.8 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
+    const pSave = clamp(0.97 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
     if (!rng.chance(pSave)) return miss()
     if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
       takePossession(s, p, contact, height, 'save', out)
@@ -691,7 +695,7 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
 
   if (cross) {
     const attrs = p.def.attrs
-    const sigma = ((26 - attrs.shooting) / 20) * (1.5 + toGoal * 0.2) * (challenged ? 1.6 : 1)
+    const sigma = ((26 - attrs.shooting) / 20) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
     const aimY = CENTER.y + rng.range(-3, 3) + rng.gauss() * sigma
     const target = wf(s, p.team, vec(PITCH_LENGTH, aimY))
     const aimH = Math.max(0.05, rng.range(0.1, 1.6) + rng.gauss() * sigma * 0.4)
