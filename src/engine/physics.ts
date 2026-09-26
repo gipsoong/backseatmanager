@@ -41,13 +41,9 @@ export function advanceBall(b: BallMotion): BallMotion & { rawZ: number } {
 }
 
 /** Launch for a lofted ball that lands `d` metres away after `time` seconds. */
-export function loft(d: number, time: number): { speed: number; vz: number; apex: number } {
-  const vz = (GRAVITY * time) / 2
-  return { speed: d / time, vz, apex: (vz * vz) / (2 * GRAVITY) }
+export function loft(d: number, time: number): { speed: number; vz: number } {
+  return { speed: d / time, vz: (GRAVITY * time) / 2 }
 }
-
-/** Height of a lofted ball at fraction t of its flight. */
-export const loftHeightAt = (apex: number, t: number): number => 4 * apex * t * (1 - t)
 
 /** Flight time we'd choose for a lofted ball over distance d. */
 export const loftTime = (d: number): number => Math.min(2.6, Math.max(1.0, 0.6 + d / 25))

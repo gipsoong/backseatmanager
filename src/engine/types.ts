@@ -237,8 +237,6 @@ export type MatchEvent = EventBase &
     | { type: 'fullTime' }
   )
 
-export type MatchEventType = MatchEvent['type']
-
 export interface MatchConfig {
   seed: number
   /** Minutes per half of simulated time. Tests may shorten this. */

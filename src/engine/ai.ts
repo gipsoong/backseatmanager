@@ -97,10 +97,66 @@ export function offsideLine(s: MatchState, team: Side, ballPos: Vec): number {
 
 /** Where `team`'s opponents' second-last player stands, in `team`'s attacking frame. */
 export function defensiveLine(s: MatchState, team: Side): number {
-  const xs = opponentsOf(s, team)
-    .map((o) => af(s, team, o.pos).x)
-    .sort((a, b) => b - a)
-  return xs.length >= 2 ? xs[1] : 0
+  const snap = snapshots.get(s)
+  const cached = snap?.lines[team]
+  if (cached !== undefined) return cached
+  let first = -Infinity
+  let second = -Infinity
+  for (const o of s.players) {
+    if (!o.onPitch || o.team === team) continue
+    const x = af(s, team, o.pos).x
+    if (x > first) {
+      second = first
+      first = x
+    } else if (x > second) second = x
+  }
+  const line = second === -Infinity ? 0 : second
+  if (snap) snap.lines[team] = line
+  return line
+}
+
+// ---------------------------------------------------------------------------
+// Movement snapshot
+
+/**
+ * While players choose where to move, nothing those choices read changes until they move: the
+ * defensive lines, the loose ball's path, and who can reach it when. Worked out once per tick
+ * instead of once per player; outside the movement step everything is computed fresh.
+ */
+interface Snapshot {
+  lines: (number | undefined)[]
+  unpressured?: (boolean | undefined)[]
+  path?: BallPoint[]
+  arrivals?: Map<number, { ticks: number; point: BallPoint }>
+}
+const snapshots = new WeakMap<MatchState, Snapshot>()
+
+export function beginMovement(s: MatchState): void {
+  snapshots.set(s, { lines: [] })
+}
+
+export function endMovement(s: MatchState): void {
+  snapshots.delete(s)
+}
+
+/** An opponent has the ball and none of `team` is within 4m of him. */
+function ballUnpressured(s: MatchState, team: Side): boolean {
+  const snap = snapshots.get(s)
+  const cached = snap?.unpressured?.[team]
+  if (cached !== undefined) return cached
+  const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
+  const v = owner !== null && owner.team !== team && nearestDist(teammatesOf(s, team), owner.pos) > 4
+  if (snap) (snap.unpressured ??= [])[team] = v
+  return v
+}
+
+/** The loose ball's path over the next 40 ticks. */
+function loosePath(s: MatchState): BallPoint[] {
+  const snap = snapshots.get(s)
+  if (snap?.path) return snap.path
+  const path = ballPath(s.ball)
+  if (snap) snap.path = path
+  return path
 }
 
 export function offsidePositions(s: MatchState, kicker: PlayerState, ballPos: Vec): number[] {
@@ -126,25 +182,18 @@ export function ballPath(b: BallMotion, ticks = 40): BallPoint[] {
   return out
 }
 
-/** Earliest tick at which `pl` could reach the ball along `path` (low enough to play), and where. */
-export function interceptOf(pl: PlayerState, path: BallPoint[], reach: number, reachHeight: number): { ticks: number; point: Vec } {
-  for (let k = 0; k < path.length; k++) {
-    if (path[k].z > reachHeight) continue
-    if (dist(pl.pos, path[k]) - reach <= pl.maxSpeed * k * DT * 0.9) return { ticks: k, point: path[k] }
-  }
-  const end = path[path.length - 1]
-  return { ticks: path.length + dist(pl.pos, end) / (pl.maxSpeed * DT), point: end }
-}
 
 /**
  * Time (s) for `pl` to get within `reach` of `point`, accelerating from how he's moving now (as
  * `movePlayer` does): a man running the other way has to stop first.
  */
 export function reachTime(pl: PlayerState, point: Vec, reach: number): number {
-  const to = sub(point, pl.pos)
-  const d = len(to) - reach
+  const dx = point.x - pl.pos.x
+  const dy = point.y - pl.pos.y
+  const full = Math.sqrt(dx * dx + dy * dy)
+  const d = full - reach
   if (d <= 0) return 0
-  const along = pl.vel.x * (to.x / len(to)) + pl.vel.y * (to.y / len(to))
+  const along = (pl.vel.x * dx + pl.vel.y * dy) / full
   const stop = Math.max(0, -along) / PLAYER_ACCEL
   const v0 = clamp(along, 0, pl.maxSpeed)
   const accelDist = (pl.maxSpeed ** 2 - v0 ** 2) / (2 * PLAYER_ACCEL)
@@ -152,7 +201,10 @@ export function reachTime(pl: PlayerState, point: Vec, reach: number): number {
   return stop + (pl.maxSpeed - v0) / PLAYER_ACCEL + (d - accelDist) / pl.maxSpeed
 }
 
-/** Like `interceptOf`, but with `reachTime`'s acceleration: the tick he can first get to the ball. */
+/**
+ * Earliest tick at which `pl` could reach the ball along `path` (low enough to play), and where,
+ * accelerating as `reachTime` has it.
+ */
 export function arrivalOf(pl: PlayerState, path: BallPoint[], reach: number, reachHeight: number): { ticks: number; point: BallPoint } {
   for (let k = 0; k < path.length; k++) {
     if (path[k].z <= reachHeight && reachTime(pl, path[k], reach) <= k * DT) return { ticks: k, point: path[k] }
@@ -630,8 +682,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   } else {
     const [lo, hi] = { low: [14, 32], mid: [20, 42], high: [26, 55] }[s.teams[team].block]
     // No pressure on the ball: he has time to pick a pass in behind, so the line drops off.
-    const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
-    const unpressured = owner !== null && owner.team !== team && nearestDist(teammatesOf(s, team), owner.pos) > 4
+    const unpressured = ballUnpressured(s, team)
     // Never hold a line further out than the ball: drop towards the six-yard box when it's deep.
     lineX = Math.min(clamp(b.x - 22, lo, hi) - (unpressured ? 7 : 0), Math.max(b.x - 2, 4))
     // Ball wide near our byline: drop to the six-yard box, where the crosses are aimed.
@@ -650,10 +701,18 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   if (run) return wf(s, team, run)
   if (inPossession) {
     // Get free: step away from the nearest opponent to offer a clear pass.
-    const opps = opponentsOf(s, team).map((o) => af(s, team, o.pos))
     let near: Vec | null = null
-    for (const o of opps) if (!near || dist(o, target) < dist(near, target)) near = o
-    if (near && dist(near, target) < 5) target = add(target, scale(norm(sub(target, near)), 5 - dist(near, target)))
+    let nearD = Infinity
+    for (const o of s.players) {
+      if (!o.onPitch || o.team === team) continue
+      const oa = af(s, team, o.pos)
+      const d = dist(oa, target)
+      if (d < nearD) {
+        nearD = d
+        near = oa
+      }
+    }
+    if (near && nearD < 5) target = add(target, scale(norm(sub(target, near)), 5 - nearD))
     const line = offsideLine(s, team, s.ball.pos)
     const role = p.slot.role
     const forward = role === 'ST' || role === 'W' || role === 'WM'
@@ -728,8 +787,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   // Loose ball: the quickest player from each team goes for it.
   if (!owner) {
     if (chasers.has(p.idx)) {
-      const path = ballPath(ball)
-      return { target: arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)).point, urgency: 1 }
+      const known = snapshots.get(s)?.arrivals?.get(p.idx)
+      return { target: (known ?? arrivalOf(p, loosePath(s), reachOf(s, p), reachHeightOf(s, p))).point, urgency: 1 }
     }
     if (p.slot.role === 'GK') return { target: keeperShotTarget(s, p) ?? shapeTarget(s, p, false), urgency: 1 }
     const lastTeam = ball.lastTouchIdx === null ? null : s.players[ball.lastTouchIdx].team
@@ -821,7 +880,7 @@ function keeperShotTarget(s: MatchState, gk: PlayerState): Vec | null {
   const k = s.ball.kick
   if (!k || k.kind !== 'shot' || k.team === gk.team || s.ball.touchedSinceKick) return null
   if (s.tick - k.tick < GK_REACTION_TICKS) return gk.pos
-  const path = ballPath(s.ball, 30)
+  const path = loosePath(s).slice(0, 31)
   const ga = af(s, gk.team, gk.pos)
   let best = path[path.length - 1]
   for (const bp of path) {
@@ -857,9 +916,11 @@ export function pickChasers(s: MatchState): Map<number, number> {
     if (gk && through && dist(owner.pos, wf(s, gk.team, vec(0, CENTER.y))) < 16) out.set(gk.idx, 0)
     return out
   }
-  const path = ballPath(ball)
-  const times = new Map<number, { ticks: number; point: Vec }>()
+  const path = loosePath(s)
+  const times = new Map<number, { ticks: number; point: BallPoint }>()
   for (const p of onPitch(s)) times.set(p.idx, arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)))
+  const snap = snapshots.get(s)
+  if (snap) snap.arrivals = times
   const firstOf = (team: Side): number => Math.min(...teammatesOf(s, team).map((p) => times.get(p.idx)!.ticks))
   for (const team of [0, 1] as const) {
     let best: PlayerState | null = null

@@ -69,6 +69,8 @@ import {
   keeperHasItInHands,
   kickoffPosition,
   giveAndGo,
+  beginMovement,
+  endMovement,
   maybeStartRuns,
   pressureOn,
   offsidePositions,
@@ -227,17 +229,21 @@ export function step(s: MatchState): MatchEvent[] {
   if (s.phase.kind === 'restart') tryTakeRestart(s, out)
   else if (s.ball.ownerIdx !== null && s.tick >= s.decisionAt) carrierDecides(s, out)
 
-  // 2. movement
+  // 2. movement: everyone chooses from the same snapshot, then moves.
+  beginMovement(s)
   if (s.phase.kind === 'play') {
     for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
   }
   const chasers = s.phase.kind === 'play' ? pickChasers(s) : new Map<number, number>()
   const phase = s.phase
-  for (const p of s.players) {
-    if (!p.onPitch) continue
-    const intent: MoveIntent = phase.kind === 'restart' ? restartIntent(s, p, phase.restart) : playIntent(s, p, chasers)
-    movePlayer(p, intent)
-  }
+  const intents = s.players.map((p) =>
+    !p.onPitch ? null : phase.kind === 'restart' ? restartIntent(s, p, phase.restart) : playIntent(s, p, chasers),
+  )
+  endMovement(s)
+  s.players.forEach((p, i) => {
+    const intent = intents[i]
+    if (intent) movePlayer(p, intent)
+  })
 
   // 3. ball
   if (s.phase.kind === 'play') updateBall(s, out)
