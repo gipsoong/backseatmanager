@@ -4,8 +4,42 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 ## Current milestone
 
-**2. Match viewer** — view modes and ball flight done (session 3). Engine calibrated to real ranges
-except corners and headers.
+**2. Match viewer** — done. Engine: attacking AI reworked (session 6); remaining calibration gaps
+listed under "next up".
+
+## Done (session 6): attacking AI, crosses, keepers, defending
+
+Measured over 40 matches (`npm run calibrate -- 40`), per team. Before → after: shots 4.6 → 12.2,
+xG 0.5 → 1.8, goals 0.8 → 2.0, longest dull spell 54 → 32 min, crosses 2.5 → 7.5, headed shots 14%.
+
+- **Races on the real ball path.** Through balls, lofted passes and crosses are judged by a race:
+  the tick the receiver can first reach the ball on its actual flight (`ballPath`) against the
+  first opponent's, using `arrivalOf`/`reachTime` (acceleration, and a man running the other way
+  has to stop first). A level race is a 50/50 (`raceLost`); a defender right in front of the kick
+  is priced as the loop's charge-down chance, not a certain block. The old "ball vs defender" model
+  rated every cross as lost, so wingers never crossed.
+- **Through balls** into space 6/11/16m ahead of forwards and late-running midfielders, on the
+  ground or over the top (lofted only to land outside the box and away from the touchline). The
+  `through` flag on pass events marks balls from in front of the defensive line to beyond it.
+- **Crosses into space**: near post, penalty spot, far post, or pulled back from the byline.
+  `isCross` (by target) decides head-height delivery in both the AI and the kick.
+- **Runs**: in behind when the man on the ball has time (more when marked tight), angled into the
+  channels; one-twos (`giveAndGo`, `runTo`); marked forwards check back short. All emit `run`.
+- **Carriers**: a receiver under pressure decides quickly; a clean-through carrier runs at goal.
+  Passing under pressure is less accurate (`pressureOn`, in both the kick and the AI's risk).
+- **Keepers**: save chance from placement and reaction time, not raw pace; bigger dive reach; only
+  come for a ball they'll reach first; sweep behind a high line; rush a carrier only when he's
+  clean through; unchallenged claims rarely fail.
+- **Defending**: back line drops when the ball is unpressured, and to the six-yard box when the
+  ball is wide near the byline; markers never end up on the wrong side of their man (tighter in the
+  box); a back-liner goes with a forward already in behind him; a second man chases a ball running
+  towards his goal; chasers picked with the acceleration-aware arrival.
+- **Fixes**: a mistimed header or failed claim only bars the player for a moment (it used to bar
+  him for the whole flight, so a ball could bounce past a keeper standing next to it into the net);
+  no lofted back-passes (half of all corners were these, overhit over the team's own byline); a
+  blocker can't gather his own ricochet; contested headers are harder to win and to direct.
+- Diagnostics: `scripts/diag-attacks.ts` (how final-third attacks end), `scripts/diag-crosses.ts`
+  (what happens to crosses).
 
 ## Done (session 5): exploits closed, replays of key moments, runs, dribble moves
 
@@ -121,9 +155,17 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-0. **Attacking AI** (main realism gap, see session 5): through balls into space behind the line,
-   more and better-timed runs, one-twos/third-man runs, attackers getting free of markers. Then
-   re-calibrate crosses, corners and headers.
+1. **Remaining calibration gaps** (session 6, 40 matches):
+   - Goals 2.0 (1.1–1.8): typical scores look right, the average is lifted by blowouts (11–1,
+     1–12) between the most mismatched random squads (average attribute ~7 vs ~12;
+     `randomTeam` quality 10–15). Decide whether to narrow the quality range or dampen how much
+     attribute gaps swing duels.
+   - Through balls ~25 at 65% success (real: a few, ~35%). Switching them off drops goals by
+     ~1.2, so they're the main lever. Most go to a forward already level with or past his nearest
+     defender.
+   - Corners 1.7 (4–6.5): clearances and blocks rarely go behind; blocked-shot ricochets are
+     mostly picked up. Offsides 0.6 (1–3): defenders tracking men past them stops the line
+     holding. Passes 715 (high, long-standing).
 2. Season loop, transfers/scouting, development/youth, polish (see CLAUDE.md).
 
 ## Open questions / decisions deferred

@@ -37,6 +37,7 @@ import {
 import {
   AERIAL_HEIGHT,
   HEADER_RECOVERY_TICKS,
+  BLOCK_RECOVERY_TICKS,
   CHARGE_DOWN_CHANCE,
   CHARGE_DOWN_REACH,
   CONTROLLABLE_SPEED,
@@ -529,6 +530,8 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     b.vz = rng.range(0, 3)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
+    // Off his body and away: he can't gather his own ricochet in the same instant.
+    if (kind === 'block') p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
     const dive = kind === 'parry' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
     emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind, dive })
     return true
@@ -546,7 +549,9 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
 
   // A keeper coming for a cross: catch it or punch it clear.
   if (isKeeper && height > AERIAL_HEIGHT && fromOpponent && k?.kind !== 'shot' && speed < CONTROLLABLE_SPEED) {
-    const pClaim = clamp(0.75 + (attrs.keeping - 12) * 0.02, 0.4, 0.95)
+    // Unchallenged he rarely drops it; with an attacker going for it too, he often does.
+    const contested = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 3)
+    const pClaim = clamp((contested ? 0.7 : 0.95) + (attrs.keeping - 12) * 0.02, 0.4, 0.98)
     if (!rng.chance(pClaim)) {
       // Misjudged it in the air: he can still gather it if it drops to him.
       p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
@@ -831,7 +836,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const inOwnBox = inPenaltyArea(c.pos, ownGoalX(o.team, s.half))
   // Players go in more carefully in their own box, and once they've been booked.
   const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
-  const pFoul = clamp(0.05 + o.def.traits.temper * 0.06 + ((ca.dribbling - oa.tackling) / 20) * 0.05, 0.02, 0.16) * care
+  const pFoul = clamp(0.04 + o.def.traits.temper * 0.05 + ((ca.dribbling - oa.tackling) / 20) * 0.05, 0.02, 0.16) * care
   // Going in from beyond standing reach means going to ground.
   const style: TackleStyle = dist(o.pos, c.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
   if (rng.chance(pFoul * (style === 'slide' ? 1.4 : 1))) {

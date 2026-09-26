@@ -37,6 +37,8 @@ export const GK_HAND_REACH = 2.8
 export const AERIAL_HEIGHT = 1.0
 /** After a mistimed header, a player can't play the ball again for this long. */
 export const HEADER_RECOVERY_TICKS = 4
+/** After blocking the ball, a player can't play the ricochet for this long. */
+export const BLOCK_RECOVERY_TICKS = 4
 /** Fraction of vertical speed kept on a bounce; slower than this and it just rolls. */
 export const BOUNCE = 0.45
 export const MIN_BOUNCE_SPEED = 1.5

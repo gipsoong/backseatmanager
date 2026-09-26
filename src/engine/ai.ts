@@ -259,8 +259,6 @@ export function shotQuality(s: MatchState, p: PlayerState, ballPos: Vec, maxDist
   return q
 }
 
-export const debug: { log: ((p: PlayerState, kind: string, u: number, info?: string) => void) | null } = { log: null }
-
 export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
   const rng = s.rng
   const ball = s.ball.pos
@@ -335,7 +333,7 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
   }
 
   // Through balls: into the space ahead of a forward, for him to run onto.
-  if (a.x > 35 && !(globalThis as any).NO_TB) {
+  if (a.x > 35) {
     for (const q of teammatesOf(s, p.team)) {
       if (q.idx === p.idx || offside.has(q.idx) || !THROUGH_ROLES.has(q.slot.role)) continue
       if (opts.passFilter && !opts.passFilter(q)) continue
@@ -351,7 +349,7 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
   }
 
   // Crosses into space: near post, penalty spot, far post, or pulled back from the byline.
-  if (a.x > 72 && Math.abs(a.y - CENTER.y) > 10 && !opts.passFilter && !(globalThis as any).NO_CX) {
+  if (a.x > 72 && Math.abs(a.y - CENTER.y) > 10 && !opts.passFilter) {
     for (const option of crossesIntoSpace(s, p, a, offside, opts.maxPass)) {
       if (option.u > bestU) {
         bestU = option.u
@@ -383,7 +381,6 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
     const risk = clamp(clamp((5 - closest) / 5, 0, 1) * (1 - beat * 0.5) + pressure, 0, 1)
     const heldFor = (s.tick - s.possessedSince) * DT // players don't dribble forever
     const u = (1 - risk) * (threat(ta) + POSSESSION_VALUE) - risk * loss + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002
-    debug.log?.(p, 'dribble', u, `risk ${risk.toFixed(2)}`)
     if (u > bestU) {
       bestU = u
       best = { kind: 'dribble', target }
@@ -776,6 +773,10 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
       // Tighter in our own box.
       const tight = inPenaltyArea(mark.pos, ownGoal.x) ? 0.95 : 0.7
       target = lerp(zone, add(mark.pos, scale(norm(sub(ownGoal, mark.pos)), 1.5)), tight)
+      // Whatever the zone says, never be caught on the wrong side of him: stay at least a yard deeper.
+      const ta = af(s, p.team, target)
+      const ma = af(s, p.team, mark.pos)
+      if (ta.x > ma.x - 1) target = wf(s, p.team, vec(ma.x - 1, ta.y))
     }
   }
   return { target, urgency: dist(p.pos, target) > 8 ? 1 : 0.7 }
@@ -880,7 +881,7 @@ export function maybeStartRuns(s: MatchState): PlayerState[] {
     // From on (or near) the line: a run from deep is just getting forward.
     if (af(s, p.team, p.pos).x < line - 12) continue
     const marked = nearestDist(opps, p.pos) < 3 ? 1.6 : 1
-    const chance = (0.001 + (p.def.attrs.positioning / 20) * 0.0012) * time * marked
+    const chance = (0.002 + (p.def.attrs.positioning / 20) * 0.002) * time * marked
     if (s.rng.chance(chance)) {
       p.runUntil = s.tick + s.rng.int(20, 35)
       p.runTo = null
@@ -896,7 +897,7 @@ export function maybeStartRuns(s: MatchState): PlayerState[] {
  * return pass is judged for offside when it's played).
  */
 export function giveAndGo(s: MatchState, p: PlayerState, to: PlayerState): Vec | null {
-  if ((globalThis as any).NO_G2 || !['CM', 'W', 'WM', 'ST', 'FB'].includes(p.slot.role)) return null
+  if (!['CM', 'W', 'WM', 'ST', 'FB'].includes(p.slot.role)) return null
   const a = af(s, p.team, p.pos)
   const ta = af(s, p.team, to.pos)
   if (a.x < 45 || a.x > 90 || dist(a, ta) > 20) return null
