@@ -36,6 +36,12 @@ for (let seed = first; seed < first + n; seed++) {
           break
         }
         if (e.type === 'possession' && state.players[e.idx].team !== team) break
+        // The restart's own kick (a corner delivered, a free kick played): the set piece.
+        const before = ev[j - 1]
+        if (e.type === 'pass' && before?.type === 'restart' && before.team === team && before.restart !== 'kickoff' && before.takerIdx === e.byIdx) {
+          kind = `set piece (${before.restart})`
+          break
+        }
         if (e.type === 'pass' && state.players[e.byIdx].team === team) {
           const wide = Math.abs(e.from.y - CENTER.y) > BOX_HALF_WIDTH - 4
           // Cleared by a defender first, then shot: a second ball, not the cross's goal.

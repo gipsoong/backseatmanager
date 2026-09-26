@@ -110,7 +110,8 @@ describe('squads, fitness and injuries', () => {
     const r = results.get(today[0].id)!
     expect(r.appearances.length).toBeGreaterThanOrEqual(22)
     s = completeMatchday(s, results)
-    const played = r.appearances.find((a) => a.minutes >= 89)!
+    // The most tired of those who played the whole match (a keeper can recover fully by the next).
+    const played = r.appearances.filter((a) => a.minutes >= 89).sort((a, b) => a.energy - b.energy)[0]
     expect(s.condition[played.id].fitness).toBeLessThan(1)
     expect(s.stats[played.id].apps).toBe(1)
     const rested = squadOf(s.teams[today[0].home]).find((p) => !r.appearances.some((a) => a.id === p.id))

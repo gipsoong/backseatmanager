@@ -563,19 +563,19 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     if (k) k.missedIdxs.push(p.idx)
     return false
   }
-  const deflect = (kind: 'block' | 'parry' | 'miscontrol', keep: number, along = kind === 'block' ? 0.8 : -0.5): true => {
+  const deflect = (kind: 'block' | 'parry' | 'miscontrol', keep: number, along = kind === 'block' ? 0.8 : -0.5, spread = 0.7, lift = 3): true => {
     // A block takes the pace off but the ball keeps going roughly the same way (often behind);
     // a miscontrol pops up anywhere.
-    const dir = norm(add(scale(norm(b.vel), along), vec(rng.gauss() * 0.7, rng.gauss() * 0.7)))
+    const dir = norm(add(scale(norm(b.vel), along), vec(rng.gauss() * spread, rng.gauss() * spread)))
     b.pos = contact
     b.vel = scale(dir, speed * keep)
     b.z = height
-    b.vz = rng.range(0, 3)
+    b.vz = rng.range(0, lift)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
     // Off his body and away: he can't gather his own ricochet in the same instant.
-    if (kind === 'block') p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
     const dive = kind === 'parry' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
+    if (kind === 'block' || dive) p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
     emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind, dive })
     return true
   }
@@ -586,8 +586,16 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   // Struck at him from point-blank range: he only sometimes gets anything on it (a reflex), and
   // when he does it ricochets off him rather than being controlled.
   if (fromOpponent && s.tick - k.tick <= 1 && dist(contact, k.from) < 1.5 && p.slot.role !== 'GK') {
-    // Charged down at source, it comes back off him rather than carrying on.
-    return rng.chance(CHARGE_DOWN_CHANCE) ? deflect('block', 0.45, rng.range(-0.6, 0.6)) : miss()
+    if (!rng.chance(CHARGE_DOWN_CHANCE)) return miss()
+    // Mid follow-through, the kicker can't play the rebound in the same instant either.
+    const kicker = s.players[k.byIdx]
+    kicker.touchReadyAt = Math.max(kicker.touchReadyAt, s.tick + BLOCK_RECOVERY_TICKS)
+    // A cross is blocked by a leg stuck out across it: it glances on, looping, much the way it was
+    // going (so from near the byline, often behind). A shot, struck hardest, spins off at wide
+    // angles. Anything else comes back off him.
+    if (k.lofted) return deflect('block', rng.range(0.5, 0.75), rng.range(0.2, 0.9), 0.6, 5)
+    if (k.kind === 'shot') return deflect('block', rng.range(0.35, 0.6), rng.range(0, 0.9), 1.1, 6)
+    return deflect('block', 0.45, rng.range(-0.6, 0.6))
   }
 
   // A keeper coming for a cross: catch it or punch it clear.
@@ -617,7 +625,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
     // to react (struck from close in); one towards the edge of his reach is a real test.
     const flight = k ? (s.tick - k.tick) * DT : 1
-    const pSave = clamp(0.97 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
+    const pSave = clamp(1.02 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
     if (!rng.chance(pSave)) return miss()
     if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
       takePossession(s, p, contact, height, 'save', out)
@@ -634,14 +642,19 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     b.vz = high ? rng.range(3, 5) : rng.range(1, 4)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
-    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry', dive: dist(p.pos, contact) > KEEPER_BODY_REACH })
+    // Down after a full-stretch dive, he can't get straight back to it; one palmed away at his body he can.
+    const dive = dist(p.pos, contact) > KEEPER_BODY_REACH
+    if (dive) p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
+    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry', dive })
     return true
   }
 
   if (speed >= CONTROLLABLE_SPEED) {
     if (!rng.chance(0.55)) return miss()
-    // Off a body at pace it goes anywhere: on, wide, looping up; often behind.
-    return deflect('block', rng.range(0.35, 0.6), rng.range(-0.3, 0.9))
+    // Off a body at pace it goes anywhere: on, wide, looping up; often behind. A shot, struck
+    // hardest, spins off at the widest angles and loops highest.
+    const shot = k?.kind === 'shot'
+    return deflect('block', rng.range(0.35, 0.6), rng.range(-0.3, 0.9), shot ? 1.1 : 0.7, shot ? 6 : 3)
   }
 
   // A defender in his own box under an opponent's cross gets rid of it, sometimes behind for a corner.
@@ -654,11 +667,13 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     const wide = contact.y < CENTER.y ? -1 : 1
     const aim = vec(goalX, CENTER.y + wide * (GOAL_HALF_WIDTH + rng.range(4, 14)))
     b.pos = contact
-    b.vel = scale(norm(sub(aim, contact)), rng.range(10, 15))
+    // Looped up and away, over the heads of the players around him.
+    b.vel = scale(norm(sub(aim, contact)), rng.range(11, 16))
     b.z = height
-    b.vz = rng.range(1, 4)
+    b.vz = rng.range(3, 6)
     b.lastTouchIdx = p.idx
     b.touchedSinceKick = true
+    p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
     emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: height > AERIAL_HEIGHT ? 'header' : 'block' })
     return true
   }

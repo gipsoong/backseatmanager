@@ -144,8 +144,9 @@ pulling the repo.
 - `scripts/calibrate.ts` — `npm run calibrate -- [n] [first seed]`: aggregate stats over n seeds
   next to real-football ranges, with a realism score. Use it for every engine tuning change, with
   80 matches, and confirm on a second seed set (single sets of 20–40 are too noisy).
-- `scripts/diag-attacks.ts`, `scripts/diag-crosses.ts` — how final-third attacks end; what
-  happens to crosses.
+- `scripts/diag-attacks.ts`, `scripts/diag-crosses.ts`, `scripts/diag-goals.ts`,
+  `scripts/diag-corners.ts` — how final-third attacks end; what happens to crosses; where goals
+  come from; what put each corner behind.
 - `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
   built-in TypeScript stripping (hence `.ts` import extensions throughout).
 - `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and

@@ -29,7 +29,7 @@ const TARGETS: Record<string, [number, number]> = {
   'yellow cards': [1.2, 2.5],
   'red cards': [0, 0.15],
   corners: [4, 6.5],
-  crosses: [8, 14],
+  crosses: [8, 14], // open play; the 2023-24 Premier League averaged 11.2 (a record low)
   offsides: [1, 3],
   'throw-ins': [15, 25],
   'goal kicks': [5, 10],
@@ -103,7 +103,11 @@ for (let seed = first; seed < first + n; seed++) {
   }
   let half = 1
   let through: number | null = null // team of a through ball still waiting for its first touch
+  let prev: (typeof state.events)[number] | null = null
   for (const e of state.events) {
+    // A corner's delivery isn't an open-play cross (the real figures count them apart).
+    const corner = prev?.type === 'restart' && prev.restart === 'corner'
+    prev = e
     if (e.type === 'pass' && e.through) {
       add('through balls', 1)
       through = state.players[e.byIdx].team
@@ -133,8 +137,8 @@ for (let seed = first; seed < first + n; seed++) {
       if (own > 70) add('tackles final third', 1)
     }
     if (e.type === 'goal' && !e.ownGoal) add('goals from shots', 1)
-    if (e.type === 'pass' && e.lofted) {
-      // A cross: in the air into the opponents' box from wide.
+    if (e.type === 'pass' && e.lofted && !corner) {
+      // A cross: in the air into the opponents' box from wide, in open play.
       const attacksHigh = (state.players[e.byIdx].team === 0) === (half === 1)
       const depth = attacksHigh ? 105 - e.target.x : e.target.x
       if (depth < BOX_DEPTH && Math.abs(e.target.y - CENTER.y) < BOX_HALF_WIDTH && Math.abs(e.from.y - CENTER.y) > 12) add('crosses', 1)

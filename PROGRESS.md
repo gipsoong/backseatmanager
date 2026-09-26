@@ -4,8 +4,34 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 ## Current milestone
 
-**3. Season loop** — first version done (session 8): league, fixtures, table, calendar, saves.
-Next: squad depth, then transfers.
+**3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries
+and team selection (session 9). Next: a 38-0-style draft mode (real Premier League players,
+2010–now; draft an XI + 5 subs; no transfers), then transfers for the club mode.
+
+## Done (session 9): cross goals, defensive commentary, captions, squads, corners, offsides
+
+- **Cross-heavy goals** (owner's report, confirmed): 41% of goals came from crosses. Keepers were
+  judged at the edge of their reach instead of on the ball's line past them, and contested headers
+  were too accurate. Now ~18% from open-play crosses (direct + second balls); real ~15%.
+- **Commentary** for turnovers high up the pitch, interceptions, last-ditch tackles, claims.
+- **Captions**: quiet on-pitch labels for key actions (interception, dribble, cross, long ball,
+  header, long shot, curled finish), toggleable. Engine: curled (finesse) shots from flair players.
+- **Squads**: 7-man benches, fatigue (stamina), up to 5 subs in 3 windows, injuries (from fouls
+  and from playing on exhausted) carried across matchdays, fitness recovery between matches,
+  auto-picked or hand-picked XI (Squad tab), Scorers tab, player of the match.
+- **Corners** (1.9 → 4.0–4.4 per team): players could replay their own glanced header or diving
+  parry in the same instant, so most balls heading behind were caught again. Fixed with recovery
+  after glances, blocks, dives and charge-downs (the kicker too). Blocked crosses glance on, blocked
+  shots spin off wide. Base save chance raised a notch to compensate for the live rebounds.
+- **Offsides** (0.8 → 0.8–1.2, depending on the seed set: only a partial fix): strikers play on the last defender's shoulder instead of sitting in
+  the team's shape 12m behind it; the back line holds (doesn't drop with him) when the ball is
+  under pressure; passers read the line a beat late (`OFFSIDE_READ_LAG`) and see a yard off less
+  often than five. Still under the real ~1.6–2: the line drops with every onside runner, so
+  runners are rarely past it at the kick. The next step would be a line that steps up as a unit.
+- Realism after all of it: 31/31 on seeds 1–80, 28/31 on 201–280 (offsides low, corners 4.0,
+  one long dull spell).
+- Calibration counts open-play crosses only (corner deliveries excluded), to match the real
+  figures. `scripts/diag-corners.ts`: what put each corner behind.
 
 ## Done (session 8): season loop, Players tab, faster engine
 
@@ -206,12 +232,12 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-1. **Season depth**: a squad beyond the starting XI (substitutes, rotation), then stamina and
-   injuries (their stoppage time is already on the clock). End of season: promotion/relegation or
-   just a new season with the same clubs, player ageing.
-2. **Transfers / scouting** (milestone 4), then development / youth (milestone 5).
-3. **Realism gaps**: corners (~1.9 vs 4–6.5) need a model of clearing under pressure; offsides
-   (~0.85 vs 1–3) need forwards who mistime runs; both are behaviour, not tuning.
+1. **Draft mode** (38-0 style): Premier League players 2010–now, draft an XI + 5 subs, play a
+   season. No transfers or scouting in this mode.
+2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
+   (milestone 5). End of season: player ageing, a new season with the same clubs.
+3. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;
+   through balls high (~11, shown not scored).
 4. Optional: a friendlier results screen after each matchday (other scores coming in).
 
 ## Open questions / decisions deferred
@@ -220,7 +246,7 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
   on a deliberate play). The harness mirrors this. Revisit with ball height.
 - `chooseAction` consumes the match RNG, so calling it outside the loop (a debugger, or a UI
   "what would he do") changes the rest of the match. Fine for now; clone the RNG if needed.
-- No substitutions, stamina or injuries yet (their stoppage time is on the clock).
+- The user can't make in-match substitutions: a watched match is simulated ahead of playback.
 - Players are clamped to the pitch rectangle (no one steps over a line).
 
 ## Notes for the next session

@@ -73,3 +73,5 @@ export const MAX_SUBS = 5
 export const INJURY_FROM_FOUL = 0.012
 /** Per-tick chance scale of a muscle strain when running on empty. */
 export const STRAIN_PER_TICK = 2e-6
+/** How far behind the play (s) a passer's read of the offside line is: a runner's position that long ago. */
+export const OFFSIDE_READ_LAG = 0.3
