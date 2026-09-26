@@ -36,6 +36,7 @@ import {
 } from './geometry.ts'
 import {
   AERIAL_HEIGHT,
+  HEADER_RECOVERY_TICKS,
   CHARGE_DOWN_CHANCE,
   CHARGE_DOWN_REACH,
   CONTROLLABLE_SPEED,
@@ -63,7 +64,9 @@ import {
   chooseTaker,
   keeperHasItInHands,
   kickoffPosition,
+  giveAndGo,
   maybeStartRuns,
+  pressureOn,
   offsidePositions,
   passKinematics,
   pickChasers,
@@ -71,7 +74,12 @@ import {
   reachHeightOf,
   reachOf,
   restartIntent,
+  defensiveLine,
   takerSpot,
+  THROUGH_BALL_HEIGHT,
+  CROSS_HEIGHT,
+  isCross,
+  LOFTED_PASS_HEIGHT,
   wf,
   xgFrom,
 } from './ai.ts'
@@ -133,6 +141,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
         tackleReadyAt: 0,
         touchReadyAt: 0,
         runUntil: 0,
+        runTo: null,
       })
     })
   }
@@ -311,22 +320,36 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       return
     case 'pass': {
       const d = dist(s.ball.pos, action.target)
-      const sigma = ((21 - p.def.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05)
+      const sigma = ((21 - p.def.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05) * (1 + pressureOn(s, p))
       const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2), clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2))
       const target = add(action.target, err)
       const dt = dist(s.ball.pos, target)
       if (action.lofted) {
         // Aimed to arrive at head height for a cross into the box, chest height otherwise.
-        const receiver = af(s, p.team, s.players[action.toIdx].pos)
-        const cross = receiver.x > PITCH_LENGTH - 18 && Math.abs(receiver.y - CENTER.y) < 14
+        const cross = !action.through && isCross(af(s, p.team, action.target))
         const time = loftTime(dt)
-        const vz = shotVz(cross ? s.rng.range(1.4, 2.1) : s.rng.range(0.6, 1.3), time)
+        // Over the top: dropping for the runner to take in his stride.
+        const height = action.through ? THROUGH_BALL_HEIGHT : (cross ? CROSS_HEIGHT : LOFTED_PASS_HEIGHT) + s.rng.range(-0.35, 0.35)
+        const vz = shotVz(height, time)
         kick(s, p, 'pass', target, dt / time, action.toIdx, restart, { lofted: true, vz })
       } else {
         kick(s, p, 'pass', target, passKinematics(dt).speed, action.toIdx, restart)
       }
       s.stats[p.team].passes++
-      emit(s, out, { type: 'pass', byIdx: p.idx, toIdx: action.toIdx, from: { ...s.ball.kick!.from }, target, lofted: action.lofted, header: false })
+      // A through ball proper: from in front of the defensive line into the space behind it, not
+      // just ahead of a man.
+      const line = defensiveLine(s, p.team)
+      const through = !!action.through && af(s, p.team, s.ball.kick!.from).x < line && af(s, p.team, target).x > line
+      emit(s, out, { type: 'pass', byIdx: p.idx, toIdx: action.toIdx, from: { ...s.ball.kick!.from }, target, lofted: action.lofted, header: false, through })
+      // Pass and move: the passer goes for the return.
+      if (restart === null && !action.lofted) {
+        const run = giveAndGo(s, p, s.players[action.toIdx])
+        if (run) {
+          p.runUntil = s.tick + s.rng.int(20, 30)
+          p.runTo = run
+          emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
+        }
+      }
       return
     }
     case 'clearance': {
@@ -496,10 +519,9 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     if (k) k.missedIdxs.push(p.idx)
     return false
   }
-  const deflect = (kind: 'block' | 'parry' | 'miscontrol', keep: number): true => {
+  const deflect = (kind: 'block' | 'parry' | 'miscontrol', keep: number, along = kind === 'block' ? 0.8 : -0.5): true => {
     // A block takes the pace off but the ball keeps going roughly the same way (often behind);
     // a miscontrol pops up anywhere.
-    const along = kind === 'block' ? 0.8 : -0.5
     const dir = norm(add(scale(norm(b.vel), along), vec(rng.gauss() * 0.7, rng.gauss() * 0.7)))
     b.pos = contact
     b.vel = scale(dir, speed * keep)
@@ -518,13 +540,18 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   // Struck at him from point-blank range: he only sometimes gets anything on it (a reflex), and
   // when he does it ricochets off him rather than being controlled.
   if (fromOpponent && s.tick - k.tick <= 1 && dist(contact, k.from) < 1.5 && p.slot.role !== 'GK') {
-    return rng.chance(CHARGE_DOWN_CHANCE) ? deflect('block', 0.45) : miss()
+    // Charged down at source, it comes back off him rather than carrying on.
+    return rng.chance(CHARGE_DOWN_CHANCE) ? deflect('block', 0.45, -0.4) : miss()
   }
 
   // A keeper coming for a cross: catch it or punch it clear.
   if (isKeeper && height > AERIAL_HEIGHT && fromOpponent && k?.kind !== 'shot' && speed < CONTROLLABLE_SPEED) {
     const pClaim = clamp(0.75 + (attrs.keeping - 12) * 0.02, 0.4, 0.95)
-    if (!rng.chance(pClaim)) return miss()
+    if (!rng.chance(pClaim)) {
+      // Misjudged it in the air: he can still gather it if it drops to him.
+      p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
+      return false
+    }
     if (rng.chance(0.7)) {
       takePossession(s, p, contact, height, 'save', out)
       return true
@@ -535,7 +562,10 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   if (isKeeper && (speed >= CONTROLLABLE_SPEED || k?.kind === 'shot') && fromOpponent) {
     const reach = reachOf(s, p)
     const off = dist(p.pos, contact) / reach
-    const pSave = clamp(0.8 - off * off * 0.75 - Math.max(0, speed - 22) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.92)
+    // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
+    // to react (struck from close in); one towards the edge of his reach is a real test.
+    const flight = k ? (s.tick - k.tick) * DT : 1
+    const pSave = clamp(0.97 - off * off * 0.9 - Math.max(0, 0.5 - flight) * 1.2 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
     if (!rng.chance(pSave)) return miss()
     if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
       takePossession(s, p, contact, height, 'save', out)
@@ -561,11 +591,13 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
 
   // A defender in his own box under an opponent's cross gets rid of it, sometimes behind for a corner.
   const ownBox = inPenaltyArea(p.pos, ownGoalX(p.team, s.half))
-  if (ownBox && fromOpponent && k?.lofted && p.slot.role !== 'GK' && rng.chance(0.3)) {
+  // With an attacker challenging him for it, he's more likely to only get a flick on it.
+  const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 2)
+  if (ownBox && fromOpponent && k?.lofted && p.slot.role !== 'GK' && rng.chance(challenged ? 0.5 : 0.25)) {
     const goalX = ownGoalX(p.team, s.half)
     const wide = contact.y < CENTER.y ? -1 : 1
     b.pos = contact
-    b.vel = vec((goalX === 0 ? -1 : 1) * rng.range(4, 9), wide * rng.range(2, 7))
+    b.vel = vec((goalX === 0 ? -1 : 1) * rng.range(8, 13), wide * rng.range(4, 9))
     b.z = height
     b.vz = rng.range(1, 4)
     b.lastTouchIdx = p.idx
@@ -594,9 +626,12 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   const b = s.ball
   const rng = s.rng
   const k = b.kick
-  if (!rng.chance(0.8)) {
-    if (k) k.missedIdxs.push(p.idx)
-    return false // mistimed: it goes over or past him
+  // Challenged for it by an opponent right with him: harder to win cleanly, harder to direct.
+  const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && o.slot.role !== 'GK' && dist(o.pos, contact) < 1.5)
+  if (!rng.chance(challenged ? 0.6 : 0.8)) {
+    // Mistimed: it goes over or past him. He can have another go once it's past his head.
+    p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
+    return false
   }
   const a = af(s, p.team, contact)
   const toGoal = dist(a, vec(PITCH_LENGTH, CENTER.y))
@@ -618,11 +653,11 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
 
   if (cross) {
     const attrs = p.def.attrs
-    const sigma = ((26 - attrs.shooting) / 20) * (1.5 + toGoal * 0.2)
+    const sigma = ((26 - attrs.shooting) / 20) * (1.5 + toGoal * 0.2) * (challenged ? 1.6 : 1)
     const aimY = CENTER.y + rng.range(-3, 3) + rng.gauss() * sigma
     const target = wf(s, p.team, vec(PITCH_LENGTH, aimY))
     const aimH = Math.max(0.05, rng.range(0.1, 1.6) + rng.gauss() * sigma * 0.4)
-    shoot(s, p, target, 12 + (attrs.shooting / 20) * 5, aimH, xgFrom(a) * 0.5, null, true, out)
+    shoot(s, p, target, 12 + (attrs.shooting / 20) * 5, aimH, xgFrom(a) * (challenged ? 0.3 : 0.5), null, true, out)
     return true
   }
   const target = wf(s, p.team, vec(a.x + rng.range(18, 28), a.y + rng.range(-12, 12)))
@@ -648,6 +683,8 @@ function takePossession(
   }
   b.receivedFromIdx = k && !b.touchedSinceKick && k.kind === 'pass' && k.team === p.team && k.byIdx !== p.idx ? k.byIdx : null
   b.ownerIdx = p.idx
+  p.runUntil = 0
+  p.runTo = null
   b.lastTouchIdx = p.idx
   b.touchedSinceKick = true
   s.possessedSince = s.tick
@@ -658,7 +695,9 @@ function takePossession(
   b.vz = 0
   s.dribbleTarget = null
   // A keeper with it in his hands takes his time; nobody can challenge him.
-  s.decisionAt = s.tick + (via === 'save' || keeperHasItInHands(s, p) ? s.rng.int(15, 30) : s.rng.int(8, 15))
+  // Under pressure he plays it quickly, before the man closing him down can get a tackle in.
+  const pressed = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, p.pos) < 4)
+  s.decisionAt = s.tick + (via === 'save' || keeperHasItInHands(s, p) ? s.rng.int(15, 30) : pressed ? s.rng.int(3, 6) : s.rng.int(8, 15))
   // A moment to settle: nobody can tackle in the same instant the ball arrives.
   for (const o of s.players) if (o.team !== p.team) o.tackleReadyAt = Math.max(o.tackleReadyAt, s.tick + 6)
   const dive = via === 'save' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
@@ -792,7 +831,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const inOwnBox = inPenaltyArea(c.pos, ownGoalX(o.team, s.half))
   // Players go in more carefully in their own box, and once they've been booked.
   const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
-  const pFoul = clamp(0.03 + o.def.traits.temper * 0.045 + ((ca.dribbling - oa.tackling) / 20) * 0.05, 0.015, 0.12) * care
+  const pFoul = clamp(0.05 + o.def.traits.temper * 0.06 + ((ca.dribbling - oa.tackling) / 20) * 0.05, 0.02, 0.16) * care
   // Going in from beyond standing reach means going to ground.
   const style: TackleStyle = dist(o.pos, c.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
   if (rng.chance(pFoul * (style === 'slide' ? 1.4 : 1))) {
@@ -887,7 +926,10 @@ function setRestart(s: MatchState, type: RestartType, team: Side, spot: Vec): vo
   b.touchedSinceKick = false
   b.receivedFromIdx = null
   s.dribbleTarget = null
-  for (const p of s.players) p.runUntil = 0
+  for (const p of s.players) {
+    p.runUntil = 0
+    p.runTo = null
+  }
 }
 
 function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {

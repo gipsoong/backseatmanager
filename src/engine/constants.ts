@@ -9,7 +9,7 @@ export const DRIBBLE_OFFSET = 0.6
 /** A player within this distance of the ball's path can touch it. */
 export const CONTROL_RADIUS = 1.0
 /** Extra reach a goalkeeper gets inside his own box (diving). Scaled by keeping. */
-export const GK_EXTRA_REACH = 1.6
+export const GK_EXTRA_REACH = 2.2
 /** Ball slower than this can be controlled; faster must be blocked/saved. */
 export const CONTROLLABLE_SPEED = 20
 export const BALL_FRICTION = 3.0
@@ -35,6 +35,8 @@ export const HEADER_REACH = 2.4
 export const GK_HAND_REACH = 2.8
 /** Above this the ball is played with the head or chest rather than the feet. */
 export const AERIAL_HEIGHT = 1.0
+/** After a mistimed header, a player can't play the ball again for this long. */
+export const HEADER_RECOVERY_TICKS = 4
 /** Fraction of vertical speed kept on a bounce; slower than this and it just rolls. */
 export const BOUNCE = 0.45
 export const MIN_BOUNCE_SPEED = 1.5

@@ -17,6 +17,9 @@ const TARGETS: Record<string, [number, number]> = {
   passes: [350, 600],
   'pass %': [75, 88],
   'lofted pass %': [8, 20],
+  // Rough: data providers count "through balls" differently; top sides play a few a game.
+  'through balls': [1, 5],
+  'through ball success %': [25, 60],
   fouls: [9, 14],
   'yellow cards': [1.2, 2.5],
   'red cards': [0, 0.15],
@@ -68,7 +71,15 @@ for (let seed = 1; seed <= n; seed++) {
   const marks = [0, ...moments, state.tick]
   add('longest dull spell (min)', Math.max(...marks.slice(1).map((t, i) => t - marks[i])) / 600)
   let half = 1
+  let through: number | null = null // team of a through ball still waiting for its first touch
   for (const e of state.events) {
+    if (e.type === 'pass' && e.through) {
+      add('through balls', 1)
+      through = state.players[e.byIdx].team
+    } else if (through !== null && (e.type === 'possession' || e.type === 'deflection' || e.type === 'out' || e.type === 'offside')) {
+      if (e.type === 'possession' && state.players[e.idx].team === through) add('through completed', 1)
+      through = null
+    }
     if (e.type === 'halfTime') half = 2
     if (e.type === 'pass' && e.lofted) {
       // A cross: in the air into the opponents' box from wide.
@@ -95,6 +106,8 @@ const results: Record<string, number> = {
   passes: perTeam('passes'),
   'pass %': (100 * perTeam('completed')) / perTeam('passes'),
   'lofted pass %': (100 * perTeam('lofted')) / perTeam('passes'),
+  'through balls': perTeam('through balls'),
+  'through ball success %': (100 * perTeam('through completed')) / perTeam('through balls'),
   fouls: perTeam('fouls'),
   'yellow cards': perTeam('yellow cards'),
   'red cards': perTeam('red cards'),

@@ -77,6 +77,8 @@ export interface PlayerState {
   touchReadyAt: number
   /** Tick until which an attacker is making a run in behind. */
   runUntil: number
+  /** Where a run is going, if it's to a fixed spot (a one-two); null means in behind the line. */
+  runTo: Vec | null
 }
 
 export type KickKind = 'pass' | 'shot' | 'clearance'
@@ -164,7 +166,7 @@ interface EventBase {
 export type MatchEvent = EventBase &
   (
     | { type: 'restart'; restart: RestartType; team: Side; takerIdx: number; spot: Vec; forced: boolean }
-    | { type: 'pass'; byIdx: number; toIdx: number; from: Vec; target: Vec; lofted: boolean; header: boolean }
+    | { type: 'pass'; byIdx: number; toIdx: number; from: Vec; target: Vec; lofted: boolean; header: boolean; through: boolean }
     | { type: 'clearance'; byIdx: number; from: Vec; target: Vec; header: boolean }
     | {
         type: 'shot'
