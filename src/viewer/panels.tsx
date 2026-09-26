@@ -200,7 +200,7 @@ export function Players({
                         {Array.from({ length: Math.min(lines[i].goals, 3) }, (_, g) => (
                           <span key={g} className="goal-dot" title="Goal" />
                         ))}
-                        {lines[i].red ? <span className="card red" /> : lines[i].yellow ? <span className="card yellow" /> : null}
+                        {lines[i].red ? <span className="booking red" /> : lines[i].yellow ? <span className="booking yellow" /> : null}
                       </span>
                       <span className="line">{summary(lines[i], p.slot.role === 'GK') || p.slot.role}</span>
                     </span>

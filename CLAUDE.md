@@ -152,6 +152,15 @@ pulling the repo.
   `highlights.ts` decides what each view mode shows, which kick is in the air, and which
   slides/dives/kicks/headers are animating; `net.ts` animates the ball going into the net;
   `MatchViewer.tsx` is the UI. The viewer only reads engine output; it never feeds back into it.
-- `src/App.tsx` — fixture header and match picker around the viewer.
+  `panels.tsx` holds the side-panel tabs (commentary, stats, players); `players.ts` builds
+  per-player match lines and ratings from events.
+- `src/season/` — the season (session 8), pure TS like the engine: `season.ts` (league from a
+  seed, double round-robin fixtures with a match seed each, weekly dates, results, table),
+  `simulate.ts` + `simWorker.ts` (fixtures the manager doesn't watch, played by the full engine
+  in Web Workers), `store.ts` (the save, in IndexedDB via `idb`).
+- `src/screens/` — Start, PickTeam, Hub (next fixture, table, fixtures by matchday), Match.
+- `src/App.tsx` — which screen is showing, and the season state: watching a match plays the rest
+  of the matchday in the background; "Continue to results" records the matchday and saves.
+  A match plays the same whether watched or simulated (same seed), so results never disagree.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

@@ -4,8 +4,24 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 ## Current milestone
 
-**2. Match viewer** — done. Engine realism ~85% of 32 metrics in real ranges (session 7); remaining
-gaps under "next up". Next milestone: season loop.
+**3. Season loop** — first version done (session 8): league, fixtures, table, calendar, saves.
+Next: squad depth, then transfers.
+
+## Done (session 8): season loop, Players tab, faster engine
+
+- **Season loop** (milestone 3): start screen (continue / new season / friendly), pick a club
+  from a 10-team league (squad ratings shown), season hub with the next fixture, league table
+  (form, your row highlighted) and results/fixtures by matchday with scorers. Watch your match
+  (the rest of the matchday plays in background workers meanwhile) or take just the result.
+  Double round-robin, 18 weekly matchdays from August, no team more than two in a row at home
+  or away. Saved to IndexedDB after every matchday; carries on after a reload. League size is
+  `LEAGUE_SIZE` in `season.ts`.
+- **Players tab**: line-ups with each player's live match line and rating; a player card with
+  attributes and standout traits in words. Stats tab adds tackles won, interceptions, saves.
+- **Engine**: 2.6x faster (5.4 s → 2.1 s per match headless): players choose moves from one
+  snapshot per tick. Keepers tip high shots over; wide players value the byline (cut-backs).
+  Realism 29/31 and 28/31 on the two seed sets (through balls now shown, not scored).
+- Kicking-leg animation only in the close-up camera.
 
 ## Done (session 7): realism pass, player traits, skip overlay, goal and ball animation
 
@@ -190,12 +206,13 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-1. **Corners** are the main realism gap left: real ones mostly come from crosses cleared or blocked
-   behind and deflected shots under pressure. Needs a model of clearing under pressure (which way a
-   defender can get it away), not a probability. Then offsides (~0.8) and through-ball volume.
-2. **Season loop** (fixtures, table, calendar), then transfers/scouting, development/youth.
-3. Show player individuality in the UI (a player card: attributes and traits in words, e.g.
-   "tenacious", "likes a shot"), so what the engine does is legible.
+1. **Season depth**: a squad beyond the starting XI (substitutes, rotation), then stamina and
+   injuries (their stoppage time is already on the clock). End of season: promotion/relegation or
+   just a new season with the same clubs, player ageing.
+2. **Transfers / scouting** (milestone 4), then development / youth (milestone 5).
+3. **Realism gaps**: corners (~1.9 vs 4–6.5) need a model of clearing under pressure; offsides
+   (~0.85 vs 1–3) need forwards who mistime runs; both are behaviour, not tuning.
+4. Optional: a friendlier results screen after each matchday (other scores coming in).
 
 ## Open questions / decisions deferred
 

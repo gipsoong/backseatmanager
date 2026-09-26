@@ -45,11 +45,35 @@ export const KITS: Kit[] = [
   { shirt: '#232527', number: '#f2f2ee', family: 'black' },
   { shirt: '#e8742a', number: '#1b1f1c', family: 'orange' },
   { shirt: '#5b2a86', number: '#ffffff', family: 'purple' },
+  { shirt: '#9aa3ab', number: '#16191b', family: 'grey' },
+  { shirt: '#e3a6bd', number: '#2a1620', family: 'pink' },
 ]
 
 const FIRST = ['Alex', 'Ben', 'Carlos', 'Dani', 'Emre', 'Felix', 'Gabi', 'Hugo', 'Ivan', 'Jonas', 'Kofi', 'Luca', 'Marco', 'Nico', 'Omar', 'Pau', 'Rui', 'Sami', 'Theo', 'Yann']
 const LAST = ['Adler', 'Baptiste', 'Costa', 'Doyle', 'Eriksen', 'Ferreira', 'Grant', 'Haas', 'Iversen', 'Jansen', 'Keane', 'Lindqvist', 'Moreau', 'Novak', 'Okafor', 'Pereira', 'Quinn', 'Rossi', 'Silva', 'Varga', 'Walsh', 'Young']
-const CLUBS = ['Ashford', 'Brookvale', 'Castleton', 'Dunmore', 'Eastwick', 'Fairhaven', 'Glenmoor', 'Harrow Vale', 'Ironbridge', 'Kingsport']
+/** Club names: no two share their first three letters, which are their short name. */
+const CLUBS = [
+  'Ashford',
+  'Brookvale',
+  'Castleton',
+  'Dunmore',
+  'Eastwick',
+  'Fairhaven',
+  'Glenmoor',
+  'Harrow Vale',
+  'Ironbridge',
+  'Kingsport',
+  'Lowbridge',
+  'Marlow',
+  'Northgate',
+  'Oakham',
+  'Pembrook',
+  'Queensferry',
+  'Redcliff',
+  'Stonehaven',
+  'Thornbury',
+  'Westerley',
+]
 
 /** Role-specific attribute emphasis: which attributes are strengths. */
 const ROLE_FOCUS: Record<Role, (keyof Attributes)[]> = {
@@ -123,4 +147,20 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     block: block ?? rng.pick(['low', 'mid', 'high'] as const),
     players,
   }
+}
+
+/**
+ * The teams of a league: `n` random squads with different club names, short names and (as far as
+ * there are enough) kits. Deterministic in `seed`.
+ */
+export function leagueTeams(seed: number, n: number): TeamDef[] {
+  const rng = new Rng(seed)
+  const names = rng.shuffle([...CLUBS]).slice(0, n)
+  const kits = rng.shuffle([...KITS])
+  return names.map((name, i) => ({
+    ...randomTeam(seed * 1000 + i + 1),
+    name,
+    shortName: name.slice(0, 3).toUpperCase(),
+    kit: kits[i % kits.length],
+  }))
 }
