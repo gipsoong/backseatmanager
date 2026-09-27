@@ -4,10 +4,17 @@
  */
 import { useState } from 'react'
 import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation } from '../engine/index.ts'
-import { shortName } from '../names.ts'
-import { type Season, isAvailable, lineupFor, playerRating, squadOf } from '../season/season.ts'
+import { positionsLabel, shortName } from '../names.ts'
+import { type Season, type SeasonStats, isAvailable, lineupFor, playerRating, squadOf } from '../season/season.ts'
 import { FORMATION_BLURB } from './Draft.tsx'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
+
+/** Appearances as starts, with those off the bench in brackets: "12 (3)". */
+function appearances(st: SeasonStats): string {
+  if (st.starts === undefined) return String(st.apps)
+  const subs = st.apps - st.starts
+  return subs ? `${st.starts} (${subs})` : String(st.starts)
+}
 
 export function Squad({
   season,
@@ -102,7 +109,7 @@ export function Squad({
               return (
                 <li key={p.id}>
                   <button type="button" className={`offer${heldId === p.id ? ' chosen' : ''}`} disabled={out > 0} onClick={() => tapOther(p.id)}>
-                    <span className="role">{p.role}</span>
+                    <span className="role">{positionsLabel(p)}</span>
                     <span className="name">
                       {p.name}
                       {out > 0 && <span className="inj-note">Out {out === 1 ? '1 week' : `${out} weeks`}</span>}
@@ -142,14 +149,16 @@ export function Squad({
                   {p.name}
                   {out > 0 && <span className="inj-note">Out {out === 1 ? '1 week' : `${out} weeks`}</span>}
                 </td>
-                <td>{p.role}</td>
+                <td>{positionsLabel(p)}</td>
                 <td>{playerRating(p)}</td>
                 <td>
                   <span className="fit" title={`${Math.round(c.fitness * 100)}% fit`}>
                     <span style={{ width: `${c.fitness * 100}%` }} className={c.fitness < 0.7 ? 'low' : undefined} />
                   </span>
                 </td>
-                <td className="wide">{st.apps}</td>
+                <td className="wide" title="Starts (appearances as a substitute)">
+                  {appearances(st)}
+                </td>
                 <td>{st.goals}</td>
                 <td className="wide">{st.assists}</td>
                 <td className="wide">{st.apps ? (st.ratings / st.apps).toFixed(1) : '–'}</td>

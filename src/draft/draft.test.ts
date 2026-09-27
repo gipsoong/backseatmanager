@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { FORMATIONS, runMatch } from '../engine/index.ts'
-import { createSeason, matchdays, squadOf } from '../season/season.ts'
-import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, newDraft, offer, place, poolTeam, roundOf } from './draft.ts'
+import { FORMATIONS, fitFor, playingAttributes, runMatch } from '../engine/index.ts'
+import { autoPick, createSeason, matchdays, squadOf } from '../season/season.ts'
+import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
 import { POOLS } from './pools.ts'
 
 /** Draft greedily: each round, the best player who fits an open starting place, else a sub. */
@@ -28,7 +28,7 @@ describe('draft pools', () => {
     const names = POOLS.flatMap((p) => p.players.map(([name]) => name))
     expect(new Set(names).size).toBe(names.length)
     for (const pool of POOLS) {
-      expect(pool.players.filter(([, role]) => role === 'GK').length).toBeGreaterThanOrEqual(2)
+      expect(pool.players.filter(([, positions]) => positions === 'GK').length).toBeGreaterThanOrEqual(2)
       expect(pool.players.length).toBeGreaterThanOrEqual(16)
     }
     expect(POOLS.length).toBeGreaterThanOrEqual(DRAFT_LEAGUE_SIZE)
@@ -63,4 +63,46 @@ describe('draft', () => {
     const m = runMatch(poolTeam(0, new Set()), poolTeam(7, new Set()), { seed: 1 })
     expect(m.phase.kind).toBe('fullTime')
   })
+})
+
+describe('positions', () => {
+  const find = (name: string) => {
+    for (const [pi, pool] of POOLS.entries()) {
+      const i = pool.players.findIndex(([n]) => n === name)
+      if (i >= 0) return poolPlayer(pi, i)
+    }
+    throw new Error(name)
+  }
+
+  it('knows secondary positions, and plays a man worse out of position', () => {
+    const haaland = find('Erling Haaland')
+    const palmer = find('Cole Palmer')
+    expect(fitFor(palmer, 'CM')).toBe(0.95)
+    expect(fitFor(haaland, 'W')).toBeLessThanOrEqual(0.75)
+    const wide = playingAttributes(haaland, 'W')
+    expect(wide.dribbling).toBeLessThan(haaland.attrs.dribbling)
+    expect(wide.pace).toBe(haaland.attrs.pace)
+  })
+
+  it('does not shoehorn strikers onto the wings ahead of wingers', () => {
+    const d = autoDraftWith(['Erling Haaland', 'Harry Kane', 'Cole Palmer', 'Eden Hazard'])
+    const teams = draftLeague(d, 'Test')
+    const s = createSeason(3, 0, new Date(Date.UTC(2026, 5, 1)), teams)
+    const xi = autoPick(s, 0).map((id) => squadOf(teams[0]).find((p) => p.id === id)!.name)
+    const slots = FORMATIONS['4-3-3']
+    const wingers = xi.filter((_, i) => slots[i].role === 'W')
+    expect(wingers.sort()).toEqual(['Cole Palmer', 'Eden Hazard'])
+  })
+
+  /** A 4-3-3 draft with the named players on the bench and the rest filled greedily. */
+  function autoDraftWith(names: string[]): Draft {
+    let d = autoDraft(11)
+    const bench = names.map(find)
+    d = { ...d, bench: d.bench.map((p, i) => bench[i] ?? p) }
+    // Strip the drafted attackers so the named ones are the only candidates up front.
+    const slots = FORMATIONS['4-3-3']
+    const filler = find('Joe Gomez')
+    d = { ...d, xi: d.xi.map((p, i) => (slots[i].role === 'W' || slots[i].role === 'ST' ? { ...filler, id: `filler-${i}`, role: 'CB' as const } : p)) }
+    return d
+  }
 })

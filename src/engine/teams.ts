@@ -199,6 +199,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     role: slot.role,
     attrs: makeAttributes(rng, slot.role, quality),
     traits: makeTraits(rng, slot.role),
+    positions: makePositions(rng, slot.role),
   }))
   // A bench covering every line, a notch below the first team.
   const bench: PlayerDef[] = BENCH_ROLES.map((role, i) => ({
@@ -208,6 +209,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     role,
     attrs: makeAttributes(rng, role, quality - 1),
     traits: makeTraits(rng, role),
+    positions: makePositions(rng, role),
   }))
   const name = rng.pick(CLUBS)
   return {
@@ -249,14 +251,51 @@ const LINES: Record<Role, Role[]> = {
   ST: ['ST', 'W'],
 }
 
-/** How well `def` fits a slot: 1 in his own position, less further from it, 0 if not at all. */
+/**
+ * How familiar `def` is with a position, 0-1: 1 in his own, 0.95 and 0.9 in his secondary and
+ * tertiary positions, 0.75 elsewhere in a line he knows, 0.55 anywhere else, 0 in or out of goal.
+ */
 export function fitFor(def: PlayerDef, role: Role): number {
-  const i = LINES[def.role].indexOf(role)
-  return i < 0 ? (role === 'GK' || def.role === 'GK' ? 0 : 0.5) : 1 - i * 0.12
+  if (role === def.role) return 1
+  if (role === 'GK' || def.role === 'GK') return 0
+  const i = def.positions?.indexOf(role) ?? -1
+  if (i >= 0) return i === 0 ? 0.95 : 0.9
+  return LINES[def.role].includes(role) ? 0.75 : 0.55
 }
 
-/** A rough overall, 1-20: the average of the attributes that matter in his position. */
+/** The attributes that come from knowing a position: reading the game, and technique in it. */
+const POSITIONAL: (keyof Attributes)[] = ['passing', 'shooting', 'tackling', 'dribbling', 'positioning', 'composure']
+
+/**
+ * His attributes when playing `role`: out of position he's as quick and fit as ever, but reads
+ * the game and uses the ball less well (a striker on the wing crosses and dribbles like a lesser
+ * player): the positional ones scale from 100% in his own position to 80% in a strange one.
+ */
+export function playingAttributes(def: PlayerDef, role: Role): Attributes {
+  const fit = fitFor(def, role)
+  if (fit >= 1 || fit === 0) return def.attrs
+  const k = 0.55 + 0.45 * fit
+  const attrs = { ...def.attrs }
+  for (const a of POSITIONAL) attrs[a] = def.attrs[a] * k
+  return attrs
+}
+
+/** Made-up players: some can play a second position in their line, a few a third. */
+function makePositions(rng: Rng, role: Role): Role[] | undefined {
+  const near = LINES[role].slice(1)
+  if (role === 'GK' || !rng.chance(0.55)) return undefined
+  const positions = [near[rng.int(0, near.length - 1)]]
+  const third = near.filter((r) => r !== positions[0])
+  if (third.length && rng.chance(0.3)) positions.push(third[rng.int(0, third.length - 1)])
+  return positions
+}
+
+/**
+ * A rough overall, 1-20: a real player's own overall (out of 100) scaled down, otherwise the
+ * average of the attributes that matter in his position.
+ */
 export function ability(def: PlayerDef): number {
+  if (def.overall) return def.overall / 5
   const { keeping, ...rest } = def.attrs
   const vals = def.role === 'GK' ? [keeping, rest.positioning, rest.composure] : Object.values(rest)
   return vals.reduce((a, b) => a + b, 0) / vals.length

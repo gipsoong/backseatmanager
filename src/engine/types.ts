@@ -41,6 +41,8 @@ export interface PlayerDef {
   role: Role
   attrs: Attributes
   traits: Traits
+  /** Other positions he can play, best first (his own is `role`): a secondary, maybe a tertiary. */
+  positions?: Role[]
   /** A real player's overall (draft mode), shown instead of one worked out from his attributes. */
   overall?: number
 }
@@ -80,6 +82,8 @@ export interface PlayerState {
   team: Side
   def: PlayerDef
   slot: Slot
+  /** His attributes as he plays in this slot: less than his best out of position. */
+  attrs: Attributes
   pos: Vec
   vel: Vec
   maxSpeed: number

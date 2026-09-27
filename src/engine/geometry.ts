@@ -20,8 +20,13 @@ export const vec = (x: number, y: number): Vec => ({ x, y })
 export const add = (a: Vec, b: Vec): Vec => ({ x: a.x + b.x, y: a.y + b.y })
 export const sub = (a: Vec, b: Vec): Vec => ({ x: a.x - b.x, y: a.y - b.y })
 export const scale = (a: Vec, k: number): Vec => ({ x: a.x * k, y: a.y * k })
-export const len = (a: Vec): number => Math.hypot(a.x, a.y)
-export const dist = (a: Vec, b: Vec): number => Math.hypot(a.x - b.x, a.y - b.y)
+// Math.sqrt rather than Math.hypot: the same to within rounding, and far cheaper in the hot loops.
+export const len = (a: Vec): number => Math.sqrt(a.x * a.x + a.y * a.y)
+export const dist = (a: Vec, b: Vec): number => {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return Math.sqrt(dx * dx + dy * dy)
+}
 export const lerp = (a: Vec, b: Vec, t: number): Vec => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
 export const clamp = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v)
 

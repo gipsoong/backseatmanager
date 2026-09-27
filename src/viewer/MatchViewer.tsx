@@ -11,34 +11,19 @@ import {
   highlightWindows,
   replayMoments,
   runsAt,
-  windowAt,
 } from './highlights.ts'
 import { type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
 import { type NetState, netAt } from './net.ts'
 import { Commentary, Players, Stats } from './panels.tsx'
 import { playerLines } from './players.ts'
+import { type Cut, advancePlayhead } from './playback.ts'
 import { PLAYERS_AT, type Timeline } from './timeline.ts'
 
 type Goal = Extract<MatchEvent, { type: 'goal' }>
 
-/** Match ticks per wall-clock second at 1×. Ten ticks are one second of match time, so 1× is 3× real time. */
-const TICKS_PER_SECOND_AT_1X = 30
 const SPEEDS = [1, 2, 4] as const
 /** Wall time per animation frame the engine may use to simulate ahead of playback. */
 const SIM_BUDGET_MS = 6
-/**
- * Between highlights we skip ahead: a light scrim comes over the pitch and the match fast-forwards
- * underneath it to the next moment (the skipped play still happens; commentary and stats catch
- * up), then the scrim lifts. Longer gaps take a little longer, so play never becomes a blur.
- */
-const CUT_FADE_MS = 300
-const CUT_ROLL_MIN_MS = 1200
-const CUT_ROLL_MAX_MS = 3200
-/** Skipped ticks per millisecond of skip, before the limits above. */
-const CUT_TICKS_PER_MS = 2
-/** How fast play runs under the scrim while the engine hasn't reached the next moment yet. */
-const CUT_HOLD_TICKS_PER_S = 300
-const ease = (x: number): number => (x < 0.5 ? 2 * x * x : 1 - (-2 * x + 2) ** 2 / 2)
 const MODES: [ViewMode, string][] = [
   ['full', 'Full match'],
   ['key', 'Key moments'],
@@ -152,7 +137,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     let momentsFor = -1
     const replayed = new Set<number>()
     // A cut in progress: when it started, where from, and where to (null until the next moment is known).
-    let cut: { started: number; from: number; to: number | null; rollMs: number } | null = null
+    let cut: Cut | null = null
     const cover = (opacity: number): void => {
       if (coverRef.current) coverRef.current.style.opacity = String(opacity)
     }
@@ -244,53 +229,14 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         cover(0)
         setCutTo(null)
       }
-      if (!isPlaying && cut) cut.started += dt * 1000 // a paused cut stays where it is
+      if (!isPlaying && cut) cut.started += dt * 1000 // a paused skip stays where it is
       if (isPlaying) {
         const before = playhead.current
-        let ph = before
-        if (!cut && view !== 'full' && !windowAt(windows, ph).inside) {
-          cut = { started: now, from: ph, to: null, rollMs: CUT_ROLL_MIN_MS }
-          setCutTo('')
-        }
-        if (cut) {
-          const normal = dt * rate * TICKS_PER_SECOND_AT_1X
-          if (cut.to === null) {
-            const next = windowAt(windows, ph).next
-            cut.to = next ? next[0] : timeline.done ? timeline.lastTick : null
-            if (cut.to !== null) setCutTo(timeline.clockAt(cut.to))
-          }
-          const e = now - cut.started
-          if (e < CUT_FADE_MS) {
-            // Scrim comes in while play carries on as normal.
-            cover(e / CUT_FADE_MS)
-            ph = Math.min(ph + normal, cut.to ?? Infinity)
-            cut.from = ph
-          } else if (cut.to === null) {
-            // The engine hasn't reached the next moment yet: keep playing on under the scrim.
-            cut.started = now - CUT_FADE_MS
-            cover(1)
-            ph += dt * CUT_HOLD_TICKS_PER_S
-            cut.from = ph
-          } else {
-            if (e < CUT_FADE_MS + 16) cut.rollMs = Math.min(CUT_ROLL_MAX_MS, Math.max(CUT_ROLL_MIN_MS, (cut.to - cut.from) / CUT_TICKS_PER_MS))
-            const roll = e - CUT_FADE_MS
-            if (roll < cut.rollMs) {
-              cover(1)
-              ph = cut.from + (cut.to - cut.from) * ease(roll / cut.rollMs)
-            } else if (roll < cut.rollMs + CUT_FADE_MS) {
-              // Scrim lifts as the moment begins, at normal speed.
-              ph = Math.max(ph, cut.to) + normal
-              cover(1 - (roll - cut.rollMs) / CUT_FADE_MS)
-            } else {
-              ph += normal
-              cut = null
-              cover(0)
-              setCutTo(null)
-            }
-          }
-        } else {
-          ph += dt * rate * TICKS_PER_SECOND_AT_1X
-        }
+        const step = advancePlayhead(before, cut, { now, dt, rate, skipping: view !== 'full', windows, done: timeline.done, lastTick: timeline.lastTick })
+        const ph = step.playhead
+        cut = step.cut
+        if (view !== 'full') cover(step.cover)
+        setCutTo(cut ? (cut.to === null ? '' : timeline.clockAt(cut.to)) : null)
         playhead.current = Math.min(ph, timeline.lastTick)
         if (timeline.done && playhead.current >= timeline.lastTick && !cut) setPlaying(false)
 

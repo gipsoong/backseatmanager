@@ -1324,7 +1324,7 @@ h1 .swatch,
 }
 
 .subs .offer {
-  grid-template-columns: 2.6em 1fr auto 44px;
+  grid-template-columns: 4.4em 1fr auto 44px;
 }
 
 .subs .offer:disabled {
@@ -1518,7 +1518,7 @@ h1 .swatch,
   width: 100%;
   min-height: 44px;
   display: grid;
-  grid-template-columns: 2.6em 1fr auto;
+  grid-template-columns: 4.4em 1fr auto;
   align-items: center;
   gap: 8px;
   padding: 6px 10px;

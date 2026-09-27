@@ -60,10 +60,19 @@ export const af = (s: MatchState, team: Side, p: Vec): Vec => toAttackFrame(p, t
 export const wf = (s: MatchState, team: Side, p: Vec): Vec => toWorld(p, team, s.half)
 
 export const onPitch = (s: MatchState): PlayerState[] => s.players.filter((p) => p.onPitch)
-export const teammatesOf = (s: MatchState, team: Side): PlayerState[] =>
-  s.players.filter((p) => p.onPitch && p.team === team)
-export const opponentsOf = (s: MatchState, team: Side): PlayerState[] =>
-  s.players.filter((p) => p.onPitch && p.team !== team)
+/**
+ * A side's players on the pitch. While everyone decides their moves (the movement snapshot) the
+ * lists can't change, so they're built once per tick; callers must not modify them.
+ */
+export function teammatesOf(s: MatchState, team: Side): PlayerState[] {
+  const snap = snapshots.get(s)
+  const cached = snap?.sides?.[team]
+  if (cached) return cached
+  const list = s.players.filter((p) => p.onPitch && p.team === team)
+  if (snap) (snap.sides ??= [])[team] = list
+  return list
+}
+export const opponentsOf = (s: MatchState, team: Side): PlayerState[] => teammatesOf(s, (1 - team) as Side)
 export const goalkeeperOf = (s: MatchState, team: Side): PlayerState | undefined =>
   s.players.find((p) => p.onPitch && p.team === team && p.slot.role === 'GK')
 
@@ -78,7 +87,7 @@ export const keeperHasItInHands = (s: MatchState, p: PlayerState): boolean => ke
 
 /** How far sideways a player can reach the ball. */
 export function reachOf(s: MatchState, p: PlayerState): number {
-  return keeperInOwnBox(s, p) ? CONTROL_RADIUS + (GK_EXTRA_REACH * p.def.attrs.keeping) / 20 : CONTROL_RADIUS
+  return keeperInOwnBox(s, p) ? CONTROL_RADIUS + (GK_EXTRA_REACH * p.attrs.keeping) / 20 : CONTROL_RADIUS
 }
 
 /** How high a player can reach the ball: a header, or a keeper's hands in his own box. */
@@ -127,6 +136,7 @@ export function defensiveLine(s: MatchState, team: Side): number {
  */
 interface Snapshot {
   lines: (number | undefined)[]
+  sides?: PlayerState[][]
   unpressured?: (boolean | undefined)[]
   path?: BallPoint[]
   arrivals?: Map<number, { ticks: number; point: BallPoint }>
@@ -324,13 +334,64 @@ export function shotQuality(s: MatchState, p: PlayerState, ballPos: Vec, maxDist
   return q
 }
 
+/** What the man on the ball knows as he decides: shared by the option generators below. */
+interface Decision {
+  s: MatchState
+  p: PlayerState
+  opts: ChooseOpts
+  rng: MatchState['rng']
+  /** The ball, in world and attacking-frame coordinates. */
+  ball: Vec
+  a: Vec
+  opps: PlayerState[]
+  attrs: PlayerState['attrs']
+  /** What losing the ball here would cost. */
+  loss: number
+  /** Teammates he's noticed are offside: not passed to. */
+  offside: Set<number>
+  hurried: number
+}
+
+/** A candidate action and what it's worth to the side. */
+type Option = { action: Action; u: number }
+
+/**
+ * What the man on the ball does: every option (passes to feet and in the air, balls in behind,
+ * crosses, dribbles, a run at goal) is valued as the chance of keeping the ball times what it
+ * gains, less the chance of losing it times what that costs; a shot is taken when it's worth more
+ * than the best of them; deep in his own half with nothing on, he clears it.
+ */
 export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
+  const d = decisionFor(s, p, opts)
+  // Holding the ball is only a fallback when nothing else is possible; it never wins on merit,
+  // or carriers stand still waiting for a perfect option.
+  let best: Option = { action: { kind: 'hold' }, u: -Infinity }
+  const consider = (o: Option): void => {
+    if (o.u > best.u) best = o
+  }
+  passOptions(d, consider)
+  if (d.a.x > 35) throughBallOptions(d, consider)
+  if (d.a.x > 72 && Math.abs(d.a.y - CENTER.y) > 10 && !opts.passFilter) {
+    for (const o of crossesIntoSpace(s, p, d.a, d.offside, opts.maxPass)) {
+      consider({ action: { kind: 'pass', toIdx: o.toIdx, target: o.target, lofted: o.lofted }, u: o.u })
+    }
+  }
+  if (opts.allowDribble) dribbleOptions(d, consider)
+  const shot = opts.allowShot ? shotIfWorthIt(d, best.u) : null
+  if (shot) return shot
+  // A pass that's more likely to be lost than kept (utility below zero) is no better than no pass:
+  // near our own goal, go long instead of playing it through the man waiting for it.
+  const nothingOn = best.action.kind !== 'pass' || best.u < 0
+  const keeper = p.slot.role === 'GK'
+  if (nothingOn && d.a.x < 30 && (keeper || nearestDist(d.opps, p.pos) < 3)) return { kind: 'clearance', target: clearanceTarget(d) }
+  return best.action
+}
+
+function decisionFor(s: MatchState, p: PlayerState, opts: ChooseOpts): Decision {
   const rng = s.rng
   const ball = s.ball.pos
+  const attrs = p.attrs
   const a = af(s, p.team, ball)
-  const opps = opponentsOf(s, p.team)
-  const attrs = p.def.attrs
-  const loss = lossCost(a)
   // Teammates in an offside position he's noticed aren't passed to. A yard off is hard to see from
   // where he is; a few yards off, anyone sees it. A good passer reads the line better. He reads it a
   // beat late, though: a runner who has just gone past it still looks level (the run mistimed).
@@ -342,14 +403,12 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       return rng.chance(clamp(margin * 0.15 + (attrs.passing + attrs.composure) / 80 - 0.15, 0.05, 0.95))
     }),
   )
-  const hurried = pressureOn(s, p)
+  return { s, p, opts, rng, ball, a, opps: opponentsOf(s, p.team), attrs, loss: lossCost(a), offside, hurried: pressureOn(s, p) }
+}
 
-  // Holding the ball is only a fallback when nothing else is possible; it never wins on merit,
-  // or carriers stand still waiting for a perfect option.
-  let best: Action = { kind: 'hold' }
-  let bestU = -Infinity
-
-  // Passes
+/** Passes to teammates, to feet along the ground and (for longer ones) in the air. */
+function passOptions(d: Decision, consider: (o: Option) => void): void {
+  const { s, p, opts, rng, ball, a, opps, attrs, loss } = d
   for (const q of teammatesOf(s, p.team)) {
     if (q.idx === p.idx) continue
     if (opts.passFilter && !opts.passFilter(q)) continue
@@ -357,174 +416,154 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
     if (d0 < opts.minPass || d0 > opts.maxPass) continue
     const lead = scale(q.vel, passKinematics(d0).time)
     const target = vec(clamp(q.pos.x + lead.x, 1, PITCH_LENGTH - 1), clamp(q.pos.y + lead.y, 1, PITCH_WIDTH - 1))
-    const d = dist(ball, target)
-    if (d > opts.maxPass) continue
-    if (offside.has(q.idx)) continue
+    const len = dist(ball, target)
+    if (len > opts.maxPass) continue
+    if (d.offside.has(q.idx)) continue
     const ta = af(s, p.team, target)
     const space = clamp(nearestDist(opps, target) / 6, 0.5, 1.1)
     const value = threat(ta) * space + POSSESSION_VALUE
-    const misplace = ((21 - attrs.passing) / 20) * (d / 40) * 0.25 * (1 + hurried)
+    const misplace = ((21 - attrs.passing) / 20) * (len / 40) * 0.25 * (1 + d.hurried)
 
     // Along the ground: can an opponent get to the ball's path before the ball does?
-    const { speed } = passKinematics(d)
+    const { speed } = passKinematics(len)
     let keep = 1
     for (const o of opps) {
       // Behind the pass: it's played away from him, unless he's tight enough to charge it down.
       if (projectT(ball, target, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
       const t = closestT(ball, target, o.pos)
       const c = lerp(ball, target, t)
-      const db = t * d
+      const db = t * len
       const tBall = (speed - Math.sqrt(Math.max(speed * speed - 2 * BALL_FRICTION * db, 0))) / BALL_FRICTION
       // Matches how the loop resolves it: anyone who can get within reach of the path first gets a touch.
       const tOpp = Math.max(0, dist(o.pos, c) - reachOf(s, o)) / o.maxSpeed
       keep *= 1 - interceptChance(tOpp - tBall)
     }
     const risk = clamp(1 - keep + misplace, 0, 1)
-    const u = (1 - risk) * value - risk * loss + forwardLean(p, a, ta) + rng.gauss() * 0.002
-    if (u > bestU) {
-      bestU = u
-      best = { kind: 'pass', toIdx: q.idx, target, lofted: false }
-    }
+    consider({
+      action: { kind: 'pass', toIdx: q.idx, target, lofted: false },
+      u: (1 - risk) * value - risk * loss + forwardLean(p, a, ta) + rng.gauss() * 0.002,
+    })
 
     // In the air: a race on the ball's actual flight between him and the first opponent who can get
     // to it low enough to play (the keeper can reach higher in his box). A cross is aimed at head height.
     // Nobody chips it back to their own keeper (he'd have to head it, next to his own goal), or
     // lofts it backwards at all: an overhit ball over a teammate's head runs on towards our goal.
-    if (d >= 18 && q.slot.role !== 'GK' && ta.x > a.x - 5) {
+    if (len >= 18 && q.slot.role !== 'GK' && ta.x > a.x - 5) {
       const path = ballPath(passMotion(ball, target, true, isCross(ta) ? CROSS_HEIGHT : LOFTED_PASS_HEIGHT), 45)
       const race = raceFor(s, q, path, ball, target)
       if (race) {
         const riskAir = clamp(race.lost + misplace * 1.5, 0, 1)
         // A ball into the box is worth a little more than the header alone: knock-downs, second balls.
         const intoBox = ta.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(ta.y - CENTER.y) < BOX_HALF_WIDTH
-        const uAir = (1 - riskAir) * value * (intoBox ? SECOND_BALLS : 1) - riskAir * loss + forwardLean(p, a, ta) + rng.gauss() * 0.002
-        if (uAir > bestU) {
-          bestU = uAir
-          best = { kind: 'pass', toIdx: q.idx, target, lofted: true }
-        }
+        consider({
+          action: { kind: 'pass', toIdx: q.idx, target, lofted: true },
+          u: (1 - riskAir) * value * (intoBox ? SECOND_BALLS : 1) - riskAir * loss + forwardLean(p, a, ta) + rng.gauss() * 0.002,
+        })
       }
     }
   }
+}
 
-  // Through balls: into the space ahead of a forward, for him to run onto.
-  if (a.x > 35) {
-    for (const q of teammatesOf(s, p.team)) {
-      if (q.idx === p.idx || offside.has(q.idx) || !THROUGH_ROLES.has(q.slot.role)) continue
-      if (opts.passFilter && !opts.passFilter(q)) continue
-      const qa = af(s, p.team, q.pos)
-      if (qa.x < 50 || qa.x < a.x - 8 || dist(q.pos, ball) < 8) continue
-      for (const option of throughBalls(s, p, q, qa, opts.maxPass)) {
-        if (option.u > bestU) {
-          bestU = option.u
-          best = { kind: 'pass', toIdx: q.idx, target: option.target, lofted: option.lofted, through: true }
-        }
-      }
+/** Through balls: into the space ahead of a forward, for him to run onto. */
+function throughBallOptions(d: Decision, consider: (o: Option) => void): void {
+  const { s, p, opts, ball, a } = d
+  for (const q of teammatesOf(s, p.team)) {
+    if (q.idx === p.idx || d.offside.has(q.idx) || !THROUGH_ROLES.has(q.slot.role)) continue
+    if (opts.passFilter && !opts.passFilter(q)) continue
+    const qa = af(s, p.team, q.pos)
+    if (qa.x < 50 || qa.x < a.x - 8 || dist(q.pos, ball) < 8) continue
+    for (const o of throughBalls(s, p, q, qa, opts.maxPass)) {
+      consider({ action: { kind: 'pass', toIdx: q.idx, target: o.target, lofted: o.lofted, through: true }, u: o.u })
     }
   }
+}
 
-  // Crosses into space: near post, penalty spot, far post, or pulled back from the byline.
-  if (a.x > 72 && Math.abs(a.y - CENTER.y) > 10 && !opts.passFilter) {
-    for (const option of crossesIntoSpace(s, p, a, offside, opts.maxPass)) {
-      if (option.u > bestU) {
-        bestU = option.u
-        best = { kind: 'pass', toIdx: option.toIdx, target: option.target, lofted: option.lofted }
-      }
-    }
+/** Carrying it: towards goal, bending away from the nearest opponent; or, clean through, a run at goal. */
+function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
+  const { s, p, rng, a, opps, attrs, loss } = d
+  // Towards goal. Wide players go down the line to the byline; everyone else cuts in near goal.
+  const wide = ['W', 'WM', 'FB'].includes(p.slot.role) && Math.abs(a.y - CENTER.y) > 14
+  const cutIn = wide ? (a.x > PITCH_LENGTH - 8 ? 0.6 : 0) : a.x > 80 ? 0.6 : 0.1
+  const aim = vec(Math.min(a.x + 12, PITCH_LENGTH - 3), a.y + (CENTER.y - a.y) * cutIn)
+  let dir = norm(sub(aim, a))
+  let nearest: PlayerState | null = null
+  for (const o of opps) if (!nearest || dist(o.pos, p.pos) < dist(nearest.pos, p.pos)) nearest = o
+  if (nearest) {
+    const na = af(s, p.team, nearest.pos)
+    const dn = dist(na, a)
+    if (dn < 6) dir = add(norm(dir), scale(norm(sub(a, na)), (6 - dn) / 4))
   }
+  dir = norm(dir)
+  const ta = vec(clamp(a.x + dir.x * 5, 2, PITCH_LENGTH - 2), clamp(a.y + dir.y * 5, 2, PITCH_WIDTH - 2))
+  const target = wf(s, p.team, ta)
+  const closest = dist(ta, a) < 3 ? 0 : nearestDist(opps, target) // boxed in: nowhere to go
+  const beat = (attrs.dribbling + attrs.pace) / 40
+  const pressure = clamp((2.5 - nearestDist(opps, p.pos)) / 2.5, 0, 1) * 0.4
+  const risk = clamp(clamp((5 - closest) / 5, 0, 1) * (1 - beat * 0.5) + pressure, 0, 1)
+  const heldFor = (s.tick - s.possessedSince) * DT // players don't dribble forever
+  consider({
+    action: { kind: 'dribble', target },
+    u: (1 - risk) * (threat(ta) + POSSESSION_VALUE) - risk * loss + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002,
+  })
 
-  // Dribble: carry towards goal, bending away from the nearest opponent.
-  if (opts.allowDribble) {
-    // Towards goal. Wide players go down the line to the byline; everyone else cuts in near goal.
-    const wide = ['W', 'WM', 'FB'].includes(p.slot.role) && Math.abs(a.y - CENTER.y) > 14
-    const cutIn = wide ? (a.x > PITCH_LENGTH - 8 ? 0.6 : 0) : a.x > 80 ? 0.6 : 0.1
-    const aim = vec(Math.min(a.x + 12, PITCH_LENGTH - 3), a.y + (CENTER.y - a.y) * cutIn)
-    let dir = norm(sub(aim, a))
-    let nearest: PlayerState | null = null
-    for (const o of opps) if (!nearest || dist(o.pos, p.pos) < dist(nearest.pos, p.pos)) nearest = o
-    if (nearest) {
-      const na = af(s, p.team, nearest.pos)
-      const dn = dist(na, a)
-      if (dn < 6) dir = add(norm(dir), scale(norm(sub(a, na)), (6 - dn) / 4))
-    }
-    dir = norm(dir)
-    const ta = vec(clamp(a.x + dir.x * 5, 2, PITCH_LENGTH - 2), clamp(a.y + dir.y * 5, 2, PITCH_WIDTH - 2))
-    const target = wf(s, p.team, ta)
-    const closest = dist(ta, a) < 3 ? 0 : nearestDist(opps, target) // boxed in: nowhere to go
-    const beat = (attrs.dribbling + attrs.pace) / 40
-    const pressure = clamp((2.5 - nearestDist(opps, p.pos)) / 2.5, 0, 1) * 0.4
-    const risk = clamp(clamp((5 - closest) / 5, 0, 1) * (1 - beat * 0.5) + pressure, 0, 1)
-    const heldFor = (s.tick - s.possessedSince) * DT // players don't dribble forever
-    const u = (1 - risk) * (threat(ta) + POSSESSION_VALUE) - risk * loss + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002
-    if (u > bestU) {
-      bestU = u
-      best = { kind: 'dribble', target }
-    }
-
-    // Clean through, nobody but the keeper goal-side of him: run at goal. Chasers behind him have
-    // to catch him first; value it at where he'll be in a couple of seconds.
-    const goalSide = opps.some((o) => o.slot.role !== 'GK' && af(s, p.team, o.pos).x > a.x - 0.5)
-    if (!goalSide && a.x > 55) {
-      const goal = vec(PITCH_LENGTH, CENTER.y)
-      const ahead = add(a, scale(norm(sub(goal, a)), Math.min(12, Math.max(0, dist(a, goal) - 8))))
-      const chased = clamp((2 - nearestDist(opps, p.pos)) / 2, 0, 1) * 0.3
-      const uRun = (1 - chased) * (threat(ahead) + POSSESSION_VALUE) - chased * loss + rng.gauss() * 0.002
-      if (uRun > bestU) {
-        bestU = uRun
-        best = { kind: 'dribble', target: wf(s, p.team, add(a, scale(norm(sub(goal, a)), 5))) }
-      }
-    }
-  }
-
-  // Shot: only from where a shot is physically sensible.
-  if (opts.allowShot) {
-    const q = shotQuality(s, p, ball, opts.maxShotDistance)
-    const eagerness = 1.0 + p.def.traits.flair * 0.3 + attrs.shooting / 50
-    if (q > 0.021 && q * eagerness > bestU) {
-      const gk = goalkeeperOf(s, 1 - p.team as Side)
-      const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
-      const side = gy > CENTER.y ? -1 : 1
-      const dGoal = dist(a, vec(PITCH_LENGTH, CENTER.y))
-      // From the edge of the box a player with flair may curl it rather than drive it: placed
-      // right into the far corner, more accurately, but with less pace on it (see execute).
-      const finesse = dGoal > 11 && dGoal < 26 && rng.chance(0.1 + p.def.traits.flair * 0.45)
-      const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * (finesse ? rng.range(0.8, 1) : rng.range(0.5, 1))
-      const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28) * (finesse ? 0.8 : 1)
-      const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
-      // Height as it reaches the line: aimed under the bar, with error growing with distance.
-      const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.45)
-      return { kind: 'shot', target, xg: q, height, finesse }
-    }
-  }
-
-  // Under pressure deep in our own half with nothing on (or a keeper with it in his hands): get rid of it.
-  const keeper = p.slot.role === 'GK'
-  // A pass that's more likely to be lost than kept (utility below zero) is no better than no pass:
-  // near our own goal, go long instead of playing it through the man waiting for it.
-  const nothingOn = best.kind !== 'pass' || bestU < 0
-  if (nothingOn && a.x < 30 && (keeper || nearestDist(opps, p.pos) < 3)) {
-    // Long, and away from whoever is closing him down: of a spread of directions (upfield first,
-    // then towards the touchlines), take the one whose first few metres are clearest.
-    const len = rng.range(35, 55)
-    // Out wide, a defender under pressure (not the keeper) puts it out of play if he can.
-    const touchSide = Math.sign(a.y - CENTER.y)
-    const angles = !keeper && Math.abs(a.y - CENTER.y) > 18 ? [touchSide * 1.3, 0, 0.35 * touchSide, 0.7 * touchSide] : [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]
-    const candidates = angles.map((angle) => {
-      const dir = vec(Math.cos(angle), Math.sin(angle))
-      return wf(s, p.team, vec(a.x + dir.x * len, a.y + dir.y * len))
+  // Clean through, nobody but the keeper goal-side of him: run at goal. Chasers behind him have
+  // to catch him first; value it at where he'll be in a couple of seconds.
+  const goalSide = opps.some((o) => o.slot.role !== 'GK' && af(s, p.team, o.pos).x > a.x - 0.5)
+  if (!goalSide && a.x > 55) {
+    const goal = vec(PITCH_LENGTH, CENTER.y)
+    const ahead = add(a, scale(norm(sub(goal, a)), Math.min(12, Math.max(0, dist(a, goal) - 8))))
+    const chased = clamp((2 - nearestDist(opps, p.pos)) / 2, 0, 1) * 0.3
+    consider({
+      action: { kind: 'dribble', target: wf(s, p.team, add(a, scale(norm(sub(goal, a)), 5))) },
+      u: (1 - chased) * (threat(ahead) + POSSESSION_VALUE) - chased * loss + rng.gauss() * 0.002,
     })
-    const clearance = (target: Vec): number => {
-      const near = lerp(ball, target, Math.min(1, 6 / Math.max(dist(ball, target), 1)))
-      let gap = Infinity
-      for (const o of opps) {
-        if (projectT(ball, near, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
-        gap = Math.min(gap, distToSegment(ball, near, o.pos))
-      }
-      return gap
-    }
-    const clear = candidates.find((t) => clearance(t) > 2) ?? candidates.reduce((x, y) => (clearance(y) > clearance(x) ? y : x))
-    return { kind: 'clearance', target: clear }
   }
-  return best
+}
+
+/** A shot, if the chance is worth more than the best alternative: aimed, with his error, from where he is. */
+function shotIfWorthIt(d: Decision, bestU: number): Action | null {
+  const { s, p, rng, ball, a, attrs, opts } = d
+  const q = shotQuality(s, p, ball, opts.maxShotDistance)
+  const eagerness = 1.0 + p.def.traits.flair * 0.3 + attrs.shooting / 50
+  if (q <= 0.021 || q * eagerness <= bestU) return null
+  const gk = goalkeeperOf(s, (1 - p.team) as Side)
+  const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
+  const side = gy > CENTER.y ? -1 : 1
+  const dGoal = dist(a, vec(PITCH_LENGTH, CENTER.y))
+  // From the edge of the box a player with flair may curl it rather than drive it: placed
+  // right into the far corner, more accurately, but with less pace on it (see execute).
+  const finesse = dGoal > 11 && dGoal < 26 && rng.chance(0.1 + p.def.traits.flair * 0.45)
+  const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * (finesse ? rng.range(0.8, 1) : rng.range(0.5, 1))
+  const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28) * (finesse ? 0.8 : 1)
+  const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
+  // Height as it reaches the line: aimed under the bar, with error growing with distance.
+  const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.45)
+  return { kind: 'shot', target, xg: q, height, finesse }
+}
+
+/**
+ * Under pressure deep in our own half with nothing on (or a keeper with it in his hands): long,
+ * and away from whoever is closing him down. Of a spread of directions (upfield first, then
+ * towards the touchlines), the one whose first few metres are clearest.
+ */
+function clearanceTarget(d: Decision): Vec {
+  const { s, p, rng, ball, a, opps } = d
+  const keeper = p.slot.role === 'GK'
+  const len = rng.range(35, 55)
+  // Out wide, a defender under pressure (not the keeper) puts it out of play if he can.
+  const touchSide = Math.sign(a.y - CENTER.y)
+  const angles = !keeper && Math.abs(a.y - CENTER.y) > 18 ? [touchSide * 1.3, 0, 0.35 * touchSide, 0.7 * touchSide] : [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]
+  const candidates = angles.map((angle) => wf(s, p.team, vec(a.x + Math.cos(angle) * len, a.y + Math.sin(angle) * len)))
+  const clearance = (target: Vec): number => {
+    const near = lerp(ball, target, Math.min(1, 6 / Math.max(dist(ball, target), 1)))
+    let gap = Infinity
+    for (const o of opps) {
+      if (projectT(ball, near, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
+      gap = Math.min(gap, distToSegment(ball, near, o.pos))
+    }
+    return gap
+  }
+  return candidates.find((t) => clearance(t) > 2) ?? candidates.reduce((x, y) => (clearance(y) > clearance(x) ? y : x))
 }
 
 /**
@@ -561,7 +600,7 @@ export function passMotion(from: Vec, target: Vec, lofted: boolean, arrivalHeigh
 function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, maxPass: number): { target: Vec; lofted: boolean; u: number }[] {
   const out: { target: Vec; lofted: boolean; u: number }[] = []
   const ball = s.ball.pos
-  const attrs = p.def.attrs
+  const attrs = p.attrs
   const loss = lossCost(af(s, p.team, ball))
   // Ahead of him, bending towards goal; with his run, if he's already going.
   const va = sub(af(s, p.team, add(q.pos, q.vel)), qa)
@@ -654,7 +693,7 @@ function crossesIntoSpace(
     const d = dist(ball, target)
     if (d > maxPass + 5 || (lofted && d < 12)) continue
     const path = ballPath(passMotion(ball, target, lofted, CROSS_HEIGHT), 45)
-    const misplace = ((21 - p.def.attrs.passing) / 20) * (d / 40) * (lofted ? 0.375 : 0.25) * (1 + pressureOn(s, p))
+    const misplace = ((21 - p.attrs.passing) / 20) * (d / 40) * (lofted ? 0.375 : 0.25) * (1 + pressureOn(s, p))
     for (const q of teammatesOf(s, p.team)) {
       if (q.idx === p.idx || q.slot.role === 'GK' || offside.has(q.idx) || dist(q.pos, target) > 16) continue
       const race = raceFor(s, q, path, ball, target)
@@ -677,6 +716,9 @@ export interface MoveIntent {
   /** Fraction of max speed. */
   urgency: number
 }
+
+/** How far from its own goal each block holds its line out of possession (m): lowest, highest. */
+const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
 
 /** Where a player stands in the team's shape, given the ball and who has it. */
 export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean): Vec {
@@ -702,7 +744,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     length = 40
     widthK = 1.05
   } else {
-    const [lo, hi] = { low: [14, 32], mid: [20, 42], high: [26, 55] }[s.teams[team].block]
+    const [lo, hi] = BLOCK_LINES[s.teams[team].block]
     // No pressure on the ball: he has time to pick a pass in behind, so the line drops off.
     const unpressured = ballUnpressured(s, team)
     // Never hold a line further out than the ball: drop towards the six-yard box when it's deep.
@@ -742,18 +784,17 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   if (run) return wf(s, team, run)
   if (inPossession) {
     // Get free: step away from the nearest opponent to offer a clear pass.
-    let near: Vec | null = null
+    const spot = wf(s, team, target)
+    let near: PlayerState | null = null
     let nearD = Infinity
-    for (const o of s.players) {
-      if (!o.onPitch || o.team === team) continue
-      const oa = af(s, team, o.pos)
-      const d = dist(oa, target)
+    for (const o of opponentsOf(s, team)) {
+      const d = dist(o.pos, spot)
       if (d < nearD) {
         nearD = d
-        near = oa
+        near = o
       }
     }
-    if (near && nearD < 5) target = add(target, scale(norm(sub(target, near)), 5 - nearD))
+    if (near && nearD < 5) target = add(target, scale(norm(sub(target, af(s, team, near.pos))), 5 - nearD))
     const line = offsideLine(s, team, s.ball.pos)
     const role = p.slot.role
     const forward = role === 'ST' || role === 'W' || role === 'WM'
@@ -1024,7 +1065,7 @@ export function maybeStartRuns(s: MatchState): PlayerState[] {
     // From on (or near) the line: a run from deep is just getting forward.
     if (af(s, p.team, p.pos).x < line - 12) continue
     const marked = nearestDist(opps, p.pos) < 3 ? 1.6 : 1
-    const chance = (0.002 + (p.def.attrs.positioning / 20) * 0.002) * time * marked * (0.5 + p.def.traits.workRate)
+    const chance = (0.002 + (p.attrs.positioning / 20) * 0.002) * time * marked * (0.5 + p.def.traits.workRate)
     if (s.rng.chance(chance)) {
       p.runUntil = s.tick + s.rng.int(20, 35)
       p.runTo = null
@@ -1044,7 +1085,7 @@ export function giveAndGo(s: MatchState, p: PlayerState, to: PlayerState): Vec |
   const a = af(s, p.team, p.pos)
   const ta = af(s, p.team, to.pos)
   if (a.x < 45 || a.x > 90 || dist(a, ta) > 20) return null
-  const chance = 0.03 + p.def.traits.flair * 0.06 + (p.def.attrs.positioning / 20) * 0.05
+  const chance = 0.03 + p.def.traits.flair * 0.06 + (p.attrs.positioning / 20) * 0.05
   if (!s.rng.chance(chance)) return null
   const line = offsideLine(s, p.team, s.ball.pos)
   const toGoal = norm(sub(vec(PITCH_LENGTH, CENTER.y), a))
@@ -1184,7 +1225,7 @@ export function chooseTaker(s: MatchState, type: Restart['type'], team: Side, sp
   const squad = teammatesOf(s, team)
   const outfield = squad.filter((p) => p.slot.role !== 'GK')
   if (type === 'goalKick') return goalkeeperOf(s, team) ?? outfield[0]
-  if (type === 'penalty') return outfield.reduce((a, b) => (b.def.attrs.shooting > a.def.attrs.shooting ? b : a))
+  if (type === 'penalty') return outfield.reduce((a, b) => (b.attrs.shooting > a.attrs.shooting ? b : a))
   if (type === 'kickoff') {
     const fwd = outfield.reduce((a, b) => (b.slot.depth > a.slot.depth ? b : a))
     return fwd
@@ -1192,7 +1233,7 @@ export function chooseTaker(s: MatchState, type: Restart['type'], team: Side, sp
   if (type === 'corner') {
     // The best crosser among those who don't go up for it.
     const deliverers = outfield.filter((p) => p.slot.role !== 'CB' && p.slot.role !== 'ST')
-    if (deliverers.length) return deliverers.reduce((a, b) => (b.def.attrs.passing > a.def.attrs.passing ? b : a))
+    if (deliverers.length) return deliverers.reduce((a, b) => (b.attrs.passing > a.attrs.passing ? b : a))
   }
   return outfield.reduce((a, b) => (dist(b.pos, spot) < dist(a.pos, spot) ? b : a))
 }

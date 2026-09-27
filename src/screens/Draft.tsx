@@ -7,7 +7,7 @@ import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } f
 import { DRAFT_ROUNDS, DRAFT_SUBS, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
 import { Swatch } from './Hub.tsx'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
-import { shortName as surname } from '../names.ts'
+import { positionsLabel, shortName as surname } from '../names.ts'
 
 export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: DraftState, name: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -160,7 +160,7 @@ function Offer({ draft, chosen, onChoose }: { draft: DraftState; chosen: PlayerD
         {sorted.map((p) => (
           <li key={p.id}>
             <button type="button" className={`offer${chosen?.id === p.id ? ' chosen' : ''}`} aria-pressed={chosen?.id === p.id} onClick={() => onChoose(p)}>
-              <span className="role">{p.role}</span>
+              <span className="role">{positionsLabel(p)}</span>
               <span className="name">{p.name}</span>
               <span className="rating">{p.overall}</span>
             </button>

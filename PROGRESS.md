@@ -7,6 +7,21 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9). Next: transfers for the club mode.
 
+## Done (session 11): positions, starts, review and optimisation
+
+- **Positions**: every player has his own position plus, often, a secondary and tertiary one
+  (real ones for the draft pools: Palmer W/CM, Milner CM/FB/WM, Haaland ST only). Out of
+  position he plays with reduced passing, shooting, dribbling, tackling, positioning and
+  composure (to 80% in a strange position); the staff pick, subs and draft rating use the same
+  familiarity. Draft players' ability is their real overall, not their generated attributes.
+- **Starts vs sub appearances** in the squad table: "12 (3)".
+- **Optimisation**: 2.4 s → 1.56 s per match headless (distance maths without Math.hypot, team
+  lists built once per tick, the shape's nearest-opponent search without per-player allocation).
+- **Refactors** (matches byte-identical before and after): `chooseAction` split into option
+  generators, `resolveTouch` into one function per kind of touch, the viewer's highlight skip
+  into a pure, tested `playback.ts`.
+- Realism 30/31 on both seed sets (goals at the bottom edge, 1.1).
+
 ## Done (session 10): owner's feedback after a full draft season
 
 - **Benches of nine** (Premier League rule; five changes in three stoppages as before). Draft is

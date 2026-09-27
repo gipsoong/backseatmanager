@@ -176,6 +176,17 @@ pulling the repo.
   injuries, season stats), Stats (leaderboards, clubs, season review), Match. `pitchLayout.ts`
   places a formation on the small pitch. `src/names.ts`: how players are named on screen
   ("van Persie", "De Bruyne", "Son").
+- Positions (session 11): a player's `role` plus `positions` (secondary, tertiary). `fitFor` is
+  his familiarity with a slot (1, 0.95, 0.9, 0.75 in a line he knows, 0.55 otherwise, 0 in/out of
+  goal); `playingAttributes` scales his positional attributes by it, and the engine plays him
+  with those (`PlayerState.attrs`; `def.attrs` is his best). The staff pick, subs and the draft
+  all use `fitFor`. Draft pools write positions as 'W/CM'.
+- `chooseAction` (ai.ts) gathers options from `passOptions`, `throughBallOptions`, crosses,
+  `dribbleOptions`, then `shotIfWorthIt` and `clearanceTarget`; `resolveTouch` (match.ts)
+  dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,
+  `header`. Keep the order of RNG draws when touching either: a refactor should leave matches
+  byte-identical (fingerprint a few seeds' events before and after).
+- `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
   are `FB` slots with a big `attackDepth`. Random clubs use all six; check a shape change with
   `calibrate` and a per-formation shots comparison, as one-striker shapes were once far weaker.

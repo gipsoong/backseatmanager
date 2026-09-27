@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
+import { advancePlayhead } from './playback.ts'
 import { ANIMATION_LEAD, CAPTION_TICKS, animationsAt, captionsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
 import { GOAL_DEPTH, netAt } from './net.ts'
 import { describeTraits, playerLines } from './players.ts'
@@ -227,5 +228,30 @@ describe('runs', () => {
     expect(active(run.until + 1)).toBe(false)
     const received = events.find((e) => e.type === 'possession' && e.idx === run.idx && e.tick > run.tick && e.tick < run.until)
     if (received) expect(active(received.tick)).toBe(false)
+  })
+})
+
+describe('playback skips between highlights', () => {
+  it('fades out, rolls on to the next moment, fades back in; inside a moment it just plays', () => {
+    const windows: [number, number][] = [[500, 600]]
+    const o = { dt: 1 / 60, rate: 1, skipping: true, windows, done: false, lastTick: 5000 }
+    let step = advancePlayhead(100, null, { ...o, now: 0 })
+    expect(step.cut).not.toBeNull()
+    let maxCover = 0
+    let last = step.playhead
+    for (let now = 16; step.cut && now < 10_000; now += 16) {
+      step = advancePlayhead(step.playhead, step.cut, { ...o, now })
+      maxCover = Math.max(maxCover, step.cover)
+      expect(step.playhead).toBeGreaterThanOrEqual(last - 1e-9) // never goes backwards
+      last = step.playhead
+    }
+    expect(step.cut).toBeNull()
+    expect(maxCover).toBe(1)
+    expect(step.cover).toBe(0)
+    expect(step.playhead).toBeGreaterThanOrEqual(500)
+    expect(step.playhead).toBeLessThan(520)
+    const inside = advancePlayhead(550, null, { ...o, now: 0 })
+    expect(inside.cut).toBeNull()
+    expect(inside.playhead).toBeCloseTo(550.5)
   })
 })

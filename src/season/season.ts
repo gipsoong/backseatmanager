@@ -20,6 +20,7 @@ export interface Goal {
 
 /** Per-player numbers added up over a season (saves from before they existed count them as 0). */
 export const COUNTERS = [
+  'starts',
   'minutes',
   'passes',
   'passesCompleted',
@@ -271,6 +272,7 @@ export function resultOf(m: MatchState): Result {
     const minutes = Math.max(1, Math.round((((off.get(i) ?? m.tick) - from) / m.tick) * 90))
     return {
       id: p.def.id,
+      starts: from === 0 ? 1 : 0,
       minutes,
       rating: l.rating,
       goals: l.goals,
@@ -320,7 +322,8 @@ export function completeMatchday(s: Season, results: Map<number, Result>): Seaso
       condition[a.id] = { ...condition[a.id], fitness: Math.min(1, a.energy + MATCH_RECOVERY) }
       const st = stats[a.id]
       const next: SeasonStats = { apps: st.apps + 1, goals: st.goals + a.goals, assists: st.assists + a.assists, ratings: st.ratings + a.rating }
-      for (const k of COUNTERS) next[k] = (st[k] ?? 0) + (a[k] ?? 0)
+      // A save from before starts were counted: its earlier appearances count as starts.
+      for (const k of COUNTERS) next[k] = (st[k] ?? (k === 'starts' ? st.apps : 0)) + (a[k] ?? 0)
       stats[a.id] = next
     }
     for (const inj of r.injuries) condition[inj.id] = { ...condition[inj.id], injuredUntil: s.matchday + 1 + inj.weeks }

@@ -99,7 +99,7 @@ import {
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
-import { FORMATIONS, ability, fitFor } from './teams.ts'
+import { FORMATIONS, ability, fitFor, playingAttributes } from './teams.ts'
 import type {
   PlayerDef,
   Slot,
@@ -150,6 +150,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
       team,
       def,
       slot,
+      attrs: playingAttributes(def, slot.role),
       pos: onPitch ? vec(0, 0) : vec(HALFWAY_X, -2),
       vel: vec(0, 0),
       baseSpeed,
@@ -362,7 +363,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       return
     case 'pass': {
       const d = dist(s.ball.pos, action.target)
-      const sigma = ((21 - p.def.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05) * (1 + pressureOn(s, p))
+      const sigma = ((21 - p.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05) * (1 + pressureOn(s, p))
       const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2), clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2))
       const target = add(action.target, err)
       const dt = dist(s.ball.pos, target)
@@ -403,7 +404,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
     }
     case 'shot': {
       // A curled shot trades pace for placement.
-      const speed = 20 + (p.def.attrs.shooting / 20) * 9 + s.rng.range(0, 2) - (action.finesse ? 3 : 0)
+      const speed = 20 + (p.attrs.shooting / 20) * 9 + s.rng.range(0, 2) - (action.finesse ? 3 : 0)
       shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out, action.finesse)
       return
     }
@@ -544,150 +545,188 @@ function touchCandidates(s: MatchState, from: Vec, to: Vec, heightAt: (t: number
   return out.sort((x, y) => x.t - y.t || x.d - y.d)
 }
 
-/** Returns false if the player didn't get a touch and the ball carries on. */
+/** A player getting to the ball: who, where, how high and how fast it's travelling. */
+interface Touch {
+  s: MatchState
+  p: PlayerState
+  contact: Vec
+  height: number
+  speed: number
+  out: MatchEvent[]
+}
+
+/**
+ * A player gets to the ball. Returns false if he didn't get a touch and the ball carries on. In
+ * order: an offside player is flagged; a ball struck at point-blank range may be charged down; a
+ * keeper claims a cross or saves a shot; a ball at pace is blocked or missed; a defender under a
+ * cross in his own box may glance it behind; a ball in the air is headed; otherwise he controls it.
+ */
 function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: number, speed: number, out: MatchEvent[]): boolean {
+  const t: Touch = { s, p, contact, height, speed, out }
   const b = s.ball
   const k = b.kick
-  const rng = s.rng
-
-  // Offside: judged from positions when the ball was played, called when the player gets involved.
-  if (k && !b.touchedSinceKick && !k.offsideExempt && k.team === p.team && k.offsideIdxs.includes(p.idx)) {
-    emit(s, out, { type: 'offside', idx: p.idx, kickTick: k.tick, pos: { ...p.pos } })
-    s.stats[p.team].offsides++
-    const spot = vec(clamp(p.pos.x, 0.5, PITCH_LENGTH - 0.5), clamp(p.pos.y, 0.5, PITCH_WIDTH - 0.5))
-    setRestart(s, 'freeKick', (1 - p.team) as Side, spot)
-    return true
-  }
-
-  const isKeeper = p.slot.role === 'GK' && reachOf(s, p) > 1.01
-  const miss = (): false => {
-    if (k) k.missedIdxs.push(p.idx)
-    return false
-  }
-  const deflect = (kind: 'block' | 'parry' | 'miscontrol', keep: number, along = kind === 'block' ? 0.8 : -0.5, spread = 0.7, lift = 3): true => {
-    // A block takes the pace off but the ball keeps going roughly the same way (often behind);
-    // a miscontrol pops up anywhere.
-    const dir = norm(add(scale(norm(b.vel), along), vec(rng.gauss() * spread, rng.gauss() * spread)))
-    b.pos = contact
-    b.vel = scale(dir, speed * keep)
-    b.z = height
-    b.vz = rng.range(0, lift)
-    b.lastTouchIdx = p.idx
-    b.touchedSinceKick = true
-    // Off his body and away: he can't gather his own ricochet in the same instant.
-    const dive = kind === 'parry' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
-    if (kind === 'block' || dive) p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
-    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind, dive })
-    return true
-  }
-
-  const attrs = p.def.attrs
+  if (k && !b.touchedSinceKick && !k.offsideExempt && k.team === p.team && k.offsideIdxs.includes(p.idx)) return offsideCall(t)
   const fromOpponent = k !== null && k.team !== p.team && !b.touchedSinceKick
-
-  // Struck at him from point-blank range: he only sometimes gets anything on it (a reflex), and
-  // when he does it ricochets off him rather than being controlled.
-  if (fromOpponent && s.tick - k.tick <= 1 && dist(contact, k.from) < 1.5 && p.slot.role !== 'GK') {
-    if (!rng.chance(CHARGE_DOWN_CHANCE)) return miss()
-    // Mid follow-through, the kicker can't play the rebound in the same instant either.
-    const kicker = s.players[k.byIdx]
-    kicker.touchReadyAt = Math.max(kicker.touchReadyAt, s.tick + BLOCK_RECOVERY_TICKS)
-    // A cross is blocked by a leg stuck out across it: it glances on, looping, much the way it was
-    // going (so from near the byline, often behind). A shot, struck hardest, spins off at wide
-    // angles. Anything else comes back off him.
-    if (k.lofted) return deflect('block', rng.range(0.5, 0.75), rng.range(0.2, 0.9), 0.6, 5)
-    if (k.kind === 'shot') return deflect('block', rng.range(0.35, 0.6), rng.range(0, 0.9), 1.1, 6)
-    return deflect('block', 0.45, rng.range(-0.6, 0.6))
-  }
-
-  // A keeper coming for a cross: catch it or punch it clear.
-  if (isKeeper && height > AERIAL_HEIGHT && fromOpponent && k?.kind !== 'shot' && speed < CONTROLLABLE_SPEED) {
-    // Unchallenged he rarely drops it; with an attacker going for it too, he often does.
-    const contested = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 3)
-    const pClaim = clamp((contested ? 0.7 : 0.95) + (attrs.keeping - 12) * 0.02, 0.4, 0.98)
-    if (!rng.chance(pClaim)) {
-      // Misjudged it in the air: he can still gather it if it drops to him.
-      p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
-      return false
-    }
-    if (rng.chance(0.7)) {
-      takePossession(s, p, contact, height, 'save', out)
-      return true
-    }
-    return deflect('parry', 0.6)
-  }
-
-  if (isKeeper && (speed >= CONTROLLABLE_SPEED || k?.kind === 'shot') && fromOpponent) {
-    const reach = reachOf(s, p)
-    // How far off his body the ball will pass: its line of travel from here, not the point where it
-    // first came within reach (the edge of his dive, for a ball coming across him).
-    const ahead = add(contact, b.vel)
-    const passes = dist(p.pos, lerp(contact, ahead, clamp(projectT(contact, ahead, p.pos), 0, 1)))
-    const off = Math.min(1, passes / reach)
-    // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
-    // to react (struck from close in); one towards the edge of his reach is a real test.
-    const flight = k ? (s.tick - k.tick) * DT : 1
-    const pSave = clamp(1.02 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (attrs.keeping - 12) * 0.02, 0.05, 0.96)
-    if (!rng.chance(pSave)) return miss()
-    if (speed < 21 && rng.chance(0.3 + attrs.keeping / 40)) {
-      takePossession(s, p, contact, height, 'save', out)
-      return true
-    }
-    // Palmed wide of the post rather than back into the six-yard box; one heading in high is
-    // tipped over the bar.
-    const side = contact.y < CENTER.y ? -1 : 1
-    const outward = contact.x < PITCH_LENGTH / 2 ? -1 : 1
-    const high = height > TIP_OVER_HEIGHT
-    b.pos = contact
-    b.vel = high ? vec(outward * rng.range(5, 8), side * rng.range(0, 3)) : vec(outward * rng.range(2, 6), side * rng.range(4, 9))
-    b.z = height
-    b.vz = high ? rng.range(3, 5) : rng.range(1, 4)
-    b.lastTouchIdx = p.idx
-    b.touchedSinceKick = true
-    // Down after a full-stretch dive, he can't get straight back to it; one palmed away at his body he can.
-    const dive = dist(p.pos, contact) > KEEPER_BODY_REACH
-    if (dive) p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
-    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry', dive })
-    return true
-  }
-
+  const isKeeper = p.slot.role === 'GK' && reachOf(s, p) > 1.01
+  if (fromOpponent && s.tick - k.tick <= 1 && dist(contact, k.from) < 1.5 && p.slot.role !== 'GK') return chargeDown(t)
+  if (isKeeper && height > AERIAL_HEIGHT && fromOpponent && k?.kind !== 'shot' && speed < CONTROLLABLE_SPEED) return keeperClaim(t)
+  if (isKeeper && (speed >= CONTROLLABLE_SPEED || k?.kind === 'shot') && fromOpponent) return keeperSave(t)
   if (speed >= CONTROLLABLE_SPEED) {
-    if (!rng.chance(0.55)) return miss()
+    if (!s.rng.chance(0.55)) return miss(t)
     // Off a body at pace it goes anywhere: on, wide, looping up; often behind. A shot, struck
     // hardest, spins off at the widest angles and loops highest.
     const shot = k?.kind === 'shot'
-    return deflect('block', rng.range(0.35, 0.6), rng.range(-0.3, 0.9), shot ? 1.1 : 0.7, shot ? 6 : 3)
+    return deflect(t, 'block', s.rng.range(0.35, 0.6), s.rng.range(-0.3, 0.9), shot ? 1.1 : 0.7, shot ? 6 : 3)
   }
-
-  // A defender in his own box under an opponent's cross gets rid of it, sometimes behind for a corner.
-  const ownBox = inPenaltyArea(p.pos, ownGoalX(p.team, s.half))
-  // With an attacker challenging him for it, he's more likely to only get a flick on it.
-  const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 2)
-  if (ownBox && fromOpponent && k?.lofted && p.slot.role !== 'GK' && rng.chance(challenged ? 0.75 : 0.45)) {
-    // Glanced behind, wide of his own post rather than back across the goal mouth.
-    const goalX = ownGoalX(p.team, s.half)
-    const wide = contact.y < CENTER.y ? -1 : 1
-    const aim = vec(goalX, CENTER.y + wide * (GOAL_HALF_WIDTH + rng.range(4, 14)))
-    b.pos = contact
-    // Looped up and away, over the heads of the players around him.
-    b.vel = scale(norm(sub(aim, contact)), rng.range(11, 16))
-    b.z = height
-    b.vz = rng.range(3, 6)
-    b.lastTouchIdx = p.idx
-    b.touchedSinceKick = true
-    p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
-    emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: height > AERIAL_HEIGHT ? 'header' : 'block' })
-    return true
-  }
-
+  if (fromOpponent && k?.lofted && p.slot.role !== 'GK' && glancedBehind(t)) return true
   if (height > AERIAL_HEIGHT) return header(s, p, contact, height, out)
-
   // A pass arriving at normal pace is almost always controlled; a hard ball less so.
-  const pControl = clamp(0.985 + (attrs.dribbling - 10) * 0.003 - Math.max(0, speed - 8) * 0.02, 0.5, 0.995)
-  if (rng.chance(pControl)) {
-    takePossession(s, p, contact, height, k && k.team !== p.team && !b.touchedSinceKick ? 'interception' : 'control', out)
+  const pControl = clamp(0.985 + (p.attrs.dribbling - 10) * 0.003 - Math.max(0, speed - 8) * 0.02, 0.5, 0.995)
+  if (s.rng.chance(pControl)) {
+    takePossession(s, p, contact, height, fromOpponent ? 'interception' : 'control', out)
     return true
   }
-  return deflect('miscontrol', 0.3)
+  return deflect(t, 'miscontrol', 0.3)
+}
+
+/** Offside: judged from positions when the ball was played, called when the player gets involved. */
+function offsideCall({ s, p, out }: Touch): true {
+  const k = s.ball.kick!
+  emit(s, out, { type: 'offside', idx: p.idx, kickTick: k.tick, pos: { ...p.pos } })
+  s.stats[p.team].offsides++
+  const spot = vec(clamp(p.pos.x, 0.5, PITCH_LENGTH - 0.5), clamp(p.pos.y, 0.5, PITCH_WIDTH - 0.5))
+  setRestart(s, 'freeKick', (1 - p.team) as Side, spot)
+  return true
+}
+
+/** The ball got past him: he can't try again for it until it's slowed right down. */
+function miss({ s, p }: Touch): false {
+  s.ball.kick?.missedIdxs.push(p.idx)
+  return false
+}
+
+/**
+ * Off him and away. A block takes the pace off but the ball keeps going roughly the same way
+ * (often behind); a parry is palmed back; a miscontrol pops up anywhere.
+ */
+function deflect({ s, p, contact, height, speed, out }: Touch, kind: 'block' | 'parry' | 'miscontrol', keep: number, along = kind === 'block' ? 0.8 : -0.5, spread = 0.7, lift = 3): true {
+  const b = s.ball
+  const rng = s.rng
+  const dir = norm(add(scale(norm(b.vel), along), vec(rng.gauss() * spread, rng.gauss() * spread)))
+  b.pos = contact
+  b.vel = scale(dir, speed * keep)
+  b.z = height
+  b.vz = rng.range(0, lift)
+  b.lastTouchIdx = p.idx
+  b.touchedSinceKick = true
+  // Off his body and away: he can't gather his own ricochet in the same instant.
+  const dive = kind === 'parry' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
+  if (kind === 'block' || dive) p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
+  emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind, dive })
+  return true
+}
+
+/**
+ * Struck at him from point-blank range: he only sometimes gets anything on it (a reflex), and
+ * when he does it ricochets off him rather than being controlled.
+ */
+function chargeDown(t: Touch): boolean {
+  const { s } = t
+  const k = s.ball.kick!
+  const rng = s.rng
+  if (!rng.chance(CHARGE_DOWN_CHANCE)) return miss(t)
+  // Mid follow-through, the kicker can't play the rebound in the same instant either.
+  const kicker = s.players[k.byIdx]
+  kicker.touchReadyAt = Math.max(kicker.touchReadyAt, s.tick + BLOCK_RECOVERY_TICKS)
+  // A cross is blocked by a leg stuck out across it: it glances on, looping, much the way it was
+  // going (so from near the byline, often behind). A shot, struck hardest, spins off at wide
+  // angles. Anything else comes back off him.
+  if (k.lofted) return deflect(t, 'block', rng.range(0.5, 0.75), rng.range(0.2, 0.9), 0.6, 5)
+  if (k.kind === 'shot') return deflect(t, 'block', rng.range(0.35, 0.6), rng.range(0, 0.9), 1.1, 6)
+  return deflect(t, 'block', 0.45, rng.range(-0.6, 0.6))
+}
+
+/** A keeper coming for a cross: catch it or punch it clear. */
+function keeperClaim(t: Touch): boolean {
+  const { s, p, contact, height, out } = t
+  // Unchallenged he rarely drops it; with an attacker going for it too, he often does.
+  const contested = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 3)
+  const pClaim = clamp((contested ? 0.7 : 0.95) + (p.attrs.keeping - 12) * 0.02, 0.4, 0.98)
+  if (!s.rng.chance(pClaim)) {
+    // Misjudged it in the air: he can still gather it if it drops to him.
+    p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
+    return false
+  }
+  if (s.rng.chance(0.7)) {
+    takePossession(s, p, contact, height, 'save', out)
+    return true
+  }
+  return deflect(t, 'parry', 0.6)
+}
+
+/** A keeper facing a shot (or any ball at pace): saved and held, parried, tipped over, or beaten. */
+function keeperSave(t: Touch): boolean {
+  const { s, p, contact, height, speed, out } = t
+  const b = s.ball
+  const k = b.kick
+  const rng = s.rng
+  const reach = reachOf(s, p)
+  // How far off his body the ball will pass: its line of travel from here, not the point where it
+  // first came within reach (the edge of his dive, for a ball coming across him).
+  const ahead = add(contact, b.vel)
+  const passes = dist(p.pos, lerp(contact, ahead, clamp(projectT(contact, ahead, p.pos), 0, 1)))
+  const off = Math.min(1, passes / reach)
+  // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
+  // to react (struck from close in); one towards the edge of his reach is a real test.
+  const flight = k ? (s.tick - k.tick) * DT : 1
+  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.keeping - 12) * 0.02, 0.05, 0.96)
+  if (!rng.chance(pSave)) return miss(t)
+  if (speed < 21 && rng.chance(0.3 + p.attrs.keeping / 40)) {
+    takePossession(s, p, contact, height, 'save', out)
+    return true
+  }
+  // Palmed wide of the post rather than back into the six-yard box; one heading in high is
+  // tipped over the bar.
+  const side = contact.y < CENTER.y ? -1 : 1
+  const outward = contact.x < PITCH_LENGTH / 2 ? -1 : 1
+  const high = height > TIP_OVER_HEIGHT
+  b.pos = contact
+  b.vel = high ? vec(outward * rng.range(5, 8), side * rng.range(0, 3)) : vec(outward * rng.range(2, 6), side * rng.range(4, 9))
+  b.z = height
+  b.vz = high ? rng.range(3, 5) : rng.range(1, 4)
+  b.lastTouchIdx = p.idx
+  b.touchedSinceKick = true
+  // Down after a full-stretch dive, he can't get straight back to it; one palmed away at his body he can.
+  const dive = dist(p.pos, contact) > KEEPER_BODY_REACH
+  if (dive) p.touchReadyAt = s.tick + BLOCK_RECOVERY_TICKS
+  emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: 'parry', dive })
+  return true
+}
+
+/**
+ * A defender in his own box under an opponent's cross gets rid of it, sometimes glancing it
+ * behind for a corner (more often with an attacker challenging him). False if he doesn't.
+ */
+function glancedBehind({ s, p, contact, height, out }: Touch): boolean {
+  const b = s.ball
+  const rng = s.rng
+  if (!inPenaltyArea(p.pos, ownGoalX(p.team, s.half))) return false
+  const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 2)
+  if (!rng.chance(challenged ? 0.75 : 0.45)) return false
+  // Wide of his own post rather than back across the goal mouth.
+  const goalX = ownGoalX(p.team, s.half)
+  const wide = contact.y < CENTER.y ? -1 : 1
+  const aim = vec(goalX, CENTER.y + wide * (GOAL_HALF_WIDTH + rng.range(4, 14)))
+  b.pos = contact
+  // Looped up and away, over the heads of the players around him.
+  b.vel = scale(norm(sub(aim, contact)), rng.range(11, 16))
+  b.z = height
+  b.vz = rng.range(3, 6)
+  b.lastTouchIdx = p.idx
+  b.touchedSinceKick = true
+  p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
+  emit(s, out, { type: 'deflection', idx: p.idx, contact: { ...contact }, height, kind: height > AERIAL_HEIGHT ? 'header' : 'block' })
+  return true
 }
 
 /**
@@ -738,7 +777,7 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   b.receivedFromIdx = cross ? k.byIdx : null
 
   if (cross) {
-    const attrs = p.def.attrs
+    const attrs = p.attrs
     const sigma = ((26 - attrs.shooting) / 20) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
     const aimY = CENTER.y + rng.range(-3, 3) + rng.gauss() * sigma
     const target = wf(s, p.team, vec(PITCH_LENGTH, aimY))
@@ -917,8 +956,8 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const finalThird = af(s, o.team, c.pos).x > 70
   if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : 1))) return
 
-  const oa = o.def.attrs
-  const ca = c.def.attrs
+  const oa = o.attrs
+  const ca = c.attrs
   const inOwnBox = inPenaltyArea(c.pos, ownGoalX(o.team, s.half))
   // Players go in more carefully in their own box, and once they've been booked.
   const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
@@ -1019,7 +1058,7 @@ function tire(s: MatchState, out: MatchEvent[]): void {
   for (const p of s.players) {
     if (!p.onPitch) continue
     const effort = (len(p.vel) / p.baseSpeed) ** 2
-    const lasts = 1.4 - (p.def.attrs.stamina / 20) * 0.8
+    const lasts = 1.4 - (p.attrs.stamina / 20) * 0.8
     p.energy = Math.max(0, p.energy - (ENERGY_PER_TICK + EFFORT_ENERGY_PER_TICK * effort) * lasts)
     p.maxSpeed = speedFor(p.baseSpeed, p.energy) * (p.injured ? 0.6 : 1)
     if (!p.injured && p.energy < 0.4 && s.rng.chance(STRAIN_PER_TICK * (0.4 - p.energy) * 10)) injure(s, p, out)
@@ -1064,6 +1103,7 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       if (!on || fitFor(on.def, off.slot.role) === 0) break
       on.onPitch = true
       on.slot = off.slot
+      on.attrs = playingAttributes(on.def, on.slot.role)
       on.pos = { ...off.pos }
       on.vel = vec(0, 0)
       off.onPitch = false

@@ -3,7 +3,7 @@
  * open place in your side (eleven starters, nine substitutes). Then a season against the other
  * club-decades. No transfers: the drafted squad is the squad.
  */
-import { FORMATIONS, Rng, fitFor, makeAttributes, makeTraits, type Formation, type Kit, type PlayerDef, type TeamDef } from '../engine/index.ts'
+import { FORMATIONS, Rng, fitFor, makeAttributes, makeTraits, type Formation, type Kit, type PlayerDef, type Role, type TeamDef } from '../engine/index.ts'
 import { POOLS, type Pool } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
@@ -41,10 +41,20 @@ function hash(text: string): number {
  */
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
-  const [name, role, overall] = pool.players[i]
+  const [name, positions, overall] = pool.players[i]
+  const [role, ...others] = positions.split('/') as Role[]
   const rng = new Rng(hash(name))
   const quality = (overall - 45) / 2.6
-  return { id: `p${poolIdx}-${i}`, name, shirt: 0, role, attrs: makeAttributes(rng, role, quality), traits: makeTraits(rng, role), overall }
+  return {
+    id: `p${poolIdx}-${i}`,
+    name,
+    shirt: 0,
+    role,
+    positions: others.length ? others : undefined,
+    attrs: makeAttributes(rng, role, quality),
+    traits: makeTraits(rng, role),
+    overall,
+  }
 }
 
 export function newDraft(seed: number, formation: Formation): Draft {
