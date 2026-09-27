@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FORMATIONS, fitFor, playingAttributes, runMatch } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, archetypeOf, fitFor, playingAttributes, runMatch } from '../engine/index.ts'
+import { strikingFoot } from '../engine/ai.ts'
 import { autoPick, createSeason, matchdays, squadOf } from '../season/season.ts'
 import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
 import { POOLS } from './pools.ts'
@@ -105,4 +106,41 @@ describe('positions', () => {
     d = { ...d, xi: d.xi.map((p, i) => (slots[i].role === 'W' || slots[i].role === 'ST' ? { ...filler, id: `filler-${i}`, role: 'CB' as const } : p)) }
     return d
   }
+})
+
+describe('feet and archetypes', () => {
+  const find = (name: string) => {
+    for (const [pi, pool] of POOLS.entries()) {
+      const i = pool.players.findIndex(([n]) => n === name)
+      if (i >= 0) return poolPlayer(pi, i)
+    }
+    throw new Error(name)
+  }
+  // strikingFoot reads only the player's def, so a bare state is enough.
+  const state = (name: string) => ({ def: find(name) }) as Parameters<typeof strikingFoot>[0]
+  const rightSide = { x: 90, y: 50 }
+  const leftSide = { x: 90, y: 18 }
+
+  it('strikes with the inside foot from wide, and a one-footed player suffers on the wrong side', () => {
+    expect(strikingFoot(state('Mohamed Salah'), rightSide, 'shot')).toEqual({ foot: 'left', q: 1 })
+    expect(strikingFoot(state('Riyad Mahrez'), leftSide, 'shot').q).toBeLessThan(1)
+    expect(strikingFoot(state('Son Heung-min'), rightSide, 'shot').q).toBe(1)
+    expect(strikingFoot(state('Eden Hazard'), rightSide, 'shot').q).toBeLessThan(1)
+    expect(strikingFoot(state('Eden Hazard'), leftSide, 'shot').q).toBe(1)
+    // From the middle it's always his good foot.
+    expect(strikingFoot(state('Riyad Mahrez'), { x: 90, y: 34 }, 'shot').q).toBe(1)
+  })
+
+  it('gives every player an archetype for his position, his own where known', () => {
+    expect(archetypeOf(find('Erling Haaland'))).toBe('poacher')
+    expect(archetypeOf(find('Trent Alexander-Arnold'))).toBe('inverted')
+    // Out of position he plays it the way his attributes suggest.
+    expect(ARCHETYPES.W).toContain(archetypeOf(find('Erling Haaland'), 'W'))
+    for (const [pi, pool] of POOLS.entries()) {
+      pool.players.forEach((_, i) => {
+        const p = poolPlayer(pi, i)
+        expect(ARCHETYPES[p.role]).toContain(archetypeOf(p))
+      })
+    }
+  })
 })

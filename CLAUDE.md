@@ -181,6 +181,19 @@ pulling the repo.
   goal); `playingAttributes` scales his positional attributes by it, and the engine plays him
   with those (`PlayerState.attrs`; `def.attrs` is his best). The staff pick, subs and the draft
   all use `fitFor`. Draft pools write positions as 'W/CM'.
+- Archetypes (session 12, `engine/archetypes.ts`): one per player for his position (curated for
+  draft players in `pools.ts` `ARCHETYPE`, otherwise read off attributes; re-read for another
+  position when he's played out of it). They change behaviour, not ability: where he stands with
+  and without the ball (`attackDepthFor`, width, inverted full-backs, false nines dropping and
+  arriving late, poachers on the shoulder, inside forwards coming in), runs in behind, pressing,
+  aerial duels, how eagerly he shoots or passes forward. Pitch labels ("Roles") show them.
+- Feet (session 12): `PlayerDef.foot` and `weakFoot` (1-5 stars); `strikingFoot` in ai.ts picks the
+  foot from where he strikes it (inside foot shooting from wide, outside foot crossing) and how
+  well (a one-footed player on the wrong side: 0.8); it scales shot accuracy, pace and cross
+  accuracy, and the AI weighs it. Draft data: `LEFT_FOOTED`, `WEAK_FOOT` in pools.ts.
+- Balance checks for formations and squads (scratch scripts, not in the repo): the same squad in
+  two shapes against itself, and a whole league of every club-decade next to squad ratings. Use
+  them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game.
 - `chooseAction` (ai.ts) gathers options from `passOptions`, `throughBallOptions`, crosses,
   `dribbleOptions`, then `shotIfWorthIt` and `clearanceTarget`; `resolveTouch` (match.ts)
   dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,

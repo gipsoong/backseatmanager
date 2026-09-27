@@ -4,7 +4,7 @@
  * club-decades. No transfers: the drafted squad is the squad.
  */
 import { FORMATIONS, Rng, fitFor, makeAttributes, makeTraits, type Formation, type Kit, type PlayerDef, type Role, type TeamDef } from '../engine/index.ts'
-import { POOLS, type Pool } from './pools.ts'
+import { ARCHETYPE, LEFT_FOOTED, POOLS, type Pool, WEAK_FOOT } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
 export const DRAFT_SUBS = 9
@@ -51,6 +51,9 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
     shirt: 0,
     role,
     positions: others.length ? others : undefined,
+    archetype: ARCHETYPE[name],
+    foot: LEFT_FOOTED.has(name) ? 'left' : 'right',
+    weakFoot: WEAK_FOOT[name] ?? 3,
     attrs: makeAttributes(rng, role, quality),
     traits: makeTraits(rng, role),
     overall,
@@ -106,10 +109,10 @@ export function draftTeam(d: Draft, name: string): TeamDef {
  * A club-decade as an opponent: for each position in its formation, its best remaining fit;
  * the next seven on the bench. Players the manager drafted from it are gone.
  */
-export function poolTeam(poolIdx: number, taken: Set<string>): TeamDef {
+export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[poolIdx].formation): TeamDef {
   const pool = POOLS[poolIdx]
   const left = pool.players.map((_, i) => poolPlayer(poolIdx, i)).filter((p) => !taken.has(p.id))
-  const players = FORMATIONS[pool.formation].map((slot, i) => {
+  const players = FORMATIONS[formation].map((slot, i) => {
     const best = left.reduce((a, b) => ((b.overall ?? 0) * fitFor(b, slot.role) > (a.overall ?? 0) * fitFor(a, slot.role) ? b : a))
     left.splice(left.indexOf(best), 1)
     return { ...best, shirt: i + 1 }
@@ -122,7 +125,7 @@ export function poolTeam(poolIdx: number, taken: Set<string>): TeamDef {
     name: poolName(pool),
     shortName: `${pool.shortName}${pool.decade.slice(2, 4)}`,
     kit: pool.kit,
-    formation: pool.formation,
+    formation,
     block: 'mid',
     players,
     bench,

@@ -4,6 +4,7 @@
  * a close-up is a different projection, never a scaled bitmap.
  */
 import {
+  ARCHETYPE_NAMES,
   BOX_DEPTH,
   BOX_HALF_WIDTH,
   CENTER,
@@ -15,7 +16,6 @@ import {
   PENALTY_SPOT_DIST,
   PITCH_LENGTH,
   PITCH_WIDTH,
-  type Role,
 } from '../engine/index.ts'
 import { GOAL_DEPTH, type NetState } from './net.ts'
 import { PLAYERS_AT, type Timeline } from './timeline.ts'
@@ -399,7 +399,7 @@ export function drawFrame(
     }
     const kit = p.slot.role === 'GK' ? opts.keeperKits[p.team] : opts.kits[p.team]
     const anim = opts.animations.find((an) => an.idx === i)
-    drawPlayer(ctx, cam, at[0], at[1], kit, p.def.shirt, anim, opts.showRoles ? p.slot.role : null)
+    drawPlayer(ctx, cam, at[0], at[1], kit, p.def.shirt, anim, opts.showRoles ? ARCHETYPE_NAMES[p.archetype].short : null)
   }
   if (!ballDrawn) drawBall(ctx, cam, bx, by, bz)
   if (!cam.perspective) {
@@ -444,7 +444,8 @@ function drawPlayer(
   kit: Kit,
   shirt: number,
   anim: Animation | undefined,
-  role: Role | null,
+  /** Short archetype label shown under him (toggleable), or null. */
+  role: string | null,
 ): void {
   const base = cam.project(x, y)
   if (!base) return
@@ -564,7 +565,7 @@ function drawBall(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: numb
   ctx.stroke()
 }
 
-function drawRole(ctx: CanvasRenderingContext2D, role: Role, x: number, y: number, size: number): void {
+function drawRole(ctx: CanvasRenderingContext2D, role: string, x: number, y: number, size: number): void {
   ctx.font = `600 ${Math.max(8, size - 2)}px "Barlow Condensed", "Arial Narrow", sans-serif`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'top'

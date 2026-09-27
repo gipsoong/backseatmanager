@@ -1,9 +1,12 @@
+import type { Archetype } from './archetypes.ts'
 import type { Rng } from './rng.ts'
 import type { Vec } from './geometry.ts'
 
 export type Side = 0 | 1
 export type Role = 'GK' | 'CB' | 'FB' | 'DM' | 'CM' | 'WM' | 'W' | 'ST'
 export type Block = 'low' | 'mid' | 'high'
+export type Foot = 'left' | 'right'
+
 export type Formation = '4-4-2' | '4-3-3' | '4-2-3-1' | '4-1-4-1' | '3-5-2' | '3-4-3'
 
 /** Visible attributes, 1–20. */
@@ -43,6 +46,12 @@ export interface PlayerDef {
   traits: Traits
   /** Other positions he can play, best first (his own is `role`): a secondary, maybe a tertiary. */
   positions?: Role[]
+  /** How he plays his position (read off his attributes if not given): see archetypes.ts. */
+  archetype?: Archetype
+  /** His stronger foot (right if not given). */
+  foot?: Foot
+  /** How good his other foot is, 1-5 stars (3 if not given): 5 is two-footed. */
+  weakFoot?: number
   /** A real player's overall (draft mode), shown instead of one worked out from his attributes. */
   overall?: number
 }
@@ -84,6 +93,8 @@ export interface PlayerState {
   slot: Slot
   /** His attributes as he plays in this slot: less than his best out of position. */
   attrs: Attributes
+  /** How he plays this slot. */
+  archetype: Archetype
   pos: Vec
   vel: Vec
   maxSpeed: number
@@ -208,6 +219,8 @@ export type MatchEvent = EventBase &
         header: boolean
         /** Curled and placed rather than driven. */
         finesse: boolean
+        /** The foot he struck it with (none for a header). */
+        foot?: Foot
       }
     | {
         type: 'possession'

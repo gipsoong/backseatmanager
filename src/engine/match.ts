@@ -87,6 +87,7 @@ import {
   reachHeightOf,
   reachOf,
   restartIntent,
+  strikingFoot,
   cornerSetUp,
   defensiveLine,
   takerSpot,
@@ -99,8 +100,10 @@ import {
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
+import { archetypeOf } from './archetypes.ts'
 import { FORMATIONS, ability, fitFor, playingAttributes } from './teams.ts'
 import type {
+  Foot,
   PlayerDef,
   Slot,
   Frame,
@@ -151,6 +154,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
       def,
       slot,
       attrs: playingAttributes(def, slot.role),
+      archetype: archetypeOf(def, slot.role),
       pos: onPitch ? vec(0, 0) : vec(HALFWAY_X, -2),
       vel: vec(0, 0),
       baseSpeed,
@@ -363,7 +367,10 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       return
     case 'pass': {
       const d = dist(s.ball.pos, action.target)
-      const sigma = ((21 - p.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05) * (1 + pressureOn(s, p))
+      // A cross off his weaker side is harder to put where he wants it.
+      const crossing = action.lofted && !action.through && isCross(af(s, p.team, action.target))
+      const footQ = crossing ? strikingFoot(p, af(s, p.team, s.ball.pos), 'cross').q : 1
+      const sigma = ((21 - p.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05) * (1 + pressureOn(s, p)) * (1 + (1 - footQ) * 2.5)
       const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2), clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2))
       const target = add(action.target, err)
       const dt = dist(s.ball.pos, target)
@@ -403,9 +410,9 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       return
     }
     case 'shot': {
-      // A curled shot trades pace for placement.
-      const speed = 20 + (p.attrs.shooting / 20) * 9 + s.rng.range(0, 2) - (action.finesse ? 3 : 0)
-      shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out, action.finesse)
+      // A curled shot trades pace for placement; one off his weaker side has less on it.
+      const speed = 20 + (p.attrs.shooting / 20) * 9 + s.rng.range(0, 2) - (action.finesse ? 3 : 0) - (1 - action.footQ) * 10
+      shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out, action.finesse, action.foot)
       return
     }
   }
@@ -423,6 +430,7 @@ function shoot(
   header: boolean,
   out: MatchEvent[],
   finesse = false,
+  foot?: Foot,
 ): void {
   const assistIdx = s.ball.receivedFromIdx
   const time = dist(s.ball.pos, target) / speed
@@ -447,6 +455,7 @@ function shoot(
     penalty: restart === 'penalty',
     header,
     finesse,
+    foot,
   })
 }
 
@@ -679,7 +688,9 @@ function keeperSave(t: Touch): boolean {
   // Placement beats keepers, not pace alone: a shot at him is saved unless it gives him no time
   // to react (struck from close in); one towards the edge of his reach is a real test.
   const flight = k ? (s.tick - k.tick) * DT : 1
-  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.keeping - 12) * 0.02, 0.05, 0.96)
+  // A great keeper saves more, but not wildly more: the best are a few points of save rate above
+  // the average, not ten.
+  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.keeping - 12) * 0.012, 0.05, 0.96)
   if (!rng.chance(pSave)) return miss(t)
   if (speed < 21 && rng.chance(0.3 + p.attrs.keeping / 40)) {
     takePossession(s, p, contact, height, 'save', out)
@@ -753,7 +764,9 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
       return true
     }
   }
-  if (!rng.chance(challenged ? 0.6 : 0.8)) {
+  // Target men and stoppers win more of their headers.
+  const aerial = p.archetype === 'targetMan' || p.archetype === 'stopper' ? 0.1 : 0
+  if (!rng.chance((challenged ? 0.6 : 0.8) + aerial)) {
     // Mistimed: it goes over or past him. He can have another go once it's past his head.
     p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
     return false
@@ -1104,6 +1117,7 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       on.onPitch = true
       on.slot = off.slot
       on.attrs = playingAttributes(on.def, on.slot.role)
+      on.archetype = archetypeOf(on.def, on.slot.role)
       on.pos = { ...off.pos }
       on.vel = vec(0, 0)
       off.onPitch = false

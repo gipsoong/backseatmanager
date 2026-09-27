@@ -4,7 +4,7 @@
  */
 import { useState } from 'react'
 import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation } from '../engine/index.ts'
-import { positionsLabel, shortName } from '../names.ts'
+import { positionsLabel, shortName, styleLabel } from '../names.ts'
 import { type Season, type SeasonStats, isAvailable, lineupFor, playerRating, squadOf } from '../season/season.ts'
 import { FORMATION_BLURB } from './Draft.tsx'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
@@ -88,7 +88,7 @@ export function Squad({
                 className={`slot filled${heldSlot === i ? ' held' : ''}${!isAvailable(season, p) ? ' hurt' : ''}`}
                 style={slotStyle(slot)}
                 onClick={() => tapSlot(i)}
-                title={`${p.name} · ${p.role} ${playerRating(p)} · ${Math.round(fitness(p.id) * 100)}% fit${fit < 1 ? ` · out of position` : ''}`}
+                title={`${p.name} · ${styleLabel(p, slot.role)} · ${playerRating(p)} · ${Math.round(fitness(p.id) * 100)}% fit${fit < 1 ? ` · out of position` : ''}`}
               >
                 <span className="pos">
                   {playerRating(p)} <small>{slotLabel(slot)}</small>
@@ -113,6 +113,7 @@ export function Squad({
                     <span className="name">
                       {p.name}
                       {out > 0 && <span className="inj-note">Out {out === 1 ? '1 week' : `${out} weeks`}</span>}
+                      <small className="style">{styleLabel(p)}</small>
                     </span>
                     <span className="rating">{playerRating(p)}</span>
                     <span className="fit">
@@ -130,6 +131,7 @@ export function Squad({
           <tr>
             <th className="team">Player</th>
             <th>Pos</th>
+            <th className="wide">Style</th>
             <th>Rtg</th>
             <th>Fit</th>
             <th className="wide">Apps</th>
@@ -150,6 +152,7 @@ export function Squad({
                   {out > 0 && <span className="inj-note">Out {out === 1 ? '1 week' : `${out} weeks`}</span>}
                 </td>
                 <td>{positionsLabel(p)}</td>
+                <td className="wide style">{styleLabel(p)}</td>
                 <td>{playerRating(p)}</td>
                 <td>
                   <span className="fit" title={`${Math.round(c.fitness * 100)}% fit`}>

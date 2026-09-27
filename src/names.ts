@@ -2,7 +2,7 @@
  * How a player is referred to in commentary, captions and lists: his surname with its particles
  * ("van Persie", "De Bruyne", "Mac Allister"), or the name he's known by ("Son", "Alisson").
  */
-import type { PlayerDef } from './engine/index.ts'
+import { ARCHETYPE_NAMES, type PlayerDef, type Role, archetypeOf } from './engine/index.ts'
 import { POOLS } from './draft/pools.ts'
 
 const KNOWN = new Map(POOLS.flatMap((pool) => pool.players.flatMap(([name, , , known]) => (known ? [[name, known] as const] : []))))
@@ -19,3 +19,6 @@ export function shortName(name: string): string {
 
 /** His positions, own first: "W/CM". */
 export const positionsLabel = (def: PlayerDef): string => [def.role, ...(def.positions ?? [])].join('/')
+
+/** How he plays (his own position, or `role` if he's playing another): "Inside forward". */
+export const styleLabel = (def: PlayerDef, role?: Role): string => ARCHETYPE_NAMES[archetypeOf(def, role)].name

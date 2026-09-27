@@ -77,3 +77,5 @@ export const STRAIN_PER_TICK = 2e-6
 export const OFFSIDE_READ_LAG = 0.3
 /** Before a corner is taken, everyone in the set-up is within this of his spot (m). */
 export const CORNER_READY_DISTANCE = 1.5
+/** A one-footed player striking from the wrong side: on his weak foot, or shaping onto his strong one at an awkward angle. */
+export const AWKWARD_FOOT = 0.8

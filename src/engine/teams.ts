@@ -17,7 +17,8 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CM', 0.45, 28),
     s('WM', 0.5, 10, 0.25),
     s('ST', 1, 40),
-    s('ST', 1, 28),
+    // The second striker plays off the first: a little deeper, arriving late rather than on the shoulder.
+    s('ST', 0.85, 28, 0.05),
   ],
   '4-3-3': [
     s('GK', -1, 34),
@@ -73,7 +74,8 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CM', 0.45, 24, 0.2),
     s('FB', 0, 5, 0.85),
     s('ST', 1, 40),
-    s('ST', 1, 28),
+    // The second striker plays off the first: a little deeper, arriving late rather than on the shoulder.
+    s('ST', 0.85, 28, 0.05),
   ],
   '3-4-3': [
     s('GK', -1, 34),
@@ -200,6 +202,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     attrs: makeAttributes(rng, slot.role, quality),
     traits: makeTraits(rng, slot.role),
     positions: makePositions(rng, slot.role),
+    ...makeFeet(rng),
   }))
   // A bench covering every line, a notch below the first team.
   const bench: PlayerDef[] = BENCH_ROLES.map((role, i) => ({
@@ -210,6 +213,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     attrs: makeAttributes(rng, role, quality - 1),
     traits: makeTraits(rng, role),
     positions: makePositions(rng, role),
+    ...makeFeet(rng),
   }))
   const name = rng.pick(CLUBS)
   return {
@@ -278,6 +282,13 @@ export function playingAttributes(def: PlayerDef, role: Role): Attributes {
   const attrs = { ...def.attrs }
   for (const a of POSITIONAL) attrs[a] = def.attrs[a] * k
   return attrs
+}
+
+/** Made-up players' feet: about one in four left-footed; most with an average weaker foot. */
+function makeFeet(rng: Rng): Pick<PlayerDef, 'foot' | 'weakFoot'> {
+  const foot = rng.chance(0.25) ? 'left' : 'right'
+  const r = rng.next()
+  return { foot, weakFoot: r < 0.15 ? 2 : r < 0.75 ? 3 : r < 0.95 ? 4 : 5 }
 }
 
 /** Made-up players: some can play a second position in their line, a few a third. */

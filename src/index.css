@@ -1656,3 +1656,16 @@ h1 .swatch,
   color: var(--ink);
   font: inherit;
 }
+
+/* A player's style (archetype) under his name in lists. */
+small.style {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+td.style {
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}

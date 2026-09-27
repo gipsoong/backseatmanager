@@ -3,7 +3,7 @@
  * player). All read what the engine produced up to the playhead; none feed back into it.
  */
 import { useState } from 'react'
-import type { Attributes, Kit, MatchState, TeamStats } from '../engine/index.ts'
+import { ARCHETYPE_NAMES, type Attributes, type Kit, type MatchState, type TeamStats } from '../engine/index.ts'
 import type { Line } from './commentary.ts'
 import type { ReplayMoment } from './highlights.ts'
 import { type PlayerLine, describeTraits } from './players.ts'
@@ -152,7 +152,7 @@ export function Players({
           <div>
             <h3>{p.def.name}</h3>
             <p className="muted">
-              {p.slot.role} · {match.teams[p.team].name}
+              {ARCHETYPE_NAMES[p.archetype].name} · {p.slot.role} · {match.teams[p.team].name}
             </p>
           </div>
           <span className="rating big">{l.rating.toFixed(1)}</span>

@@ -7,6 +7,24 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9). Next: transfers for the club mode.
 
+## Done (session 12): over-performing sides, feet, archetypes
+
+- **Why Leicester/Southampton 2010s overperformed**: they (and Man Utd 2010s) play 4-4-2, and
+  4-4-2 was worth ~0.9 goals a game over 4-3-3 with identical players: two strikers both on the
+  last defender's shoulder attacking every cross, while wingers stayed at the edge of the box.
+  Now the second striker plays off the first (deeper, arriving late) and inside forwards come
+  into the box. Shapes are within ~±0.5 goals a game of each other with squads made for them.
+  Keeper quality counted too much (a 20-rated keeper saved 16 points more than a 12): now ~10.
+  Result: Leicester 1.74 → 1.32 points a game, Southampton 1.74 → 1.16, in line with their
+  ratings; Man Utd 2010s still near the top (they are one of the best squads on paper).
+- **Preferred foot and weak foot**: see CLAUDE.md. Hazard scores ~30% less on the right wing
+  (on his weaker, though good, left foot).
+- **Archetypes**: poacher / target man / false nine; winger / inside forward; overlapping /
+  inverted / defensive full-back; box-to-box / playmaker / ball-winner; anchor / deep-lying
+  playmaker; stopper / ball-playing defender; shot-stopper / sweeper keeper. Shown in the draft,
+  the squad screen, the player card and on the pitch.
+- Realism 30/31 on both seed sets (offsides 0.8 on one, corners 3.9 on the other).
+
 ## Done (session 11): positions, starts, review and optimisation
 
 - **Positions**: every player has his own position plus, often, a secondary and tertiary one
