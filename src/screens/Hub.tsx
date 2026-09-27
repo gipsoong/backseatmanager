@@ -1,9 +1,10 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
 import { useState } from 'react'
-import type { Kit, TeamDef } from '../engine/index.ts'
+import type { Formation, Kit, TeamDef } from '../engine/index.ts'
 import { ordinal } from './format.ts'
-import { type Season, fixturesOn, isOver, matchdayDate, matchdays, squadOf, table, topScorers, userFixture } from '../season/season.ts'
+import { type Season, fixturesOn, isOver, matchdayDate, matchdays, squadOf, table, userFixture } from '../season/season.ts'
 import { Squad } from './Squad.tsx'
+import { SeasonReview, Stats } from './Stats.tsx'
 import { surname } from '../viewer/commentary.ts'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -19,6 +20,7 @@ export function Hub({
   onSimulate,
   onNewSeason,
   onLineup,
+  onFormation,
 }: {
   season: Season
   busy: boolean
@@ -26,8 +28,15 @@ export function Hub({
   onSimulate: () => void
   onNewSeason: () => void
   onLineup: (ids: string[] | null) => void
+  onFormation: (f: Formation) => void
 }) {
-  const [tab, setTab] = useState<'table' | 'fixtures' | 'squad' | 'scorers'>('table')
+  const [tab, setTab] = useState<'review' | 'table' | 'fixtures' | 'squad' | 'stats'>(isOver(season) ? 'review' : 'table')
+  // The last matchday played: open the review.
+  const [wasOver, setWasOver] = useState(isOver(season))
+  if (isOver(season) !== wasOver) {
+    setWasOver(isOver(season))
+    if (isOver(season)) setTab('review')
+  }
   const [shown, setShown] = useState(Math.min(season.matchday, matchdays(season)))
   const me = season.teams[season.userTeam]
   const rows = table(season)
@@ -95,6 +104,11 @@ export function Hub({
 
         <section className="card">
           <div className="tabs" role="tablist">
+            {over && (
+              <button type="button" role="tab" aria-selected={tab === 'review'} onClick={() => setTab('review')}>
+                Review
+              </button>
+            )}
             <button type="button" role="tab" aria-selected={tab === 'table'} onClick={() => setTab('table')}>
               Table
             </button>
@@ -104,25 +118,13 @@ export function Hub({
             <button type="button" role="tab" aria-selected={tab === 'squad'} onClick={() => setTab('squad')}>
               Squad
             </button>
-            <button type="button" role="tab" aria-selected={tab === 'scorers'} onClick={() => setTab('scorers')}>
-              Scorers
+            <button type="button" role="tab" aria-selected={tab === 'stats'} onClick={() => setTab('stats')}>
+              Stats
             </button>
           </div>
-          {tab === 'squad' && <Squad season={season} onLineup={onLineup} />}
-          {tab === 'scorers' && (
-            <ol className="scorers-list">
-              {topScorers(season, 10).map((r) => (
-                <li key={r.player.id} className={r.club === season.userTeam ? 'mine' : undefined}>
-                  <span className="name">
-                    <Swatch kit={season.teams[r.club].kit} /> {r.player.name}
-                  </span>
-                  <span className="muted">{season.teams[r.club].name}</span>
-                  <span className="goals">{r.goals}</span>
-                </li>
-              ))}
-              {topScorers(season).length === 0 && <li className="muted">No goals yet.</li>}
-            </ol>
-          )}
+          {tab === 'squad' && <Squad season={season} onLineup={onLineup} onFormation={onFormation} />}
+          {tab === 'stats' && <Stats season={season} />}
+          {tab === 'review' && <SeasonReview season={season} />}
           {tab === 'table' && (
             <table className="league">
               <thead>

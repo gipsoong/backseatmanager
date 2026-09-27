@@ -35,6 +35,7 @@ import {
   CELEBRATION_TICKS,
   CHARGE_DOWN_CHANCE,
   CHARGE_DOWN_REACH,
+  CORNER_READY_DISTANCE,
   OFFSIDE_READ_LAG,
   CONTROL_RADIUS,
     DT,
@@ -48,7 +49,7 @@ import {
   PLAYER_ACCEL,
 } from './constants.ts'
 import { type BallMotion, advanceBall, loftTime, shotVz } from './physics.ts'
-import type { MatchState, PlayerState, Restart, Side } from './types.ts'
+import type { MatchState, PlayerState, Restart, Role, Side } from './types.ts'
 
 // ---------------------------------------------------------------------------
 // Frames and lookups
@@ -716,6 +717,25 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   const y = CENTER.y + (p.slot.y - CENTER.y) * widthK + (b.y - CENTER.y) * (inPossession ? 0.2 : 0.4)
 
   let target = vec(x, y)
+  // A winger with the ball central in the final third comes inside off his touchline, into the
+  // channel between full-back and centre-back, level with the edge of the box: where he can
+  // shoot or slip the striker in.
+  if (inPossession && p.slot.role === 'W' && b.x > 65 && Math.abs(b.y - CENTER.y) < 16) {
+    const side = Math.sign(p.slot.y - CENTER.y)
+    target = vec(Math.max(x, PITCH_LENGTH - BOX_DEPTH - 4), CENTER.y + side * 12)
+  }
+  // With only one striker, the most advanced central midfielder arrives late around the penalty
+  // spot when the ball is central in the final third: the second man in the box.
+  if (inPossession && p.slot.role === 'CM' && b.x > 68 && Math.abs(b.y - CENTER.y) < 18) {
+    const mates = teammatesOf(s, team)
+    const strikers = mates.filter((q) => q.slot.role === 'ST').length
+    const cms = mates.filter((q) => q.slot.role === 'CM')
+    const furthest = cms.reduce((m, q) => (q.slot.depth + q.slot.attackDepth > m.slot.depth + m.slot.attackDepth ? q : m))
+    if (strikers < 2 && furthest.idx === p.idx) {
+      const line = offsideLine(s, team, s.ball.pos) - 0.5
+      target = vec(Math.min(PITCH_LENGTH - 13, line), CENTER.y + Math.sign(p.slot.y - CENTER.y || 1) * 4)
+    }
+  }
   // A one-two: straight to the space he's going for.
   if (inPossession && p.runUntil > s.tick && p.runTo) return p.runTo
   const run = inPossession ? boxRun(s, p, b) : null
@@ -1074,12 +1094,9 @@ export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIn
   }
 
   if (r.type === 'corner') {
-    const boxSpots = [vec(98, 30), vec(97, 38), vec(94, 34), vec(92, 27), vec(92, 42)]
-    if (attacking && p.slot.role !== 'GK' && p.slot.role !== 'FB') {
-      const order = teammatesOf(s, p.team).filter((q) => q.slot.role !== 'GK' && q.slot.role !== 'FB' && q.idx !== r.takerIdx)
-      const i = order.findIndex((q) => q.idx === p.idx)
-      if (i >= 0 && i < boxSpots.length) target = wf(s, p.team, boxSpots[i])
-    } else if (!attacking && p.slot.role !== 'GK') {
+    const planned = cornerPlan(s, r).get(p.idx)
+    if (planned) return { target: planned, urgency: 0.8 }
+    if (!attacking && p.slot.role !== 'GK') {
       const d = af(s, p.team, target)
       target = wf(s, p.team, vec(Math.min(d.x, 8 + p.slot.depth * 12), d.y))
     }
@@ -1096,6 +1113,57 @@ export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIn
     if (dist(target, r.spot) < minDist + 0.5) target = inside(add(r.spot, scale(norm(sub(CENTER, r.spot)), minDist + 1.5)))
   }
   return { target, urgency: 0.8 }
+}
+
+/** Who goes up for a corner, most dangerous in the air first: centre-backs, strikers, midfielders. */
+const CORNER_ATTACK_ORDER: Role[] = ['CB', 'ST', 'CM', 'DM', 'W', 'WM']
+/** Who marks them, best in the air first; a full-back covers the near post. */
+const CORNER_DEFEND_ORDER: Role[] = ['CB', 'DM', 'CM', 'FB', 'ST', 'WM', 'W']
+
+/**
+ * Where everyone involved in a corner stands, as world positions: the attacking side's aerial
+ * threats at the near post, the far post, the six-yard box and the penalty spot, one man on the
+ * edge of the box for the second ball; the defending side's keeper on his line, a man on the near
+ * post and a marker goal-side of each attacker in the box. Players not in it hold their shape.
+ * The corner is taken once they've all got there (see cornerSetUp).
+ */
+export function cornerPlan(s: MatchState, r: Restart): Map<number, Vec> {
+  const plan = new Map<number, Vec>()
+  const att = r.team
+  const def = (1 - att) as Side
+  // Near post is the one on the corner's side (in the attacking frame).
+  const side = Math.sign(af(s, att, r.spot).y - CENTER.y) || 1
+  const spots = [vec(99.5, CENTER.y + side * 3), vec(99, CENTER.y - side * 4), vec(98.5, CENTER.y + side * 0.5), vec(94, CENTER.y - side * 1.5)]
+  const byOrder = (team: Side, order: Role[], exclude: number): PlayerState[] =>
+    teammatesOf(s, team)
+      .filter((q) => q.idx !== exclude && order.includes(q.slot.role))
+      .sort((a, b) => order.indexOf(a.slot.role) - order.indexOf(b.slot.role) || a.idx - b.idx)
+  const attackers = byOrder(att, CORNER_ATTACK_ORDER, r.takerIdx)
+  const threats = attackers.slice(0, spots.length)
+  threats.forEach((q, i) => plan.set(q.idx, wf(s, att, spots[i])))
+  const edge = attackers[spots.length]
+  if (edge) plan.set(edge.idx, wf(s, att, vec(PITCH_LENGTH - BOX_DEPTH - 2, CENTER.y - side * 4)))
+
+  const keeper = goalkeeperOf(s, def)
+  if (keeper) plan.set(keeper.idx, wf(s, att, vec(PITCH_LENGTH - 0.5, CENTER.y + side * 0.5)))
+  const defenders = byOrder(def, CORNER_DEFEND_ORDER, -1)
+  const ownGoal = wf(s, att, vec(PITCH_LENGTH, CENTER.y))
+  // Each marker stands between his man and the goal, a yard off him.
+  for (const [i, q] of threats.entries()) {
+    const m = defenders[i]
+    if (m) plan.set(m.idx, add(q.pos, scale(norm(sub(ownGoal, q.pos)), 1)))
+  }
+  const post = defenders[threats.length]
+  if (post) plan.set(post.idx, wf(s, att, vec(PITCH_LENGTH - 0.8, CENTER.y + side * (GOAL_HALF_WIDTH - 0.3))))
+  const edgeMan = defenders[threats.length + 1]
+  if (edgeMan) plan.set(edgeMan.idx, wf(s, att, vec(PITCH_LENGTH - BOX_DEPTH + 1, CENTER.y - side * 2)))
+  return plan
+}
+
+/** Everyone in the corner plan is where he should be (a marker: with his man). */
+export function cornerSetUp(s: MatchState, r: Restart): boolean {
+  for (const [idx, spot] of cornerPlan(s, r)) if (dist(s.players[idx].pos, spot) > CORNER_READY_DISTANCE) return false
+  return true
 }
 
 export function takerSpot(s: MatchState, r: Restart): Vec {
@@ -1120,6 +1188,11 @@ export function chooseTaker(s: MatchState, type: Restart['type'], team: Side, sp
   if (type === 'kickoff') {
     const fwd = outfield.reduce((a, b) => (b.slot.depth > a.slot.depth ? b : a))
     return fwd
+  }
+  if (type === 'corner') {
+    // The best crosser among those who don't go up for it.
+    const deliverers = outfield.filter((p) => p.slot.role !== 'CB' && p.slot.role !== 'ST')
+    if (deliverers.length) return deliverers.reduce((a, b) => (b.def.attrs.passing > a.def.attrs.passing ? b : a))
   }
   return outfield.reduce((a, b) => (dist(b.pos, spot) < dist(a.pos, spot) ? b : a))
 }

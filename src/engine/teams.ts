@@ -28,11 +28,69 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('DM', 0.25, 34),
     s('CM', 0.5, 45, 0.1),
     s('CM', 0.5, 23, 0.1),
-    s('W', 0.85, 58, 0.1),
+    s('W', 0.85, 56, 0.2),
     s('ST', 1, 34),
-    s('W', 0.85, 10, 0.1),
+    s('W', 0.85, 12, 0.2),
+  ],
+  // Two holding midfielders (one steps up with the ball), a No. 10 behind the striker, wingers
+  // either side of him.
+  '4-2-3-1': [
+    s('GK', -1, 34),
+    s('FB', 0, 60, 0.35),
+    s('CB', 0, 42),
+    s('CB', 0, 26),
+    s('FB', 0, 8, 0.35),
+    s('DM', 0.25, 41),
+    s('DM', 0.3, 27, 0.2),
+    s('W', 0.8, 56, 0.2),
+    s('CM', 0.7, 34, 0.15),
+    s('W', 0.8, 12, 0.2),
+    s('ST', 1, 34),
+  ],
+  // One screening midfielder, a line of four in front of him.
+  '4-1-4-1': [
+    s('GK', -1, 34),
+    s('FB', 0, 60, 0.35),
+    s('CB', 0, 42),
+    s('CB', 0, 26),
+    s('FB', 0, 8, 0.35),
+    s('DM', 0.22, 34),
+    s('WM', 0.55, 58, 0.3),
+    s('CM', 0.5, 42, 0.2),
+    s('CM', 0.5, 26, 0.2),
+    s('WM', 0.55, 10, 0.3),
+    s('ST', 1, 34),
+  ],
+  // Three centre-backs; the wing-backs are full-backs who defend in a five and attack in a five.
+  '3-5-2': [
+    s('GK', -1, 34),
+    s('CB', 0, 47),
+    s('CB', 0, 34),
+    s('CB', 0, 21),
+    s('FB', 0, 63, 0.85),
+    s('CM', 0.45, 44, 0.2),
+    s('DM', 0.25, 34),
+    s('CM', 0.45, 24, 0.2),
+    s('FB', 0, 5, 0.85),
+    s('ST', 1, 40),
+    s('ST', 1, 28),
+  ],
+  '3-4-3': [
+    s('GK', -1, 34),
+    s('CB', 0, 47),
+    s('CB', 0, 34),
+    s('CB', 0, 21),
+    s('FB', 0, 63, 0.85),
+    s('CM', 0.4, 40, 0.1),
+    s('CM', 0.4, 28, 0.1),
+    s('FB', 0, 5, 0.85),
+    s('W', 0.85, 56, 0.1),
+    s('ST', 1, 34),
+    s('W', 0.85, 12, 0.1),
   ],
 }
+
+export const FORMATION_NAMES = Object.keys(FORMATIONS) as Formation[]
 
 /** No green shirts: they'd vanish against the pitch. */
 export const KITS: Kit[] = [
@@ -75,7 +133,8 @@ const CLUBS = [
   'Westerley',
 ]
 
-const BENCH_ROLES: Role[] = ['GK', 'CB', 'FB', 'DM', 'CM', 'W', 'ST']
+/** Nine substitutes, as in the Premier League: cover for every line. */
+const BENCH_ROLES: Role[] = ['GK', 'CB', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 
 /** Role-specific attribute emphasis: which attributes are strengths. */
 const ROLE_FOCUS: Record<Role, (keyof Attributes)[]> = {
@@ -122,7 +181,7 @@ export function makeTraits(rng: Rng, role: Role): Traits {
 
 export function randomTeam(seed: number, block?: Block, formation?: Formation): TeamDef {
   const rng = new Rng(seed)
-  const f = formation ?? rng.pick(['4-4-2', '4-3-3'] as const)
+  const f = formation ?? rng.pick(FORMATION_NAMES)
   // Squad strength: from a relegation battler to a title contender, in the same league.
   const quality = rng.int(11, 15)
   const names = new Set<string>()

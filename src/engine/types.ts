@@ -4,7 +4,7 @@ import type { Vec } from './geometry.ts'
 export type Side = 0 | 1
 export type Role = 'GK' | 'CB' | 'FB' | 'DM' | 'CM' | 'WM' | 'W' | 'ST'
 export type Block = 'low' | 'mid' | 'high'
-export type Formation = '4-4-2' | '4-3-3'
+export type Formation = '4-4-2' | '4-3-3' | '4-2-3-1' | '4-1-4-1' | '3-5-2' | '3-4-3'
 
 /** Visible attributes, 1–20. */
 export interface Attributes {
@@ -60,7 +60,7 @@ export interface TeamDef {
   block: Block
   /** Exactly 11, in the formation's slot order (GK first). */
   players: PlayerDef[]
-  /** Substitutes (up to 7), in no particular order. */
+  /** Substitutes (up to 9), in no particular order. */
   bench: PlayerDef[]
 }
 

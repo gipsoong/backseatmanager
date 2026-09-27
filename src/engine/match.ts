@@ -87,6 +87,7 @@ import {
   reachHeightOf,
   reachOf,
   restartIntent,
+  cornerSetUp,
   defensiveLine,
   takerSpot,
   THROUGH_BALL_HEIGHT,
@@ -1116,7 +1117,8 @@ function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {
   const minWait = r.type === 'kickoff' || r.type === 'penalty' ? 20 : 8
   if (s.tick - r.since < minWait) return
   const atSpot = dist(taker.pos, takerSpot(s, r)) <= RESTART_SPOT_TOLERANCE
-  const ready = atSpot && restartConditionsMet(s, r)
+  // A corner waits for both sides to set up: the big men up, their markers with them.
+  const ready = atSpot && restartConditionsMet(s, r) && (r.type !== 'corner' || cornerSetUp(s, r))
   const forced = s.tick - r.since >= RESTART_TIMEOUT_TICKS
   if (!ready && !forced) return
   if (!taker.onPitch) return

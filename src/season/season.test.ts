@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { runMatch } from '../engine/index.ts'
-import { LEAGUE_SIZE, type Result, autoPick, completeMatchday, createSeason, fitnessFor, matchdays, fixturesOn, isOver, matchTeam, matchdayDate, resultOf, roundRobin, squadOf, table, userFixture } from './season.ts'
+import { FORMATIONS, runMatch } from '../engine/index.ts'
+import { clubRecords, leaderboards } from './stats.ts'
+import { BENCH_SIZE, LEAGUE_SIZE, type Result, autoPick, completeMatchday, createSeason, fitnessFor, matchdays, fixturesOn, isOver, matchTeam, matchdayDate, resultOf, roundRobin, squadOf, table, userFixture } from './season.ts'
 
 describe('fixtures', () => {
   it('pairs everyone once per round, and everyone with everyone over the rounds', () => {
@@ -96,6 +97,38 @@ describe('squads, fitness and injuries', () => {
     expect(t.players).toHaveLength(11)
     expect(t.bench.length).toBeGreaterThan(0)
     expect(t.bench.some((p) => t.players.includes(p))).toBe(false)
+    expect(t.bench).toHaveLength(BENCH_SIZE)
+    // Everyone fit and in his own position where the squad allows: nobody's first choice is
+    // shunted to the wrong slot because it came first.
+    const slots = FORMATIONS[s.teams[0].formation]
+    const squad = squadOf(s.teams[0])
+    xi.forEach((id, i) => {
+      const p = squad.find((q) => q.id === id)!
+      if (slots[i].role === 'CB') expect(['CB', 'DM', 'FB']).toContain(p.role)
+    })
+  })
+
+  it('adds up the season: leaderboards and every club\'s record', () => {
+    let s = createSeason(9, 0, new Date('2026-03-01'))
+    for (let md = 0; md < 2; md++) {
+      const today = fixturesOn(s, s.matchday)
+      const results = new Map(today.map((f) => [f.id, resultOf(runMatch(matchTeam(s, f.home), matchTeam(s, f.away), { seed: f.seed, fitness: fitnessFor(s) }))] as const))
+      s = completeMatchday(s, results)
+    }
+    const records = clubRecords(s)
+    expect(records).toHaveLength(LEAGUE_SIZE)
+    for (const [i, row] of table(s).entries()) {
+      const c = records[row.team]
+      expect(c.played).toBe(2)
+      expect(c.won * 3 + c.drawn).toBe(row.points)
+      expect(c.goalsFor).toBe(row.goalsFor)
+      if (i === 0) expect(c.possession).toBeGreaterThan(0)
+    }
+    const goals = leaderboards(s).find((b) => b.title === 'Goals')!
+    const scored = s.fixtures.flatMap((f) => f.result?.goals ?? []).filter((g) => !g.ownGoal).length
+    if (scored) expect(goals.rows[0].value).toBeGreaterThan(0)
+    const passes = Object.values(s.stats).reduce((n, st) => n + (st.passes ?? 0), 0)
+    expect(passes).toBeGreaterThan(1000)
   })
 
   it('carries tiredness and injuries into the next matchdays', () => {

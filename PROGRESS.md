@@ -7,6 +7,33 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9). Next: transfers for the club mode.
 
+## Done (session 10): owner's feedback after a full draft season
+
+- **Benches of nine** (Premier League rule; five changes in three stoppages as before). Draft is
+  now 11 + 9 (20 rounds, every club-decade offered once). The staff's pick pairs players and
+  places best-first across the formation (van Dijk no longer lands at full-back because that
+  slot came first).
+- **Formations**: 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 added; pick one in the draft or change it any
+  time in the Squad tab. One-striker shapes created ~30% fewer shots (an old 4-3-3 weakness):
+  wingers now come inside when the ball is central high up, the most advanced midfielder arrives
+  in the box, wing-backs push on. Shots per shape now 8.5–12.4 per match.
+- **Stats tab** (replaces Scorers): leaderboards for goals, assists, chances created, average
+  rating, pass completion, tackles + interceptions, dribbles, clean sheets, saves; a clubs table
+  with possession, pass completion, shots, goals and xG for/against, clean sheets.
+- **Season review**: your record (unbeaten/winning runs, biggest win, top scorer), champions,
+  Golden Boot, and every club's W-D-L, runs, biggest win and top scorer.
+- **Corners** wait for both sides to set up (~10 s of match time): centre-backs and strikers to
+  the posts, the six-yard box and the spot, one man on the edge; the keeper on his line, a
+  near-post man and a marker on each attacker. The best crosser who isn't going up takes it.
+- **Squad on a pitch**: the eleven in the formation, rating, position and fitness on each; tap a
+  player then another or a substitute to swap.
+- **Names**: "van Persie", "De Bruyne", "Mac Allister", and known-as names (Son, Alisson,
+  Thiago, Bernardo, Chicharito...).
+- **Ratings** re-set against each player's peak FIFA rating at that club in that decade (from
+  memory, spot-checked: Hazard 91, Özil 89, David Silva 89).
+- Realism 30/31 on seeds 1–80 (penalties at the top edge), 31/31 on 201–280; corners 4.6–4.8,
+  offsides 1.1–1.2 now inside their ranges on both sets.
+
 ## Done (session 9): cross goals, defensive commentary, captions, squads, corners, offsides, draft
 
 - **Draft mode** (38-0 style): pick 4-3-3 or 4-4-2, then 16 rounds, each offering one Premier

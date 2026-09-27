@@ -75,3 +75,5 @@ export const INJURY_FROM_FOUL = 0.012
 export const STRAIN_PER_TICK = 2e-6
 /** How far behind the play (s) a passer's read of the offside line is: a runner's position that long ago. */
 export const OFFSIDE_READ_LAG = 0.3
+/** Before a corner is taken, everyone in the set-up is within this of his spot (m). */
+export const CORNER_READY_DISTANCE = 1.5

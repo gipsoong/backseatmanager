@@ -111,6 +111,10 @@ export default function App() {
           onSimulate={() => void simulateMatchday(season)}
           onNewSeason={season.mode === 'draft' ? newDraft : newSeason}
           onLineup={(lineup) => void commit({ ...season, lineup })}
+          // A new shape: the staff pick the side for it again.
+          onFormation={(formation) =>
+            void commit({ ...season, lineup: null, teams: season.teams.map((t, i) => (i === season.userTeam ? { ...t, formation } : t)) })
+          }
         />
       )}
       {screen.kind === 'match' && season && (

@@ -3,6 +3,9 @@
  * always read the same way. Routine passes and tackles are left out; the line is for moments.
  */
 import { CENTER, type MatchEvent, type MatchState, type Side, dist, oppGoalX } from '../engine/index.ts'
+import { shortName as surname } from '../names.ts'
+
+export { surname }
 
 export type LineKind = 'goal' | 'chance' | 'card' | 'info' | 'period'
 
@@ -18,11 +21,6 @@ const YARDS_PER_METRE = 1.0936
 
 /** Pick a phrasing deterministically, so replays of the same match read the same. */
 const vary = (tick: number, options: string[]): string => options[tick % options.length]
-
-export function surname(name: string): string {
-  const parts = name.split(' ')
-  return parts[parts.length - 1]
-}
 
 export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[] {
   const lines: Line[] = []

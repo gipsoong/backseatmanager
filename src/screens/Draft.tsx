@@ -1,28 +1,13 @@
 /**
  * The draft: pick a shape, then sixteen rounds. Each offers one club-decade's players; choose one
- * and put him in an open place, a starter or one of five substitutes. Then name the side.
+ * and put him in an open place, a starter or one of nine substitutes. Then name the side.
  */
 import { useState } from 'react'
-import { FORMATIONS, fitFor, type Formation, type PlayerDef, type Slot } from '../engine/index.ts'
-import { DRAFT_ROUNDS, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
+import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
+import { DRAFT_ROUNDS, DRAFT_SUBS, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
 import { Swatch } from './Hub.tsx'
-
-/** A place's usual name: which side a full-back or wide man plays on, facing up the pitch. */
-function slotLabel(slot: Slot): string {
-  const side = slot.y > 40 ? 'R' : slot.y < 28 ? 'L' : ''
-  if (slot.role === 'FB') return `${side}B`
-  if (slot.role === 'WM') return `${side}M`
-  if (slot.role === 'W') return `${side}W`
-  return slot.role
-}
-
-/** Where a place sits on the little pitch: attack at the top, your right on the right. */
-function slotStyle(slot: Slot): React.CSSProperties {
-  const top = slot.role === 'GK' ? 90 : 72 - slot.depth * 57
-  return { top: `${top}%`, left: `${(slot.y / 68) * 100}%` }
-}
-
-const surname = (name: string): string => name.split(' ').slice(-1)[0]
+import { slotLabel, slotStyle } from './pitchLayout.ts'
+import { shortName as surname } from '../names.ts'
 
 export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: DraftState, name: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -127,20 +112,30 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
   )
 }
 
+/** What each shape asks for, in a line. */
+export const FORMATION_BLURB: Record<Formation, string> = {
+  '4-4-2': 'Two wide midfielders, two strikers',
+  '4-3-3': 'A holding midfielder, two wingers, one striker',
+  '4-2-3-1': 'Two holding midfielders, a No. 10 behind the striker',
+  '4-1-4-1': 'One screening midfielder, a line of four, one striker',
+  '3-5-2': 'Three centre-backs, wing-backs, two strikers',
+  '3-4-3': 'Three centre-backs, wing-backs, a front three',
+}
+
 function PickShape({ onPick, onBack }: { onPick: (f: Formation) => void; onBack: () => void }) {
   return (
     <div className="start">
       <p className="eyebrow">Draft · Premier League 2010–now</p>
       <h1>Draft a side. Try to go unbeaten.</h1>
       <p className="meta">
-        Sixteen rounds. Each one shows a club from one decade: pick one of its players and put him in your side, as one of eleven starters or five
-        substitutes. A player out of position counts for less.
+        {DRAFT_ROUNDS} rounds. Each one shows a club from one decade: pick one of its players and put him in your side, as one of eleven starters
+        or {DRAFT_SUBS} substitutes. A player out of position counts for less. You can change the shape later.
       </p>
       <div className="start-actions">
-        {(['4-3-3', '4-4-2'] as const).map((f) => (
+        {FORMATION_NAMES.map((f) => (
           <button key={f} type="button" className="btn big" onClick={() => onPick(f)}>
             <span>{f}</span>
-            <span className="sub">{f === '4-3-3' ? 'A holding midfielder, two wingers, one striker' : 'Two wide midfielders, two strikers'}</span>
+            <span className="sub">{FORMATION_BLURB[f]}</span>
           </button>
         ))}
         <button type="button" className="btn big ghost" onClick={onBack}>

@@ -1,12 +1,13 @@
 /**
  * Draft mode, after 38-0: each round offers one club-decade's players; pick one and put him in an
- * open place in your side (eleven starters, five substitutes). Then a season against the other
+ * open place in your side (eleven starters, nine substitutes). Then a season against the other
  * club-decades. No transfers: the drafted squad is the squad.
  */
 import { FORMATIONS, Rng, fitFor, makeAttributes, makeTraits, type Formation, type Kit, type PlayerDef, type TeamDef } from '../engine/index.ts'
 import { POOLS, type Pool } from './pools.ts'
 
-export const DRAFT_SUBS = 5
+/** Nine on the bench, as in the Premier League. */
+export const DRAFT_SUBS = 9
 export const DRAFT_ROUNDS = 11 + DRAFT_SUBS
 /** Teams in a draft league: yours and 19 club-decades, for a 38-match season. */
 export const DRAFT_LEAGUE_SIZE = 20
@@ -83,7 +84,7 @@ export function draftRating(d: Draft): number {
 
 const YOURS: Kit = { shirt: '#f2f2ee', number: '#1b1f1c', family: 'white' }
 
-/** The drafted side as a team: the eleven in slot order, the five on the bench. */
+/** The drafted side as a team: the eleven in slot order, the rest on the bench. */
 export function draftTeam(d: Draft, name: string): TeamDef {
   const shirt = (p: PlayerDef, n: number): PlayerDef => ({ ...p, shirt: n })
   const players = d.xi.map((p, i) => shirt(p!, i + 1))
@@ -105,7 +106,7 @@ export function poolTeam(poolIdx: number, taken: Set<string>): TeamDef {
   })
   const bench = left
     .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
-    .slice(0, 7)
+    .slice(0, DRAFT_SUBS)
     .map((p, i) => ({ ...p, shirt: 12 + i }))
   return {
     name: poolName(pool),

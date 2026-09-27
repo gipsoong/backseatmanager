@@ -8,6 +8,8 @@ import { FORMATIONS, type MatchState, type PlayerDef, type TeamDef, ability, fit
 import { playerLines } from '../viewer/players.ts'
 
 export const LEAGUE_SIZE = 10
+/** Named substitutes per match, as in the Premier League. */
+export const BENCH_SIZE = 9
 
 export interface Goal {
   team: 0 | 1
@@ -16,8 +18,26 @@ export interface Goal {
   ownGoal: boolean
 }
 
+/** Per-player numbers added up over a season (saves from before they existed count them as 0). */
+export const COUNTERS = [
+  'minutes',
+  'passes',
+  'passesCompleted',
+  'keyPasses',
+  'shots',
+  'onTarget',
+  'tackles',
+  'interceptions',
+  'dribbles',
+  'saves',
+  'cleanSheets',
+  'yellows',
+  'reds',
+] as const
+export type Counter = (typeof COUNTERS)[number]
+
 /** One player's part in a match. */
-export interface Appearance {
+export interface Appearance extends Partial<Record<Counter, number>> {
   id: string
   minutes: number
   rating: number
@@ -27,6 +47,18 @@ export interface Appearance {
   energy: number
 }
 
+/** A side's numbers in one match. */
+export interface TeamLine {
+  /** Share of the ball, 0-1. */
+  possession: number
+  passes: number
+  passesCompleted: number
+  shots: number
+  onTarget: number
+  corners: number
+  fouls: number
+}
+
 export interface Result {
   score: [number, number]
   goals: Goal[]
@@ -34,6 +66,8 @@ export interface Result {
   appearances: Appearance[]
   /** Hurt in the match, and for how many matchdays after it. */
   injuries: { id: string; weeks: number }[]
+  /** Home and away sides' numbers (results saved before they were kept have none). */
+  teams?: [TeamLine, TeamLine]
 }
 
 export interface Fixture {
@@ -56,7 +90,7 @@ export interface Condition {
 }
 
 /** A player's season so far. */
-export interface SeasonStats {
+export interface SeasonStats extends Partial<Record<Counter, number>> {
   apps: number
   goals: number
   assists: number
@@ -140,19 +174,26 @@ export const isAvailable = (s: Season, p: PlayerDef): boolean => s.condition[p.i
 const selectionScore = (s: Season, p: PlayerDef, role: PlayerDef['role']): number =>
   fitFor(p, role) * ability(p) * (0.55 + 0.45 * s.condition[p.id].fitness)
 
-/** The staff's eleven: for each position in the formation, the best available fit, fitness counted. */
+/**
+ * The staff's eleven: the best available fits, fitness counted. Best pairings first across the
+ * whole formation, so a centre-back plays centre-back rather than the first slot he'd fit.
+ */
 export function autoPick(s: Season, club: number): string[] {
   const t = s.teams[club]
-  const pool = squadOf(t).filter((p) => isAvailable(s, p))
-  const picked: string[] = []
-  for (const slot of FORMATIONS[t.formation]) {
-    // An injury crisis: if nobody fit is left, someone carrying a knock plays.
-    const options = pool.filter((p) => !picked.includes(p.id))
-    const from = options.length ? options : squadOf(t).filter((p) => !picked.includes(p.id))
-    const best = from.sort((a, b) => selectionScore(s, b, slot.role) - selectionScore(s, a, slot.role))[0]
-    picked.push(best.id)
+  const slots = FORMATIONS[t.formation]
+  const picked: (string | null)[] = slots.map(() => null)
+  const used = new Set<string>()
+  // An injury crisis: if nobody fit is left, someone carrying a knock plays.
+  for (const pool of [squadOf(t).filter((p) => isAvailable(s, p)), squadOf(t)]) {
+    const pairs = pool.flatMap((p) => slots.map((slot, i) => ({ p, i, score: selectionScore(s, p, slot.role) })))
+    pairs.sort((a, b) => b.score - a.score)
+    for (const { p, i } of pairs) {
+      if (picked[i] || used.has(p.id)) continue
+      picked[i] = p.id
+      used.add(p.id)
+    }
   }
-  return picked
+  return picked as string[]
 }
 
 /** The manager's eleven if he's picked one and it's still available, otherwise the staff's. */
@@ -163,7 +204,7 @@ export function lineupFor(s: Season, club: number): string[] {
   return valid ? mine : autoPick(s, club)
 }
 
-/** The side that takes the field: the eleven in slot order, and up to seven fit substitutes. */
+/** The side that takes the field: the eleven in slot order, and up to nine fit substitutes. */
 export function matchTeam(s: Season, club: number): TeamDef {
   const t = s.teams[club]
   const squad = squadOf(t)
@@ -171,7 +212,7 @@ export function matchTeam(s: Season, club: number): TeamDef {
   const bench = squad
     .filter((p) => !xi.includes(p) && isAvailable(s, p))
     .sort((a, b) => ability(b) - ability(a))
-    .slice(0, 7)
+    .slice(0, BENCH_SIZE)
   return { ...t, players: xi, bench }
 }
 
@@ -224,15 +265,43 @@ export function resultOf(m: MatchState): Result {
     if (e.type === 'card' && e.color === 'red') off.set(e.idx, e.tick)
   }
   const lines = playerLines(m, m.events)
-  const appearances: Appearance[] = [...on.entries()].map(([i, from]) => ({
-    id: m.players[i].def.id,
-    minutes: Math.max(1, Math.round((((off.get(i) ?? m.tick) - from) / m.tick) * 90)),
-    rating: lines[i].rating,
-    goals: lines[i].goals,
-    assists: lines[i].assists,
-    energy: m.players[i].energy,
-  }))
-  return { score: [m.score[0], m.score[1]], goals, xg: [m.stats[0].xg, m.stats[1].xg], appearances, injuries }
+  const appearances: Appearance[] = [...on.entries()].map(([i, from]) => {
+    const l = lines[i]
+    const p = m.players[i]
+    const minutes = Math.max(1, Math.round((((off.get(i) ?? m.tick) - from) / m.tick) * 90))
+    return {
+      id: p.def.id,
+      minutes,
+      rating: l.rating,
+      goals: l.goals,
+      assists: l.assists,
+      energy: p.energy,
+      passes: l.passes,
+      passesCompleted: l.passesCompleted,
+      keyPasses: l.keyPasses,
+      shots: l.shots,
+      onTarget: l.onTarget,
+      tackles: l.tackles,
+      interceptions: l.interceptions,
+      dribbles: l.dribbles,
+      saves: l.saves,
+      // A keeper's clean sheet: most of the match in goal without conceding.
+      cleanSheets: p.slot.role === 'GK' && minutes >= 60 && m.score[1 - p.team] === 0 ? 1 : 0,
+      yellows: l.yellow ? 1 : 0,
+      reds: l.red ? 1 : 0,
+    }
+  })
+  const total = m.stats[0].possessionTicks + m.stats[1].possessionTicks || 1
+  const teams = m.stats.map((t) => ({
+    possession: t.possessionTicks / total,
+    passes: t.passes,
+    passesCompleted: t.passesCompleted,
+    shots: t.shots,
+    onTarget: t.shotsOnTarget,
+    corners: t.corners,
+    fouls: t.fouls,
+  })) as [TeamLine, TeamLine]
+  return { score: [m.score[0], m.score[1]], goals, xg: [m.stats[0].xg, m.stats[1].xg], appearances, injuries, teams }
 }
 
 /**
@@ -250,7 +319,9 @@ export function completeMatchday(s: Season, results: Map<number, Result>): Seaso
     for (const a of r.appearances) {
       condition[a.id] = { ...condition[a.id], fitness: Math.min(1, a.energy + MATCH_RECOVERY) }
       const st = stats[a.id]
-      stats[a.id] = { apps: st.apps + 1, goals: st.goals + a.goals, assists: st.assists + a.assists, ratings: st.ratings + a.rating }
+      const next: SeasonStats = { apps: st.apps + 1, goals: st.goals + a.goals, assists: st.assists + a.assists, ratings: st.ratings + a.rating }
+      for (const k of COUNTERS) next[k] = (st[k] ?? 0) + (a[k] ?? 0)
+      stats[a.id] = next
     }
     for (const inj of r.injuries) condition[inj.id] = { ...condition[inj.id], injuredUntil: s.matchday + 1 + inj.weeks }
   }
@@ -314,13 +385,4 @@ export const playerRating = (p: PlayerDef): number => p.overall ?? Math.round(ab
 /** A squad's overall strength, 1-100: its first eleven's average. */
 export function squadRating(t: TeamDef): number {
   return Math.round(t.players.reduce((n, p) => n + playerRating(p), 0) / t.players.length)
-}
-
-/** The league's leading scorers: player, club, goals (then fewer games first). */
-export function topScorers(s: Season, n = 5): { player: PlayerDef; club: number; goals: number; apps: number }[] {
-  return s.teams
-    .flatMap((t, club) => squadOf(t).map((player) => ({ player, club, goals: s.stats[player.id].goals, apps: s.stats[player.id].apps })))
-    .filter((r) => r.goals > 0)
-    .sort((a, b) => b.goals - a.goals || a.apps - b.apps)
-    .slice(0, n)
 }

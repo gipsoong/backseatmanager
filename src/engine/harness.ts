@@ -367,8 +367,16 @@ export function checkMatch(
         }
         break
       }
+      case 'corner': {
+        // Set up before it's taken: attackers up in the box, defenders back in it with them.
+        const goalX = ownGoalX((1 - e.team) as Side, half)
+        const up = on.filter((x) => x.p.team === e.team && x.i !== e.takerIdx && inBox(x.pos, goalX)).length
+        const back = opps.filter((x) => x.p.slot.role !== 'GK' && inBox(x.pos, goalX)).length
+        if (!e.forced && (up < 3 || back < 3)) fail(`taken with ${up} attackers and ${back} defenders in the box`)
+        for (const x of opps) if (dist(x.pos, e.spot) < CENTER_CIRCLE_RADIUS - 0.2) fail(`player ${x.i} ${dist(x.pos, e.spot).toFixed(2)}m from the ball`)
+        break
+      }
       case 'freeKick':
-      case 'corner':
         for (const x of opps) if (dist(x.pos, e.spot) < CENTER_CIRCLE_RADIUS - 0.2) fail(`player ${x.i} ${dist(x.pos, e.spot).toFixed(2)}m from the ball`)
         break
       case 'goalKick':

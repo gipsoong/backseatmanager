@@ -158,19 +158,32 @@ pulling the repo.
   `panels.tsx` holds the side-panel tabs (commentary, stats, players); `players.ts` builds
   per-player match lines and ratings from events.
 - `src/season/` — the season (session 8), pure TS like the engine: `season.ts` (league from a
-  seed, double round-robin fixtures with a match seed each, weekly dates, results, table),
+  seed, double round-robin fixtures with a match seed each, weekly dates, results, table,
+  per-player season counters and per-match team lines), `stats.ts` (leaderboards, each club's
+  record, runs and style, for the Stats and Review tabs),
   `simulate.ts` + `simWorker.ts` (fixtures the manager doesn't watch, played by the full engine
   in Web Workers), `store.ts` (the save, in IndexedDB via `idb`).
 - `src/draft/` — draft mode (session 9), after 38-0: `pools.ts` holds Premier League clubs by
   decade (2010s, 2020s) with their notable players, a position and an overall each (our own
-  estimates; a player is in one pool only). `draft.ts` runs the 16 rounds (11 starters + 5 subs,
+  estimates against their peak FIFA ratings; a player is in one pool only; a 4th tuple entry is
+  the name he's known by). `draft.ts` runs the 20 rounds (11 starters + 9 subs,
   one club-decade offered per round), turns pool players into engine players (attributes seeded
   from the name, scaled to the overall; `PlayerDef.overall` is shown instead of a computed
   rating) and builds the 20-team league of the drafted side and 19 club-decades (38 matchdays).
   No transfers in this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
-- `src/screens/` — Start, PickTeam, Draft, Hub (next fixture, table, fixtures, squad, scorers),
-  Squad (fitness, injuries, season stats, picking the eleven), Match.
-- Squads (session 9): each club has an eleven and a bench of seven (`TeamDef.bench`). In a match,
+- `src/screens/` — Start, PickTeam, Draft, Hub (next fixture; tabs: review at season's end,
+  table, fixtures, squad, stats), Squad (shape, the eleven on a pitch with tap-to-swap, fitness,
+  injuries, season stats), Stats (leaderboards, clubs, season review), Match. `pitchLayout.ts`
+  places a formation on the small pitch. `src/names.ts`: how players are named on screen
+  ("van Persie", "De Bruyne", "Son").
+- Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
+  are `FB` slots with a big `attackDepth`. Random clubs use all six; check a shape change with
+  `calibrate` and a per-formation shots comparison, as one-striker shapes were once far weaker.
+- Corners (session 10): `cornerPlan` in `ai.ts` sends the aerial threats up and a marker with
+  each; `cornerSetUp` gates the kick until they're there. Harness: `restart-corner` checks both
+  boxes are manned when it's taken.
+- Squads (session 9): each club has an eleven and a bench of nine (`TeamDef.bench`, as in the
+  Premier League). In a match,
   players tire (`energy`, by stamina and effort, slowing them), managers make up to five
   substitutions in three stoppages, and players get injured (fouls, or strain when exhausted).
   Between matchdays the season carries fitness (partial recovery) and injuries; the staff pick
