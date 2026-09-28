@@ -1,0 +1,234 @@
+# Matchday — project brief for Claude Code
+
+A snappy, lightweight web football management game. The target experience: boot up, pick a
+random team, play for ~30 minutes, without having to learn Football Manager first. A middle
+ground between 38-0 (too shallow — can't watch games, thin stats, no transfers/development/
+academy/youth) and Football Manager (too daunting — overwhelming detail before you can enjoy it).
+
+This file is for whichever Claude Code session picks this up. Read it before writing engine code.
+
+## Where this project came from
+
+A prototype was built as a single self-contained HTML file (chat artifact, not in this repo) to
+validate feel, pacing, UI layout and tone before committing to real architecture. It went through
+nine iterations based on direct feedback. It is **not** a starting point for the real engine's
+code — its architecture has a specific flaw described below that should not be repeated — but it
+*is* a useful reference for what the experience should feel like. Treat it as a design spec you
+can look at, not a codebase you extend.
+
+## The one lesson worth internalizing before writing any engine code
+
+The prototype kept breaking in the same way, over and over, across unrelated features:
+**it decided outcomes first and made the positions match afterwards, instead of computing
+outcomes from positions.**
+
+Concretely, across nine rounds of fixes this bit us in:
+- A shot could be "taken" by a player standing on the halfway line, because the engine picked
+  "shot" as the outcome and only then dealt with where anyone was.
+- A foul was ruled a penalty or a free-kick based on an *estimate* of where the play was, which
+  drifted from where the foul was actually animated to happen.
+- Passes went to teammates chosen by role weighting alone, with no distance check, so forwards
+  would "lay the ball back" to a center-back standing 40 yards behind them.
+- Loose balls just sat there because nothing modeled a defender racing onto them.
+- Offside was never actually checked against the last defender's line — it was a scripted
+  outcome that always logged as offside regardless of anyone's position.
+- After a goal, the restart happened on a fixed timer instead of waiting for both teams to
+  actually be back in position.
+
+Every one of these was fixed individually, but they're symptoms of the same root cause. **Do not
+build the real engine this way.** The fix each time was to make positions the source of truth:
+compute a target location for an action, gate the action on a player actually reaching it, and
+derive the outcome (penalty vs free-kick, offside vs not, who wins a loose ball) from real
+distances at that moment — not from a pre-rolled dice result that commentary and animation then
+have to justify.
+
+This is also why the original architecture decision (below) puts the simulation core first and
+treats rendering as a consumer of its output, not the other way around.
+
+## Design decisions carried over from planning + the prototype
+
+**Match simulation model:** event-based, not physics-based — but every event must be resolved
+from actual player/ball positions (see lesson above), with a deterministic, seeded simulation
+core, decoupled from the UI. Variable speed (the prototype settled on 1×/2×/4×, defaulting to
+1×, after early versions were judged too fast).
+
+**Viewing modes** (validated in the prototype, worth keeping): Full match / Key moments /
+Goals only. Off-camera minutes still simulate fully (stats, commentary) and fast-forward
+visually. "Key moments" = goals, real chances (shots on target, woodwork, one-on-ones),
+penalties, red cards. "Goals only" = goals and penalties.
+
+**Replays:** record recent player/ball positions during play; on a goal, replay the last few
+seconds from 2–3 camera angles (wide, close-up, behind-goal) using layout-based zoom (re-render
+at the zoomed size, don't just scale-transform a bitmap, or it goes soft). Let the player rewatch
+any past goal's replay on demand, not just automatically once.
+
+**Player roles/archetypes:** distinct positional behavior (overlapping vs inverted full-backs,
+deep-lying playmaker, false nine, target man, poacher, etc.) that visibly changes where a player
+stands and the runs he makes — not just a stat modifier. Make this legible: label roles on
+screen (toggleable), and show a run as an explicit indicator when it happens, or players just
+look like they're drifting randomly.
+
+**Team shape:** must react to context — in vs out of possession, pressing high vs mid-block vs
+low block, shifting with the ball. Static shape reads as obviously wrong to anyone who's watched
+real football.
+
+**Tone:** classy and understated, not arcadey. No "STEP-OVER!"-style floating labels, no
+screen-shake, no big "GOAL!!!" graphics. A quiet broadcast-style strip (scorer, minute, assist)
+and a subtle net ripple communicate a goal better than fireworks. (Session 9, at the owner's
+request: key actions get a small caption above the player — "Interception", "Cross", "Finesse" —
+in the broadcast style: plain case, no exclamation marks, fading after a second, toggleable.)
+
+**Variation:** goal celebrations, tackle types, dribble moves, save types, etc. should be genuinely
+varied (driven by hidden per-player traits like flair/temper), or the match feels repetitive fast.
+
+**UI structure:** group controls by function (playback controls near the pitch; team/tactics
+panel separate; commentary and stats as tabs, not two competing tall panels). Mobile matters —
+plan touch target sizes (≥40px) and layout collapse from the start rather than retrofitting.
+
+## Tech stack (from initial planning)
+
+- React + TypeScript + Vite
+- Zustand or context for app state
+- Seeded, deterministic TypeScript simulation module, fully decoupled from React — the engine
+  should be testable and runnable headless (this is how the prototype's bugs above were actually
+  caught: a headless harness that runs matches and asserts on ball/player positions frame by
+  frame, not eyeballing the render)
+- IndexedDB (via `idb`) for saves
+- SVG or Canvas for the pitch/players
+- No backend for v1. Online leagues, if ever, are a later, separate concern.
+
+## Suggested build order
+
+1. Engine core: positions-as-source-of-truth simulation loop, with a headless test harness from
+   day one (this is non-negotiable given the lesson above — write the position/outcome
+   consistency checks before writing gameplay features, not after chasing a bug report)
+2. Match viewer: render the engine's output (pitch, players, ball, commentary)
+3. Season loop (fixtures, table, calendar)
+4. Transfers / scouting
+5. Player development / youth intake / academy
+6. Polish: replays, view modes, variation systems, UI pass
+
+## Non-goals for v1
+
+- Backend, accounts, online multiplayer leagues
+- Full 3D rendering (the prototype's tilted-camera replay effect is a reasonable ceiling for
+  "broadcast feel" at this project's scope — true animated 3D players is a different, much
+  larger project)
+- Deep tactical instruction sets beyond block height / mentality — keep the "auto-pilot with
+  optional depth" philosophy from the original brief
+
+## Cross-device workflow note
+
+Claude Code session history doesn't sync across devices. Use a private git repo, commit/push at
+the end of each session, and keep this file plus a `PROGRESS.md` (current milestone, what's
+in-flight, what's next) up to date so a session on a different device can pick up context by
+pulling the repo.
+
+## Repo layout and commands (added in session 1)
+
+- `src/engine/` — the simulation. No React, no DOM: `tsconfig.engine.json` compiles it with
+  `lib: ES2023` and no ambient types, so a browser/React import fails `npm run typecheck`.
+  - `match.ts` — the tick loop (`createMatch`, `step`, `runMatch`, `frameOf`). Its header
+    comment gives the order of operations within a tick.
+  - `ai.ts` — intentions only: movement targets and what the carrier tries to do. It never
+    decides an outcome.
+  - `rules.ts` — positional conditions for taking restarts.
+  - `physics.ts` — ball flight (height, gravity, bounces). The loop and the AI's predictions both
+    step the ball with `advanceBall`, so predictions are exact.
+  - `harness.ts` — `checkMatch()`: runs a match and checks every tick that reported outcomes
+    match positions (speeds, possession reach, shot range, offside at the moment of the kick,
+    penalty iff foul in the box, goals/outs on the lines, restart gating, no stalls). Its checks
+    are written independently of the engine's rule code on purpose.
+  - `engine.test.ts` — determinism, zero violations over full matches, loose stat bounds, and
+    tests that the harness itself catches injected faults.
+- `scripts/calibrate.ts` — `npm run calibrate -- [n] [first seed]`: aggregate stats over n seeds
+  next to real-football ranges, with a realism score. Use it for every engine tuning change, with
+  80 matches, and confirm on a second seed set (single sets of 20–40 are too noisy).
+- `scripts/diag-attacks.ts`, `scripts/diag-crosses.ts`, `scripts/diag-goals.ts`,
+  `scripts/diag-corners.ts` — how final-third attacks end; what happens to crosses; where goals
+  come from; what put each corner behind.
+- `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
+  built-in TypeScript stripping (hence `.ts` import extensions throughout).
+- `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and
+  records packed frames; `pitch.ts` draws on canvas through a Camera (wide, close-up, behind the
+  goal); `commentary.ts` turns events into lines;
+  `highlights.ts` decides what each view mode shows, which kick is in the air, and which
+  slides/dives/kicks/headers are animating; `net.ts` animates the ball going into the net;
+  `MatchViewer.tsx` is the UI. The viewer only reads engine output; it never feeds back into it.
+  `panels.tsx` holds the side-panel tabs (commentary, stats, players); `players.ts` builds
+  per-player match lines and ratings from events.
+- `src/season/` — the season (session 8), pure TS like the engine: `season.ts` (league from a
+  seed, double round-robin fixtures with a match seed each, weekly dates, results, table,
+  per-player season counters and per-match team lines), `stats.ts` (leaderboards, each club's
+  record, runs and style, for the Stats and Review tabs),
+  `simulate.ts` + `simWorker.ts` (fixtures the manager doesn't watch, played by the full engine
+  in Web Workers), `store.ts` (the save, in IndexedDB via `idb`).
+- `src/draft/` — draft mode (session 9), after 38-0: `pools.ts` holds Premier League clubs by
+  decade (2010s, 2020s) with their notable players, a position and an overall each (our own
+  estimates against their peak FIFA ratings; a player is in one pool only; a 4th tuple entry is
+  the name he's known by). `draft.ts` runs the 20 rounds (11 starters + 9 subs,
+  one club-decade offered per round), turns pool players into engine players (attributes seeded
+  from the name, scaled to the overall; `PlayerDef.overall` is shown instead of a computed
+  rating) and builds the 20-team league of the drafted side and 19 club-decades (38 matchdays).
+  No transfers in this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
+- `src/screens/` — Start, PickTeam, Draft, Hub (next fixture; tabs: review at season's end,
+  table, fixtures, squad, stats), Squad (shape, the eleven on a pitch with tap-to-swap, fitness,
+  injuries, season stats), Stats (leaderboards, clubs, season review), Match. `pitchLayout.ts`
+  places a formation on the small pitch. `src/names.ts`: how players are named on screen
+  ("van Persie", "De Bruyne", "Son").
+- Positions (session 11): a player's `role` plus `positions` (secondary, tertiary). `fitFor` is
+  his familiarity with a slot (1, 0.95, 0.9, 0.75 in a line he knows, 0.55 otherwise, 0 in/out of
+  goal); `playingAttributes` scales his positional attributes by it, and the engine plays him
+  with those (`PlayerState.attrs`; `def.attrs` is his best). The staff pick, subs and the draft
+  all use `fitFor`. Draft pools write positions as 'W/CM'.
+- Archetypes (session 12, `engine/archetypes.ts`): one per player for his position (curated for
+  draft players in `pools.ts` `ARCHETYPE`, otherwise read off attributes; re-read for another
+  position when he's played out of it). They change behaviour, not ability: where he stands with
+  and without the ball (`attackDepthFor`, width, inverted full-backs, false nines dropping and
+  arriving late, poachers on the shoulder, inside forwards coming in), runs in behind, pressing,
+  aerial duels, how eagerly he shoots or passes forward. Pitch labels ("Roles") show them.
+- Feet (session 12): `PlayerDef.foot` and `weakFoot` (1-5 stars); `strikingFoot` in ai.ts picks the
+  foot from where he strikes it (inside foot shooting from wide, outside foot crossing) and how
+  well (a one-footed player on the wrong side: 0.8); it scales shot accuracy, pace and cross
+  accuracy, and the AI weighs it. Draft data: `LEFT_FOOTED`, `WEAK_FOOT` in pools.ts.
+- Balance checks for formations and squads (scratch scripts, not in the repo): the same squad in
+  two shapes against itself, and a whole league of every club-decade next to squad ratings. Use
+  them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game.
+- `chooseAction` (ai.ts) gathers options from `passOptions`, `throughBallOptions`, crosses,
+  `dribbleOptions`, then `shotIfWorthIt` and `clearanceTarget`; `resolveTouch` (match.ts)
+  dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,
+  `header`. Keep the order of RNG draws when touching either: a refactor should leave matches
+  byte-identical (fingerprint a few seeds' events before and after).
+- `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
+- Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
+  are `FB` slots with a big `attackDepth`. Random clubs use all six; check a shape change with
+  `calibrate` and a per-formation shots comparison, as one-striker shapes were once far weaker.
+- Corners (session 10): `cornerPlan` in `ai.ts` sends the aerial threats up and a marker with
+  each; `cornerSetUp` gates the kick until they're there. Harness: `restart-corner` checks both
+  boxes are manned when it's taken.
+- Squads (session 9): each club has an eleven and a bench of nine (`TeamDef.bench`, as in the
+  Premier League). In a match,
+  players tire (`energy`, by stamina and effort, slowing them), managers make up to five
+  substitutions in three stoppages, and players get injured (fouls, or strain when exhausted).
+  Between matchdays the season carries fitness (partial recovery) and injuries; the staff pick
+  (`autoPick`) weighs fitness, so starters get rested. Harness: `sub-*` and `injury` invariants.
+- `src/App.tsx` — which screen is showing, and the season state: watching a match plays the rest
+  of the matchday in the background; "Continue to results" records the matchday and saves.
+  A match plays the same whether watched or simulated (same seed), so results never disagree.
+
+- Ratings and stats (session 13): `viewer/players.ts` `playerLines` builds each player's match
+  line from events (xG, xA, big chances, blocks, clearances, headers, recoveries, keeper's xG
+  faced …) and `rate` turns it into a rating with a per-position offset (`OFFSET`, scaled by
+  minutes played) levelled so a regular's season average is ~6.75 in any position. Check a change
+  over single matches with `node scripts/diag-ratings.ts 60`, and over a season by re-rating a
+  saved `sim-season` file (appearances keep every counter `rate` needs).
+  Season counters are `COUNTERS` in season.ts (line counters added straight up).
+  `season/review.ts` picks the season's standouts and notable games; `screens/PlayerCard.tsx`
+  is a player's season with a match log; `screens/PlayerTable.tsx` the league's player table.
+  `scripts/sim-season.ts <seed> <matchdays> <out.json>` plays a draft season headlessly and saves
+  it, for checking these against a whole season (~10 min for 38 matchdays).
+- January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
+  `screens/Transfers.tsx` (the Deals tab). Deals are recorded in `Season.transfers`; a player's
+  stats stay keyed by his id and go with him (`matchLog` uses the record to know his side).
+
+When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
