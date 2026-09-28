@@ -507,10 +507,13 @@ h1 .v {
 .tabs {
   display: flex;
   border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .tabs button {
-  flex: 1;
+  flex: 1 0 auto;
+  padding: 0 10px;
   min-height: 44px;
   border: 0;
   background: transparent;
@@ -1169,6 +1172,38 @@ h1 .swatch,
   font-size: 1.3rem;
 }
 
+th .sort {
+  min-height: 36px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+th .sort.on {
+  color: var(--ink);
+}
+
+.md-nav .link {
+  display: block;
+  margin: 2px auto 0;
+  min-height: 32px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 500;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 .fixtures ul {
   list-style: none;
   margin: 0;
@@ -1447,8 +1482,13 @@ h1 .swatch,
 
 .review {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 12px 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
 }
 
 .review-mine {
@@ -1668,4 +1708,265 @@ td.style {
   color: var(--muted);
   font-size: 0.85rem;
   white-space: nowrap;
+}
+
+.season-card {
+  padding: 8px 12px 16px;
+}
+
+.season-card .card-head {
+  grid-template-columns: auto 1fr auto;
+}
+
+.season-card h4 {
+  margin: 0 0 6px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.season-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px 20px;
+}
+
+.season-sections dl {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.season-sections dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.season-sections dt {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.season-sections dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+}
+
+.match-log td.res.W {
+  color: var(--accent);
+}
+
+.match-log td.res.L {
+  color: var(--muted);
+}
+
+button.name-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 30%, transparent);
+  text-underline-offset: 3px;
+}
+
+.player-table .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.player-table select {
+  min-height: 40px;
+  max-width: 100%;
+}
+
+.player-table .check {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 40px;
+  font-size: 0.9rem;
+}
+
+.stat-table td,
+.stat-table th {
+  font-variant-numeric: tabular-nums;
+}
+
+.transfers .pad-x {
+  padding: 0 12px;
+}
+
+.deal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.deal-grid .pick h4 {
+  margin: 0 0 6px;
+}
+
+.deal-grid .offer-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.verdict {
+  margin: 4px 12px 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.verdict.yes {
+  border-color: var(--accent);
+}
+
+.verdict .deal-line {
+  margin: 0;
+  font-weight: 600;
+}
+
+.gauge {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.gauge span {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--muted);
+}
+
+.verdict.yes .gauge span {
+  background: var(--accent);
+}
+
+.gauge i {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--ink);
+}
+
+.deals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.window-note .link,
+.transfers .link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.review-block {
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+}
+
+.review-block h4 {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.review-block .meta {
+  margin: 0;
+}
+
+.standout-name {
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+
+.standouts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px 20px;
+}
+
+.standouts li {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+}
+
+.mini-pitch.tots {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.mini-pitch.tots .who {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.notable {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.notable li {
+  display: grid;
+  grid-template-columns: 3.4em 1fr;
+  gap: 0 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.notable li.mine {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.notable .md {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  grid-row: span 2;
+}
+
+.notable .game {
+  font-weight: 600;
 }

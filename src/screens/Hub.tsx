@@ -4,6 +4,8 @@ import type { Formation, Kit, TeamDef } from '../engine/index.ts'
 import { ordinal } from './format.ts'
 import { type Season, fixturesOn, isOver, matchdayDate, matchdays, squadOf, table, userFixture } from '../season/season.ts'
 import { Squad } from './Squad.tsx'
+import { Transfers } from './Transfers.tsx'
+import { type Deal, windowOpen } from '../draft/transfers.ts'
 import { SeasonReview, Stats } from './Stats.tsx'
 import { surname } from '../viewer/commentary.ts'
 
@@ -21,6 +23,7 @@ export function Hub({
   onNewSeason,
   onLineup,
   onFormation,
+  onDeal,
 }: {
   season: Season
   busy: boolean
@@ -29,15 +32,21 @@ export function Hub({
   onNewSeason: () => void
   onLineup: (ids: string[] | null) => void
   onFormation: (f: Formation) => void
+  onDeal: (deal: Deal) => void
 }) {
-  const [tab, setTab] = useState<'review' | 'table' | 'fixtures' | 'squad' | 'stats'>(isOver(season) ? 'review' : 'table')
+  const [tab, setTab] = useState<'review' | 'table' | 'fixtures' | 'squad' | 'stats' | 'transfers'>(isOver(season) ? 'review' : 'table')
   // The last matchday played: open the review.
   const [wasOver, setWasOver] = useState(isOver(season))
   if (isOver(season) !== wasOver) {
     setWasOver(isOver(season))
     if (isOver(season)) setTab('review')
   }
-  const [shown, setShown] = useState(Math.min(season.matchday, matchdays(season)))
+  // The matchday shown in Fixtures: the current one, unless the manager has paged away from it
+  // since the last matchday was played.
+  const current = Math.min(season.matchday, matchdays(season))
+  const [paged, setPaged] = useState<{ at: number; md: number } | null>(null)
+  const shown = paged && paged.at === season.matchday ? paged.md : current
+  const setShown = (md: number): void => setPaged({ at: season.matchday, md: Math.max(1, Math.min(matchdays(season), md)) })
   const me = season.teams[season.userTeam]
   const rows = table(season)
   const over = isOver(season)
@@ -69,6 +78,15 @@ export function Hub({
               <h2 className="versus">
                 <TeamName team={season.teams[next.home]} /> <span className="v">v</span> <TeamName team={season.teams[next.away]} />
               </h2>
+              {windowOpen(season) && (
+                <p className="meta window-note">
+                  The January window is open: swap players with other clubs in{' '}
+                  <button type="button" className="link" onClick={() => setTab('transfers')}>
+                    Deals
+                  </button>
+                  .
+                </p>
+              )}
               <div className="actions">
                 <button type="button" className="btn" onClick={onWatch} disabled={busy}>
                   Watch the match
@@ -121,7 +139,13 @@ export function Hub({
             <button type="button" role="tab" aria-selected={tab === 'stats'} onClick={() => setTab('stats')}>
               Stats
             </button>
+            {season.mode === 'draft' && (
+              <button type="button" role="tab" aria-selected={tab === 'transfers'} onClick={() => setTab('transfers')}>
+                Deals
+              </button>
+            )}
           </div>
+          {tab === 'transfers' && <Transfers season={season} onDeal={onDeal} />}
           {tab === 'squad' && <Squad season={season} onLineup={onLineup} onFormation={onFormation} />}
           {tab === 'stats' && <Stats season={season} />}
           {tab === 'review' && <SeasonReview season={season} />}
@@ -170,13 +194,18 @@ export function Hub({
           {tab === 'fixtures' && (
             <div className="fixtures">
               <div className="md-nav">
-                <button type="button" className="btn ghost" onClick={() => setShown((m) => Math.max(1, m - 1))} disabled={shown <= 1} aria-label="Previous matchday">
+                <button type="button" className="btn ghost" onClick={() => setShown(shown - 1)} disabled={shown <= 1} aria-label="Previous matchday">
                   ‹
                 </button>
                 <span>
                   Matchday {shown} · {dateFmt.format(matchdayDate(season, shown))}
+                  {shown !== current && (
+                    <button type="button" className="link" onClick={() => setPaged(null)}>
+                      Back to matchday {current}
+                    </button>
+                  )}
                 </span>
-                <button type="button" className="btn ghost" onClick={() => setShown((m) => Math.min(matchdays(season), m + 1))} disabled={shown >= matchdays(season)} aria-label="Next matchday">
+                <button type="button" className="btn ghost" onClick={() => setShown(shown + 1)} disabled={shown >= matchdays(season)} aria-label="Next matchday">
                   ›
                 </button>
               </div>

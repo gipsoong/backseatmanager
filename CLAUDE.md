@@ -216,4 +216,19 @@ pulling the repo.
   of the matchday in the background; "Continue to results" records the matchday and saves.
   A match plays the same whether watched or simulated (same seed), so results never disagree.
 
+- Ratings and stats (session 13): `viewer/players.ts` `playerLines` builds each player's match
+  line from events (xG, xA, big chances, blocks, clearances, headers, recoveries, keeper's xG
+  faced …) and `rate` turns it into a rating with a per-position offset (`OFFSET`, scaled by
+  minutes played) levelled so a regular's season average is ~6.75 in any position. Check a change
+  over single matches with `node scripts/diag-ratings.ts 60`, and over a season by re-rating a
+  saved `sim-season` file (appearances keep every counter `rate` needs).
+  Season counters are `COUNTERS` in season.ts (line counters added straight up).
+  `season/review.ts` picks the season's standouts and notable games; `screens/PlayerCard.tsx`
+  is a player's season with a match log; `screens/PlayerTable.tsx` the league's player table.
+  `scripts/sim-season.ts <seed> <matchdays> <out.json>` plays a draft season headlessly and saves
+  it, for checking these against a whole season (~10 min for 38 matchdays).
+- January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
+  `screens/Transfers.tsx` (the Deals tab). Deals are recorded in `Season.transfers`; a player's
+  stats stay keyed by his id and go with him (`matchLog` uses the record to know his side).
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

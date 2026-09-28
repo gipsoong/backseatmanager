@@ -2,14 +2,25 @@
 import { useState } from 'react'
 import { type Season, matchdays, table } from '../season/season.ts'
 import { type ClubRecord, clubRecords, leaderboards } from '../season/stats.ts'
+import { PlayerCard } from './PlayerCard.tsx'
+import { type Standout, review } from '../season/review.ts'
+import { FORMATIONS } from '../engine/index.ts'
+import { shortName } from '../names.ts'
+import { slotLabel, slotStyle } from './pitchLayout.ts'
+import { PlayerTable } from './PlayerTable.tsx'
 import { ordinal } from './format.ts'
 import { Swatch } from './Hub.tsx'
 
 export function Stats({ season }: { season: Season }) {
-  const [view, setView] = useState<'players' | 'clubs'>('players')
+  const [view, setView] = useState<'leaders' | 'players' | 'clubs'>('leaders')
+  const [viewing, setViewing] = useState<string | null>(null)
+  if (viewing) return <PlayerCard season={season} id={viewing} onClose={() => setViewing(null)} />
   return (
     <div className="stats-tab">
       <div className="seg" role="tablist">
+        <button type="button" role="tab" aria-selected={view === 'leaders'} onClick={() => setView('leaders')}>
+          Leaders
+        </button>
         <button type="button" role="tab" aria-selected={view === 'players'} onClick={() => setView('players')}>
           Players
         </button>
@@ -17,12 +28,14 @@ export function Stats({ season }: { season: Season }) {
           Clubs
         </button>
       </div>
-      {view === 'players' ? <Leaders season={season} /> : <Clubs season={season} records={clubRecords(season)} />}
+      {view === 'leaders' && <Leaders season={season} onPlayer={setViewing} />}
+      {view === 'players' && <PlayerTable season={season} onPlayer={setViewing} />}
+      {view === 'clubs' && <Clubs season={season} records={clubRecords(season)} />}
     </div>
   )
 }
 
-function Leaders({ season }: { season: Season }) {
+function Leaders({ season, onPlayer }: { season: Season; onPlayer: (id: string) => void }) {
   const boards = leaderboards(season)
   if (season.matchday === 1) return <p className="meta pad">No matches played yet.</p>
   return (
@@ -35,7 +48,10 @@ function Leaders({ season }: { season: Season }) {
               {b.rows.map((r) => (
                 <li key={r.player.id} className={r.club === season.userTeam ? 'mine' : undefined}>
                   <span className="name">
-                    <Swatch kit={season.teams[r.club].kit} /> {r.player.name}
+                    <Swatch kit={season.teams[r.club].kit} />{' '}
+                    <button type="button" className="name-link" onClick={() => onPlayer(r.player.id)}>
+                      {r.player.name}
+                    </button>
                   </span>
                   <span className="value">{b.format(r.value)}</span>
                 </li>
@@ -89,7 +105,7 @@ function Clubs({ season, records }: { season: Season; records: ClubRecord[] }) {
   )
 }
 
-/** The season in review: your record, then every club's. */
+/** The season in review: your record, who stood out and the matches to remember, then every club's. */
 export function SeasonReview({ season }: { season: Season }) {
   const rows = table(season)
   const records = clubRecords(season)
@@ -101,7 +117,19 @@ export function SeasonReview({ season }: { season: Season }) {
   const leaders = leaderboards(season, 1)
   const top = (title: string) => leaders.find((b) => b.title === title)?.rows[0]
   const scorer = top('Goals')
-  const best = top('Average rating')
+  const r = review(season)
+  const [viewing, setViewing] = useState<string | null>(null)
+  if (viewing) return <PlayerCard season={season} id={viewing} onClose={() => setViewing(null)} />
+  const who = (x: Standout) => (
+    <>
+      <Swatch kit={season.teams[x.club].kit} />{' '}
+      <button type="button" className="name-link" onClick={() => setViewing(x.player.id)}>
+        {x.player.name}
+      </button>
+    </>
+  )
+  // The team of the season on the pitch, in a 4-3-3.
+  const shape = FORMATIONS['4-3-3']
 
   return (
     <div className="review">
@@ -116,16 +144,89 @@ export function SeasonReview({ season }: { season: Season }) {
             : invincible
               ? 'Unbeaten all season.'
               : `Longest unbeaten run ${mine.unbeaten}, longest winning run ${mine.wins}.`}{' '}
-          Goals {mine.goalsFor}–{mine.goalsAgainst}, {mine.cleanSheets} clean sheets.
+          Goals {mine.goalsFor}–{mine.goalsAgainst} (expected {mine.xgFor.toFixed(0)}–{mine.xgAgainst.toFixed(0)}), {mine.cleanSheets} clean sheets.
           {mine.biggestWin && ` Biggest win ${mine.biggestWin.for}–${mine.biggestWin.against} against ${name(mine.biggestWin.opponent)}.`}
-          {mine.topScorer && ` Top scorer ${mine.topScorer.player.name} (${mine.topScorer.goals}).`}
         </p>
         <p className="meta">
           {name(rows[0].team)} are champions.
           {scorer && ` Golden Boot: ${scorer.player.name}, ${scorer.value} goals (${name(scorer.club)}).`}
-          {best && ` Best average rating: ${best.player.name}, ${best.value.toFixed(2)}.`}
         </p>
       </section>
+
+      {r.playerOfSeason && (
+        <section className="review-block potm">
+          <h4>Player of the season</h4>
+          <p className="standout-name">{who(r.playerOfSeason)}</p>
+          <p className="meta">{r.playerOfSeason.line}</p>
+        </section>
+      )}
+
+      {r.yours.length > 0 && (
+        <section className="review-block">
+          <h4>{season.teams[season.userTeam].name}</h4>
+          <ul className="standouts">
+            {r.yours.map(({ title, who: x }) => (
+              <li key={title}>
+                <span className="eyebrow">{title}</span>
+                <span className="standout-name">{who(x)}</span>
+                <span className="meta">{x.line}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {r.teamOfSeason.length === 11 && (
+        <section className="review-block">
+          <h4>Team of the season</h4>
+          <div className="mini-pitch tots">
+            {r.teamOfSeason.map((x, i) => (
+              <button key={x.player.id} type="button" className="slot filled" style={slotStyle(shape[i])} onClick={() => setViewing(x.player.id)} title={x.line}>
+                <span className="pos">
+                  {x.avg.toFixed(2)} <small>{slotLabel(shape[i])}</small>
+                </span>
+                <span className="who">
+                  <Swatch kit={season.teams[x.club].kit} /> {shortName(x.player.name)}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {r.singledOut.length > 0 && (
+        <section className="review-block">
+          <h4>Singled out</h4>
+          <ul className="standouts">
+            {r.singledOut.map(({ title, who: x }) => (
+              <li key={title}>
+                <span className="eyebrow">{title}</span>
+                <span className="standout-name">{who(x)}</span>
+                <span className="meta">{x.line}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {r.games.length > 0 && (
+        <section className="review-block">
+          <h4>Matches to remember</h4>
+          <ul className="notable">
+            {r.games.map(({ fixture: f, why }) => (
+              <li key={f.id} className={f.home === season.userTeam || f.away === season.userTeam ? 'mine' : undefined}>
+                <span className="md">MD {f.matchday}</span>
+                <span className="game">
+                  {name(f.home)} {f.result!.score[0]}–{f.result!.score[1]} {name(f.away)}
+                </span>
+                <span className="meta">{why}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <div className="table-scroll">
       <table className="league review-table">
         <thead>
           <tr>
@@ -161,6 +262,7 @@ export function SeasonReview({ season }: { season: Season }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

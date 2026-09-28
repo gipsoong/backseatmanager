@@ -3,7 +3,7 @@
  * style of play. Pure, like the rest of the season.
  */
 import type { PlayerDef } from '../engine/index.ts'
-import { type Counter, type Season, type SeasonStats, squadOf } from './season.ts'
+import { type Counter, type Season, type SeasonStats, avgRating, squadOf } from './season.ts'
 
 export interface LeaderRow {
   player: PlayerDef
@@ -19,7 +19,7 @@ export interface Leaderboard {
   format: (v: number) => string
 }
 
-const count = (st: SeasonStats, k: Counter | 'goals' | 'assists'): number => st[k] ?? 0
+export const count = (st: SeasonStats, k: Counter | 'goals' | 'assists'): number => st[k] ?? 0
 
 /** Matchdays played so far, for "regular starter" qualifiers. */
 const played = (s: Season): number => Math.max(1, s.matchday - 1)
@@ -45,9 +45,12 @@ export function leaderboards(s: Season, n = 5): Leaderboard[] {
   const regular = (st: SeasonStats): boolean => count(st, 'minutes') >= played(s) * 45
   return [
     board(s, 'Goals', (st) => st.goals, whole, n),
+    board(s, 'Expected goals', (st) => count(st, 'xg'), (v) => v.toFixed(1), n),
+    board(s, 'Goals above expected', (st) => st.goals - count(st, 'xg'), (v) => `+${v.toFixed(1)}`, n),
     board(s, 'Assists', (st) => st.assists, whole, n),
+    board(s, 'Expected assists', (st) => count(st, 'xa'), (v) => v.toFixed(1), n),
     board(s, 'Chances created', (st) => count(st, 'keyPasses'), whole, n),
-    board(s, 'Average rating', (st) => (regular(st) ? st.ratings / st.apps : null), (v) => v.toFixed(2), n),
+    board(s, 'Average rating', (st) => (regular(st) ? avgRating(st) : null), (v) => v.toFixed(2), n),
     board(
       s,
       'Pass completion',
@@ -137,3 +140,80 @@ export function clubRecords(s: Season): ClubRecord[] {
     }
   })
 }
+
+/** Where a player is now: his club's index, or -1. */
+export const clubOf = (s: Season, id: string): number => s.teams.findIndex((t) => squadOf(t).some((p) => p.id === id))
+
+export interface LogRow {
+  matchday: number
+  opponent: number
+  home: boolean
+  /** Goals for and against his side. */
+  score: [number, number]
+  minutes: number
+  started: boolean
+  rating: number
+  goals: number
+  assists: number
+  xg: number
+  xa: number
+}
+
+/** Every match he played, in order: the season behind his totals. */
+export function matchLog(s: Season, id: string): LogRow[] {
+  const rows: LogRow[] = []
+  for (const f of s.fixtures) {
+    const a = f.result?.appearances.find((x) => x.id === id)
+    if (!a) continue
+    // His side that day, from whether he was in the home or away club's squad then: the side
+    // whose players' appearances he's listed with (a traded player may have played for both).
+    const side = sideOf(s, f, id)
+    rows.push({
+      matchday: f.matchday,
+      opponent: side === 0 ? f.away : f.home,
+      home: side === 0,
+      score: side === 0 ? [f.result!.score[0], f.result!.score[1]] : [f.result!.score[1], f.result!.score[0]],
+      minutes: a.minutes,
+      started: a.starts !== 0,
+      rating: a.rating,
+      goals: a.goals,
+      assists: a.assists,
+      xg: a.xg ?? 0,
+      xa: a.xa ?? 0,
+    })
+  }
+  return rows.sort((x, y) => x.matchday - y.matchday)
+}
+
+/** Which side of a fixture a player played on. */
+function sideOf(s: Season, f: Season['fixtures'][number], id: string): 0 | 1 {
+  const moved = s.transfers?.find((t) => t.ids.includes(id) && t.matchday > f.matchday)
+  // Before a move he played for the club he left.
+  const club = moved ? moved.from[moved.ids.indexOf(id)] : clubOf(s, id)
+  return club === f.away ? 1 : 0
+}
+
+/** A per-90 rate, or null if he's barely played. */
+export const per90 = (v: number, minutes: number): number | null => (minutes >= 90 ? (v / minutes) * 90 : null)
+
+/**
+ * How many goals an average keeper in this league lets in per xG of shots on target: the xG of a
+ * shot doesn't know it was on target, so an on-target shot is worth more than its xG.
+ */
+export function onTargetRate(s: Season): number {
+  let faced = 0
+  let conceded = 0
+  // Only keepers face shots (and everyone on the pitch concedes: count keepers' goals only).
+  for (const st of Object.values(s.stats)) {
+    if (!st.facedXg) continue
+    faced += st.facedXg
+    conceded += st.conceded ?? 0
+  }
+  return faced > 0 ? conceded / faced : 0
+}
+
+/**
+ * A keeper's goals prevented: what an average keeper here would have let in from the shots on
+ * target he faced, less what he did. Positive is good.
+ */
+export const goalsPrevented = (st: SeasonStats, rate: number): number => count(st, 'facedXg') * rate - count(st, 'conceded')

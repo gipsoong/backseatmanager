@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { randomTeam } from './engine/index.ts'
 import { draftLeague } from './draft/draft.ts'
+import { makeDeal } from './draft/transfers.ts'
 import { Draft } from './screens/Draft.tsx'
 import { Hub } from './screens/Hub.tsx'
 import { Match } from './screens/Match.tsx'
@@ -115,6 +116,7 @@ export default function App() {
           onFormation={(formation) =>
             void commit({ ...season, lineup: null, teams: season.teams.map((t, i) => (i === season.userTeam ? { ...t, formation } : t)) })
           }
+          onDeal={(deal) => void commit(makeDeal(season, deal))}
         />
       )}
       {screen.kind === 'match' && season && (

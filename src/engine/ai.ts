@@ -316,6 +316,8 @@ interface ChooseOpts {
   passFilter?: (q: PlayerState) => boolean
   /** For free kicks, which are allowed from a little further out. */
   maxShotDistance?: number
+  /** A penalty: an unchallenged, placed kick from the spot. */
+  penalty?: boolean
 }
 
 /** Chance quality from the carrier's actual position, reduced by pressure and bodies in the way. */
@@ -543,6 +545,7 @@ function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
 /** A shot, if the chance is worth more than the best alternative: aimed, with his error, from where he is. */
 function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const { s, p, rng, ball, a, attrs, opts } = d
+  if (opts.penalty) return penaltyKick(d)
   // Off his weaker side the chance is worth less to him: he knows he'll strike it less well.
   const { foot, q: footQ } = strikingFoot(p, a, 'shot')
   const q = shotQuality(s, p, ball, opts.maxShotDistance)
@@ -559,11 +562,33 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   // Curling one needs his good foot.
   const finesse = dGoal > 11 && dGoal < 26 && footQ >= 0.95 && rng.chance(0.1 + p.def.traits.flair * 0.45)
   const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * (finesse ? rng.range(0.8, 1) : rng.range(0.5, 1))
-  const sigma = ((26 - attrs.shooting) / 20) * (1.5 + dGoal * 0.28) * (finesse ? 0.8 : 1) * (1 + (1 - footQ) * 2.5)
+  const sigma = finishingError(attrs.shooting) * (1.5 + dGoal * 0.28) * (finesse ? 0.8 : 1) * (1 + (1 - footQ) * 2.5)
   const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
   // Height as it reaches the line: aimed under the bar, with error growing with distance.
   const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.45)
   return { kind: 'shot', target, xg: q, height, finesse, foot, footQ }
+}
+
+/**
+ * How far off a finisher's aim goes (a multiplier on the spread), by his shooting. Better
+ * finishers are more accurate, but only so much: the best put under half their shots on target
+ * and beat their xG by a quarter or so over a season, not double.
+ */
+export const finishingError = (shooting: number): number => Math.max(0.35, 0.6 - (shooting - 14) * 0.025)
+
+/**
+ * From the spot: picks a side and places it, low or high, well inside the post. Nobody's closing
+ * him down, so the error is his technique and nerve alone: a good taker rarely misses the target,
+ * and it's the keeper who has to guess right.
+ */
+function penaltyKick(d: Decision): Action {
+  const { s, p, rng, attrs } = d
+  const side = rng.chance(0.5) ? -1 : 1
+  const aim = CENTER.y + side * rng.range(1.6, GOAL_HALF_WIDTH - 0.45)
+  const sigma = ((26 - attrs.shooting) / 20) * (1.15 - attrs.composure / 40)
+  const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
+  const height = Math.max(0.1, rng.range(0.2, 1.9) + Math.abs(rng.gauss()) * sigma * 0.35)
+  return { kind: 'shot', target, xg: 0, height, finesse: false, foot: p.def.foot ?? 'right', footQ: 1 }
 }
 
 /**

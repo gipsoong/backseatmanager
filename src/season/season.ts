@@ -5,7 +5,7 @@
  * No React, no storage: the app keeps a Season and replaces it with the updated one.
  */
 import { FORMATIONS, type MatchState, type PlayerDef, type TeamDef, ability, fitFor, leagueTeams } from '../engine/index.ts'
-import { playerLines } from '../viewer/players.ts'
+import { type PlayerLine, playerLines } from '../viewer/players.ts'
 
 export const LEAGUE_SIZE = 10
 /** Named substitutes per match, as in the Premier League. */
@@ -18,23 +18,41 @@ export interface Goal {
   ownGoal: boolean
 }
 
-/** Per-player numbers added up over a season (saves from before they existed count them as 0). */
-export const COUNTERS = [
-  'starts',
-  'minutes',
+/** Numbers a match line has that add straight up over a season. */
+const LINE_COUNTERS = [
   'passes',
   'passesCompleted',
   'keyPasses',
   'shots',
   'onTarget',
+  'xg',
+  'npxg',
+  'xa',
+  'penGoals',
+  'penTaken',
+  'bigChances',
+  'bigChancesScored',
+  'headedGoals',
+  'leftGoals',
+  'rightGoals',
   'tackles',
   'interceptions',
+  'blocks',
+  'clearances',
+  'aerials',
+  'recoveries',
   'dribbles',
+  'dribbledPast',
   'saves',
-  'cleanSheets',
-  'yellows',
-  'reds',
-] as const
+  'savedXg',
+  'facedXg',
+  'conceded',
+  'fouls',
+  'ownGoals',
+] as const satisfies readonly (keyof PlayerLine)[]
+
+/** Per-player numbers added up over a season (saves from before they existed count them as 0). */
+export const COUNTERS = ['starts', 'minutes', ...LINE_COUNTERS, 'cleanSheets', 'yellows', 'reds'] as const
 export type Counter = (typeof COUNTERS)[number]
 
 /** One player's part in a match. */
@@ -95,8 +113,18 @@ export interface SeasonStats extends Partial<Record<Counter, number>> {
   apps: number
   goals: number
   assists: number
-  /** Sum of match ratings, for the average. */
+  /** Sum of match ratings, and how many there were (appearances of 20 minutes or more). */
   ratings: number
+  rated?: number
+}
+
+/** Appearances this short aren't rated in a season's average: too little to judge. */
+export const RATED_MINUTES = 20
+
+/** His average match rating this season, or null if he hasn't been rated. */
+export function avgRating(st: SeasonStats | undefined): number | null {
+  const n = st ? (st.rated ?? st.apps) : 0
+  return st && n ? st.ratings / n : null
 }
 
 export interface Season {
@@ -117,6 +145,19 @@ export interface Season {
   lineup: string[] | null
   /** A drafted side against clubs of the past, rather than a club in a league of made-up ones. */
   mode?: 'draft'
+  /** Deals done in the January window (draft mode), oldest first. */
+  transfers?: Transfer[]
+}
+
+/**
+ * A swap agreed between two clubs before `matchday` was played: each player in `ids` left
+ * `from[i]` for `to[i]` (indices into Season.teams). His season's numbers go with him.
+ */
+export interface Transfer {
+  matchday: number
+  ids: string[]
+  from: number[]
+  to: number[]
 }
 
 /**
@@ -270,7 +311,7 @@ export function resultOf(m: MatchState): Result {
     const l = lines[i]
     const p = m.players[i]
     const minutes = Math.max(1, Math.round((((off.get(i) ?? m.tick) - from) / m.tick) * 90))
-    return {
+    const a: Appearance = {
       id: p.def.id,
       starts: from === 0 ? 1 : 0,
       minutes,
@@ -278,20 +319,14 @@ export function resultOf(m: MatchState): Result {
       goals: l.goals,
       assists: l.assists,
       energy: p.energy,
-      passes: l.passes,
-      passesCompleted: l.passesCompleted,
-      keyPasses: l.keyPasses,
-      shots: l.shots,
-      onTarget: l.onTarget,
-      tackles: l.tackles,
-      interceptions: l.interceptions,
-      dribbles: l.dribbles,
-      saves: l.saves,
       // A keeper's clean sheet: most of the match in goal without conceding.
-      cleanSheets: p.slot.role === 'GK' && minutes >= 60 && m.score[1 - p.team] === 0 ? 1 : 0,
+      cleanSheets: p.slot.role === 'GK' && minutes >= 60 && l.conceded === 0 ? 1 : 0,
       yellows: l.yellow ? 1 : 0,
       reds: l.red ? 1 : 0,
     }
+    // Only what he did: zeros are left out, to keep saved results small.
+    for (const k of LINE_COUNTERS) if (l[k]) a[k] = Math.round(l[k] * 1000) / 1000
+    return a
   })
   const total = m.stats[0].possessionTicks + m.stats[1].possessionTicks || 1
   const teams = m.stats.map((t) => ({
@@ -321,7 +356,14 @@ export function completeMatchday(s: Season, results: Map<number, Result>): Seaso
     for (const a of r.appearances) {
       condition[a.id] = { ...condition[a.id], fitness: Math.min(1, a.energy + MATCH_RECOVERY) }
       const st = stats[a.id]
-      const next: SeasonStats = { apps: st.apps + 1, goals: st.goals + a.goals, assists: st.assists + a.assists, ratings: st.ratings + a.rating }
+      const rated = a.minutes >= RATED_MINUTES
+      const next: SeasonStats = {
+        apps: st.apps + 1,
+        goals: st.goals + a.goals,
+        assists: st.assists + a.assists,
+        ratings: st.ratings + (rated ? a.rating : 0),
+        rated: (st.rated ?? st.apps) + (rated ? 1 : 0),
+      }
       // A save from before starts were counted: its earlier appearances count as starts.
       for (const k of COUNTERS) next[k] = (st[k] ?? (k === 'starts' ? st.apps : 0)) + (a[k] ?? 0)
       stats[a.id] = next

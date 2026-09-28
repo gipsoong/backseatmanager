@@ -97,6 +97,7 @@ import {
   LOFTED_PASS_HEIGHT,
   wf,
   xgFrom,
+  finishingError,
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
@@ -123,6 +124,7 @@ import type {
 } from './types.ts'
 
 const XG_CALIBRATION = 1.3
+const PENALTY_XG = 0.78
 
 type EventBody = MatchEvent extends infer E ? (E extends MatchEvent ? Omit<E, 'tick' | 'clock'> : never) : never
 
@@ -411,7 +413,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
     }
     case 'shot': {
       // A curled shot trades pace for placement; one off his weaker side has less on it.
-      const speed = 20 + (p.attrs.shooting / 20) * 9 + s.rng.range(0, 2) - (action.finesse ? 3 : 0) - (1 - action.footQ) * 10
+      const speed = 22 + (p.attrs.shooting / 20) * 5 + s.rng.range(0, 2) - (action.finesse ? 3 : 0) - (1 - action.footQ) * 10
       shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out, action.finesse, action.foot)
       return
     }
@@ -438,8 +440,9 @@ function shoot(
   s.ball.kick!.assistIdx = assistIdx
   const onTarget = Math.abs(target.y - CENTER.y) < GOAL_HALF_WIDTH - 0.11 && height < CROSSBAR_HEIGHT - 0.11
   // The AI's chance model ranks shots well but overstates their value; report xG calibrated to
-  // how often these chances actually go in (see scripts/calibrate.ts).
-  xg *= XG_CALIBRATION
+  // how often these chances actually go in (see scripts/calibrate.ts). A penalty is worth what
+  // penalties are: the flat value data providers give them (0.76-0.79).
+  xg = restart === 'penalty' ? PENALTY_XG : xg * XG_CALIBRATION
   const st = s.stats[p.team]
   st.shots++
   st.xg += xg
@@ -791,7 +794,7 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
 
   if (cross) {
     const attrs = p.attrs
-    const sigma = ((26 - attrs.shooting) / 20) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
+    const sigma = finishingError(attrs.shooting) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
     const aimY = CENTER.y + rng.range(-3, 3) + rng.gauss() * sigma
     const target = wf(s, p.team, vec(PITCH_LENGTH, aimY))
     const aimH = Math.max(0.05, rng.range(0.1, 1.6) + rng.gauss() * sigma * 0.4)
@@ -1202,7 +1205,7 @@ function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {
       ? { kind: 'pass', toIdx: target.idx, target: { ...target.pos }, lofted: true }
       : chooseAction(s, taker, { allowShot: false, allowDribble: false, minPass: 5, maxPass: 45 })
   } else if (r.type === 'penalty') {
-    action = chooseAction(s, taker, { allowShot: true, allowDribble: false, minPass: 999, maxPass: 0, maxShotDistance: 12 })
+    action = chooseAction(s, taker, { allowShot: true, allowDribble: false, minPass: 999, maxPass: 0, maxShotDistance: 12, penalty: true })
   } else {
     const a = af(s, r.team, r.spot)
     action = chooseAction(s, taker, {

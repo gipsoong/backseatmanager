@@ -4,7 +4,7 @@ import { buildCommentary } from './commentary.ts'
 import { advancePlayhead } from './playback.ts'
 import { ANIMATION_LEAD, CAPTION_TICKS, animationsAt, captionsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
 import { GOAL_DEPTH, netAt } from './net.ts'
-import { describeTraits, playerLines } from './players.ts'
+import { describeTraits, playerLines, rate } from './players.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
 const SEED = 4
@@ -253,5 +253,22 @@ describe('playback skips between highlights', () => {
     const inside = advancePlayhead(550, null, { ...o, now: 0 })
     expect(inside.cut).toBeNull()
     expect(inside.playhead).toBeCloseTo(550.5)
+  })
+})
+
+describe('match ratings', () => {
+  it('rates a commanding defensive game like a forward scoring', () => {
+    const base = { passes: 0, passesCompleted: 0, keyPasses: 0, shots: 0, onTarget: 0, goals: 0, assists: 0, xg: 0, npxg: 0, xa: 0, penGoals: 0, penTaken: 0, bigChances: 0, bigChancesScored: 0, headedGoals: 0, leftGoals: 0, rightGoals: 0, tackles: 0, interceptions: 0, blocks: 0, clearances: 0, aerials: 0, recoveries: 0, dribbles: 0, dribbledPast: 0, saves: 0, savedXg: 0, facedXg: 0, conceded: 0, fouls: 0, ownGoals: 0, yellow: false, red: false, on: null, off: null, played: true, injured: false, rating: 6 }
+    const cb = rate({ ...base, passes: 50, passesCompleted: 47, tackles: 3, interceptions: 5, blocks: 2, clearances: 8, aerials: 6 }, 'CB', { result: 1, cleanSheet: true, minutes: 90 })
+    // A striker's usual work off the ball, plus the winner.
+    const st = rate({ ...base, passes: 18, passesCompleted: 14, shots: 4, onTarget: 2, goals: 1, xg: 0.6, npxg: 0.6, tackles: 1, interceptions: 2, blocks: 1, aerials: 1, recoveries: 2 }, 'ST', { result: 1, cleanSheet: false, minutes: 90 })
+    const blank = rate({ ...base, passes: 15, passesCompleted: 11, shots: 2, interceptions: 2, recoveries: 2 }, 'ST', { result: 0, cleanSheet: false, minutes: 90 })
+    const keeper = rate({ ...base, passes: 25, passesCompleted: 22, saves: 6, savedXg: 1.4 }, 'GK', { result: 1, cleanSheet: true, minutes: 90 })
+    // A dominant defensive display outrates an ordinary game with a goal in it.
+    expect(cb).toBeGreaterThanOrEqual(7.5)
+    expect(cb).toBeGreaterThan(st)
+    expect(st).toBeGreaterThanOrEqual(6.8)
+    expect(keeper).toBeGreaterThanOrEqual(8)
+    expect(blank).toBeLessThan(6.5)
   })
 })

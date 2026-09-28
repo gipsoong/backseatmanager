@@ -5,7 +5,41 @@ Updated at the end of each session. Keep this short — current state, not a ful
 ## Current milestone
 
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
-team selection and a 38-0-style draft mode (session 9). Next: transfers for the club mode.
+team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
+(session 13). Next: transfers for the club mode; in-match management (on hold at the owner's
+request).
+
+## Done (session 13): ratings, deeper stats, January window, review
+
+- **Match ratings** were a goals-and-assists scale: centre-backs averaged 6.4 a game, strikers
+  7.3, and a centre-back's season never got past ~7.0. Now defensive work counts (tackles,
+  interceptions, blocks, headers won, not being dribbled past, clearances, loose balls won,
+  passes completed), with clean sheets, goals conceded while on and the result, and each
+  position is offset so a regular's season averages ~6.75 whatever his position. Best
+  centre-backs now ~7.2–7.3 a season, best forwards ~7.5–7.9. The offset scales with minutes
+  played, and cameos under 20 minutes don't count towards a season's average.
+- **Two engine faults the new numbers exposed**: penalties went in 32% of the time (real ~78%):
+  they used the open-play shot with its pressure and spread; now a placed kick from the spot
+  (~80%), reported at the standard 0.78 xG. And elite finishers scored at ~1.8× their xG (Kane
+  40 from 18): accuracy rose too steeply with shooting, putting 56% of their shots on target;
+  `finishingError` is flatter at the top (elite ~42% on target, ~1.2–1.3× xG; Kane now 26 from
+  20). Realism 29/31 and 30/31 on the two seed sets, goals per xG 1.0.
+- **Underlying numbers** per player per match and over the season: xG, non-penalty xG, xA, big
+  chances (0.3 xG+) and how many scored, penalties, goals by left/right/head, blocks,
+  clearances, headers, loose balls won, dribbled past, and for keepers xG on target faced and
+  goals prevented. Tap a name in Squad, Stats or the review for his season card, with a
+  match-by-match log. Stats has a sortable, filterable player table (G, xG, G−xG, A, xA …)
+  and leaderboards for xG, goals above xG and xA.
+- **January window (draft mode)**: `draft/transfers.ts`, the Deals tab. Swap 1–2 of yours for
+  1–2 of theirs while the next match is in January (about matchdays 23–27). Clubs value players
+  by overall on a steep curve, form and fitness, more if he'd start for them; they want 10% over
+  like for like and won't weaken their best eleven. Three deals per window, one per club, nobody
+  moves twice; squads 18–22 with a keeper. A player's season numbers go with him.
+- **Season review**: player of the season, team of the season on a pitch, your star, unsung
+  hero, ever-present and who was below par, the league's most clinical and wasteful finishers,
+  chief creator, best defender and keeper, and matches to remember (comebacks, late winners,
+  goal-fests, upsets, beating the champions).
+- Fixtures open on the current matchday; the squad table sorts by any column.
 
 ## Done (session 12): over-performing sides, feet, archetypes
 
