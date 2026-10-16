@@ -1,5 +1,5 @@
 /**
- * The draft: pick a shape, then sixteen rounds. Each offers one club-decade's players; choose one
+ * The draft: pick a shape, then twenty rounds. Each offers one club-season's squad; choose one
  * and put him in an open place, a starter or one of nine substitutes. Then name the side.
  */
 import { useState } from 'react'
@@ -128,7 +128,7 @@ function PickShape({ onPick, onBack }: { onPick: (f: Formation) => void; onBack:
       <p className="eyebrow">Draft · Premier League 2010–now</p>
       <h1>Draft a side. Try to go unbeaten.</h1>
       <p className="meta">
-        {DRAFT_ROUNDS} rounds. Each one shows a club from one decade: pick one of its players and put him in your side, as one of eleven starters
+        {DRAFT_ROUNDS} rounds. Each one shows a club's squad from one season: pick one of its players and put him in your side, as one of eleven starters
         or {DRAFT_SUBS} substitutes. A player out of position counts for less. You can change the shape later.
       </p>
       <div className="start-actions">

@@ -1,5 +1,5 @@
 /**
- * Match ratings by position over draft club-decade matches: mean, spread and how often each
+ * Match ratings by position over draft club-season matches: mean, spread and how often each
  * position reaches 7.5+ or drops under 6. `node scripts/diag-ratings.ts [n] [first seed]` (default 40 matches).
  */
 import { runMatch } from '../src/engine/index.ts'

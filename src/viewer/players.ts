@@ -2,7 +2,7 @@
  * Per-player match stats and ratings, built from the event stream up to a point in the match (so
  * they grow as it's watched). Pure: the same events always give the same numbers.
  */
-import { type MatchEvent, type MatchState, type Role, TICKS_PER_MINUTE, type Traits } from '../engine/index.ts'
+import { type Archetype, type MatchEvent, type MatchState, type Role, TICKS_PER_MINUTE, type Traits } from '../engine/index.ts'
 
 export interface PlayerLine {
   passes: number
@@ -259,6 +259,7 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
     const share = lastTick ? onFor / lastTick : 0
     const result = score[team] - score[1 - team]
     l.rating = rate(l, p.slot.role, {
+      archetype: p.archetype,
       result: over ? Math.sign(result) : 0,
       cleanSheet: l.conceded === 0 && share >= 0.66 && lastTick > 0,
       minutes: onFor / TICKS_PER_MINUTE,
@@ -283,6 +284,13 @@ const GROUPS = {
  * shows single matches). A great game still stands out in any position.
  */
 const OFFSET: Record<Role, number> = { GK: -0.15, CB: -0.31, FB: 0, DM: 0.03, CM: -0.14, WM: -0.19, W: -0.43, ST: -0.34 }
+/**
+ * The same within a position, by how he plays it: an inside forward shoots where a winger
+ * crosses, so he scores more without helping his side more (measured over 150 matches with the
+ * same level of player either way: his side scored and took points no better) and would
+ * otherwise rate ~0.6 higher.
+ */
+const STYLE_OFFSET: Partial<Record<Archetype, number>> = { insideForward: -0.35, winger: 0.28 }
 
 export const ratingGroup = (role: Role): keyof typeof GROUPS =>
   role === 'GK' ? 'GK' : role === 'CB' || role === 'FB' ? 'DEF' : role === 'DM' ? 'DM' : role === 'CM' ? 'MID' : 'ATT'
@@ -292,7 +300,7 @@ export const ratingGroup = (role: Role): keyof typeof GROUPS =>
  * passing it on and keeping it out, weighed for his position, so a defender's good game rates
  * like a forward's. `result` is the side's result (1 won, 0 drawn or still going, -1 lost).
  */
-export function rate(l: PlayerLine, role: Role, ctx: { result: number; cleanSheet: boolean; minutes: number }): number {
+export function rate(l: PlayerLine, role: Role, ctx: { result: number; cleanSheet: boolean; minutes: number; archetype?: Archetype }): number {
   const g = GROUPS[ratingGroup(role)]
   const keeper = role === 'GK'
   const missed = l.passes - l.passesCompleted
@@ -300,7 +308,7 @@ export function rate(l: PlayerLine, role: Role, ctx: { result: number; cleanShee
     6 +
     // The offset evens out what a full match of his position's work adds up to: a substitute's
     // few minutes carry only their share of it.
-    OFFSET[role] * Math.min(1, ctx.minutes / 90) +
+    (OFFSET[role] + (ctx.archetype ? (STYLE_OFFSET[ctx.archetype] ?? 0) : 0)) * Math.min(1, ctx.minutes / 90) +
     (l.goals - l.penGoals) * 0.9 +
     l.penGoals * 0.5 +
     l.assists * 0.55 +

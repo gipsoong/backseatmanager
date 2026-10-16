@@ -6,8 +6,25 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
-(session 13). Next: transfers for the club mode; in-match management (on hold at the owner's
+(session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
+
+## Done (session 14): fair attributes, single-season squads
+
+- **Why Hazard, Mané, Son, Kane and Ibrahimović looked overpowered next to Ronaldo**: a draft
+  player's attributes were rolled from a hash of his name (each ±2 around his level, plus a
+  random +2–5 on his position's strengths), so the overall said nothing reliable about ability.
+  Ibrahimović had pace 18 and passing 17 as a target man, Hazard shooting 20, Haaland shooting 16
+  and tackling 18, Ronaldo dribbling 12, Kane passing 9. Now `shapedAttributes` gives each
+  archetype a fixed shape at his level (±0.7 noise): same overall + archetype ≈ same player.
+- **False nines aren't weaker**: a same-level striker under each archetype in the same side over
+  150 matches got 0.53–0.60 xG a game in 4-3-3 and 4-4-2 alike; Kane (a false nine) was one of the
+  overpowered ones. Archetypes left as they are.
+- **Inside forwards rated ~0.6 above wingers** at the same level (6.99 vs 6.71 a match even
+  after a first correction): they score where wingers cross, but helped their side no more
+  (goals for and points over 150 matches). `rate` now offsets by archetype too (`STYLE_OFFSET`).
+- **Single-season squads** (`squads.ts`): 43 club-seasons, 20 clubs, ~900 entries (~670
+  players), 17–23 a squad. Saved seasons keep their own teams, so old saves still load.
 
 ## Done (session 13): ratings, deeper stats, January window, review
 
@@ -333,8 +350,7 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 
 ## In flight / next up
 
-1. **Draft mode polish**: more club-decades (Wolves, Leeds, Burnley, Swansea, …); saving a draft
-   in progress; a season summary (the record, 38-0 or not) at the end.
+1. **Draft mode polish**: more club-seasons; saving a draft in progress; a season summary (the record, 38-0 or not) at the end.
 2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
    (milestone 5). End of season: player ageing, a new season with the same clubs.
 3. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;

@@ -163,14 +163,17 @@ pulling the repo.
   record, runs and style, for the Stats and Review tabs),
   `simulate.ts` + `simWorker.ts` (fixtures the manager doesn't watch, played by the full engine
   in Web Workers), `store.ts` (the save, in IndexedDB via `idb`).
-- `src/draft/` — draft mode (session 9), after 38-0: `pools.ts` holds Premier League clubs by
-  decade (2010s, 2020s) with their notable players, a position and an overall each (our own
-  estimates against their peak FIFA ratings; a player is in one pool only; a 4th tuple entry is
-  the name he's known by). `draft.ts` runs the 20 rounds (11 starters + 9 subs,
-  one club-decade offered per round), turns pool players into engine players (attributes seeded
-  from the name, scaled to the overall; `PlayerDef.overall` is shown instead of a computed
-  rating) and builds the 20-team league of the drafted side and 19 club-decades (38 matchdays).
-  No transfers in this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
+- `src/draft/` — draft mode (session 9), after 38-0: `squads.ts` holds Premier League squads of
+  single seasons (session 14: 43 club-seasons of 20 clubs, 2010/11–2024/25), one line per player:
+  name, positions, overall (our estimate of his FIFA rating that season), optional known-as name.
+  A player can be in several seasons; the draft never offers a drafted name again and the league
+  takes one season per club and drops a name already in an earlier side. `pools.ts` keeps what we
+  know by name (foot, weak foot, archetype). `draft.ts` runs the 20 rounds (11 starters + 9 subs,
+  one club-season offered per round), turns pool players into engine players and builds the
+  20-team league (38 matchdays). Attributes come from `shapedAttributes` (archetypes.ts): his
+  archetype's shape at his overall, with a little noise. Not seeded at random per name: that made
+  a 91 anything from a 16 to a 20 finisher and decided who was "overpowered". No transfers in
+  this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
 - `src/screens/` — Start, PickTeam, Draft, Hub (next fixture; tabs: review at season's end,
   table, fixtures, squad, stats), Squad (shape, the eleven on a pitch with tap-to-swap, fitness,
   injuries, season stats), Stats (leaderboards, clubs, season review), Match. `pitchLayout.ts`

@@ -25,24 +25,43 @@ function autoDraft(seed: number): Draft {
 }
 
 describe('draft pools', () => {
-  it('lists every player once, and every pool can field a side with a keeper', () => {
-    const names = POOLS.flatMap((p) => p.players.map(([name]) => name))
-    expect(new Set(names).size).toBe(names.length)
+  it('lists each player once per squad, and every squad can field a side with a keeper', () => {
     for (const pool of POOLS) {
+      const names = pool.players.map(([name]) => name)
+      expect(new Set(names).size).toBe(names.length)
       expect(pool.players.filter(([, positions]) => positions === 'GK').length).toBeGreaterThanOrEqual(2)
-      expect(pool.players.length).toBeGreaterThanOrEqual(16)
+      expect(pool.players.length).toBeGreaterThanOrEqual(17)
+      expect(pool.players.every(([, , overall]) => overall >= 60 && overall <= 95)).toBe(true)
+      expect(pool.season).toMatch(/^20\d\d\/\d\d$/)
     }
-    expect(POOLS.length).toBeGreaterThanOrEqual(DRAFT_LEAGUE_SIZE)
+    // Enough clubs for a league of different clubs, and enough seasons for twenty rounds.
+    expect(new Set(POOLS.map((p) => p.club)).size).toBeGreaterThanOrEqual(DRAFT_LEAGUE_SIZE)
+    expect(POOLS.length).toBeGreaterThanOrEqual(DRAFT_ROUNDS)
+  })
+
+  it('makes players of the same overall and archetype about as good as each other', () => {
+    // The sum of a striker's finishing attributes, for every 88+ poacher: no name lottery.
+    const sums = POOLS.flatMap((pool, pi) =>
+      pool.players.flatMap((_, i) => {
+        const p = poolPlayer(pi, i)
+        return p.archetype === 'poacher' && (p.overall ?? 0) >= 88 ? [p.attrs.shooting + p.attrs.composure + p.attrs.positioning] : []
+      }),
+    )
+    expect(sums.length).toBeGreaterThan(3)
+    expect(Math.max(...sums) - Math.min(...sums)).toBeLessThanOrEqual(5)
   })
 })
 
 describe('draft', () => {
-  it('offers a different club-decade each round and fills eleven and five', () => {
+  it('offers a different club-season each round and fills eleven and nine', () => {
     const d = autoDraft(3)
     expect(new Set(d.rounds).size).toBe(DRAFT_ROUNDS)
     expect(roundOf(d)).toBe(DRAFT_ROUNDS)
     expect(d.xi.every(Boolean) && d.bench.every(Boolean)).toBe(true)
     expect(draftRating(d)).toBeGreaterThan(70)
+    // Nobody is offered again once drafted from another season.
+    const names = [...d.xi, ...d.bench].map((p) => p!.name)
+    expect(new Set(names).size).toBe(names.length)
     // A filled place stays filled.
     expect(place(d, offer(newDraft(4, '4-3-3')).players[0], { xi: 0 })).toBe(d)
   })
@@ -54,25 +73,28 @@ describe('draft', () => {
     expect(new Set(teams.map((t) => t.shortName)).size).toBe(DRAFT_LEAGUE_SIZE)
     const ids = teams.flatMap(squadOf).map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
+    // Nobody turns up twice, whichever seasons his clubs are in; one season per club.
+    const names = teams.flatMap(squadOf).map((p) => p.name)
+    expect(new Set(names).size).toBe(names.length)
+    expect(new Set(teams.slice(1).map((t) => t.name.replace(/ \d{4}\/\d\d$/, ''))).size).toBe(DRAFT_LEAGUE_SIZE - 1)
     for (const t of teams.slice(1)) expect(t.players[0].role).toBe('GK')
     const s = createSeason(9, 0, new Date(Date.UTC(2026, 5, 1)), teams)
     expect(matchdays(s)).toBe(38)
     expect(s.fixtures).toHaveLength(380)
   })
 
-  it('plays a match between two club-decades', () => {
+  it('plays a match between two club-seasons', () => {
     const m = runMatch(poolTeam(0, new Set()), poolTeam(7, new Set()), { seed: 1 })
     expect(m.phase.kind).toBe('fullTime')
   })
 })
 
 describe('positions', () => {
+  /** A player in his best season. */
   const find = (name: string) => {
-    for (const [pi, pool] of POOLS.entries()) {
-      const i = pool.players.findIndex(([n]) => n === name)
-      if (i >= 0) return poolPlayer(pi, i)
-    }
-    throw new Error(name)
+    const seasons = POOLS.flatMap((pool, pi) => pool.players.flatMap(([n], i) => (n === name ? [poolPlayer(pi, i)] : [])))
+    if (!seasons.length) throw new Error(name)
+    return seasons.reduce((a, b) => ((b.overall ?? 0) > (a.overall ?? 0) ? b : a))
   }
 
   it('knows secondary positions, and plays a man worse out of position', () => {
@@ -109,12 +131,11 @@ describe('positions', () => {
 })
 
 describe('feet and archetypes', () => {
+  /** A player in his best season. */
   const find = (name: string) => {
-    for (const [pi, pool] of POOLS.entries()) {
-      const i = pool.players.findIndex(([n]) => n === name)
-      if (i >= 0) return poolPlayer(pi, i)
-    }
-    throw new Error(name)
+    const seasons = POOLS.flatMap((pool, pi) => pool.players.flatMap(([n], i) => (n === name ? [poolPlayer(pi, i)] : [])))
+    if (!seasons.length) throw new Error(name)
+    return seasons.reduce((a, b) => ((b.overall ?? 0) > (a.overall ?? 0) ? b : a))
   }
   // strikingFoot reads only the player's def, so a bare state is enough.
   const state = (name: string) => ({ def: find(name) }) as Parameters<typeof strikingFoot>[0]
