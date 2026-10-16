@@ -196,7 +196,8 @@ pulling the repo.
   accuracy, and the AI weighs it. Draft data: `LEFT_FOOTED`, `WEAK_FOOT` in pools.ts.
 - Balance checks for formations and squads (scratch scripts, not in the repo): the same squad in
   two shapes against itself, and a whole league of every club-decade next to squad ratings. Use
-  them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game.
+  them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game. Archetype shapes are levelled by
+  measured attribute worth per line (`LEVELLED`, archetypes.ts); re-measure if attributes' effects change.
 - `chooseAction` (ai.ts) gathers options from `passOptions`, `throughBallOptions`, crosses,
   `dribbleOptions`, then `shotIfWorthIt` and `clearanceTarget`; `resolveTouch` (match.ts)
   dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,

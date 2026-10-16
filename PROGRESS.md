@@ -26,6 +26,19 @@ request).
 - **Single-season squads** (`squads.ts`): 43 club-seasons, 20 clubs, ~900 entries (~670
   players), 17–23 a squad. Saved seasons keep their own teams, so old saves still load.
 
+- **Club balance (Newcastle 23/24 overperforming)**: two causes found, both fixed.
+  Shapes: wingers stayed high out of possession, so 4-4-2 and 4-1-4-1 were worth ~0.4 xG a game
+  more than 4-3-3, 4-2-3-1 and 3-4-3. Wingers now track back into the midfield line when the ball
+  is in their half (not when pressing high): five shapes within ~0.13 xGD. 3-5-2 is still ~0.5
+  weaker (only Sheffield United use it). Archetype shapes are now levelled (`LEVELLED` in
+  archetypes.ts) by what each attribute is worth to a line, so a pace-heavy archetype isn't
+  better than a tackling one at the same overall. Measured worth, -2 for a whole line: pace
+  ~0.2 xGD for defence and attack, passing ~0.2 for midfield, stamina/shooting ~0.15 for
+  attack; defenders' tackling and positioning ~0. Newcastle 23/24 still ~+0.18 ppg over its
+  rating (was larger); Chelsea 14/15 ~-0.6 under. Cause not pinned down; the likeliest is that
+  defending attributes barely matter in the engine (tackling-heavy sides underperform,
+  correlation -0.27). Next balance step: make defenders' tackling/positioning count.
+
 ## Done (session 13): ratings, deeper stats, January window, review
 
 - **Match ratings** were a goals-and-assists scale: centre-backs averaged 6.4 a game, strikers

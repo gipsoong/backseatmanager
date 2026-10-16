@@ -118,12 +118,50 @@ const SHAPES: Record<Archetype, Shape> = {
 }
 
 /**
+ * What a point of each attribute is worth to his side, by line (shape order), measured by taking
+ * two points off one attribute for a whole line over 160 matches (goals and xG for and against).
+ * At the time, pace counted most nearly everywhere, passing in midfield, and finishing and
+ * stamina up front; a defender's tackling and positioning barely moved results.
+ */
+const WORTH: Record<'def' | 'mid' | 'att', Shape> = {
+  def: [0.11, 0.01, 0.005, 0.015, 0.005, 0.01, 0.005, 0.005],
+  mid: [0.01, 0.075, 0.06, 0.02, 0.03, 0.015, 0.005, 0.005],
+  att: [0.09, 0.05, 0.095, 0.02, 0.055, 0.005, 0.02, 0.095],
+}
+const LINE: Record<Role, keyof typeof WORTH | null> = { GK: null, CB: 'def', FB: 'def', DM: 'mid', CM: 'mid', WM: 'att', W: 'att', ST: 'att' }
+
+/**
+ * The shapes, each shifted up or down as a whole so that every archetype of a position is worth
+ * the same to his side: a target man's slow, finishing-heavy shape no longer leaves him weaker
+ * than a poacher of the same overall. (An archetype in two positions takes the average shift.)
+ */
+const LEVELLED: Record<Archetype, Shape> = (() => {
+  const worth = (shape: Shape, w: Shape): number => shape.reduce((n, x, i) => n + x * w[i], 0)
+  const shifts = new Map<Archetype, number[]>()
+  for (const [role, kinds] of Object.entries(ARCHETYPES) as [Role, Archetype[]][]) {
+    const line = LINE[role]
+    if (!line) continue
+    const w = WORTH[line]
+    const target = kinds.reduce((n, k) => n + worth(SHAPES[k], w), 0) / kinds.length
+    const perPoint = w.reduce((a, b) => a + b, 0)
+    for (const k of kinds) shifts.set(k, [...(shifts.get(k) ?? []), (target - worth(SHAPES[k], w)) / perPoint])
+  }
+  return Object.fromEntries(
+    (Object.keys(SHAPES) as Archetype[]).map((k) => {
+      const ds = shifts.get(k) ?? [0]
+      const d = ds.reduce((a, b) => a + b, 0) / ds.length
+      return [k, SHAPES[k].map((x) => x + d) as Shape]
+    }),
+  ) as Record<Archetype, Shape>
+})()
+
+/**
  * Attributes for a real player: his archetype's shape at his level (1-20), with a little
  * variation. Two players of the same overall and archetype end up about as good as each other;
  * which is better on the day is down to the match, not to how his name happened to hash.
  */
 export function shapedAttributes(rng: Rng, role: Role, archetype: Archetype, level: number): Attributes {
   const at = (offset: number): number => Math.round(Math.max(1, Math.min(20, level + offset + rng.gauss() * 0.7)))
-  const [pace, passing, shooting, tackling, dribbling, positioning, composure, stamina] = SHAPES[archetype].map(at)
+  const [pace, passing, shooting, tackling, dribbling, positioning, composure, stamina] = LEVELLED[archetype].map(at)
   return { pace, passing, shooting, tackling, dribbling, positioning, composure, stamina, keeping: role === 'GK' ? at(1) : rng.int(1, 4) }
 }

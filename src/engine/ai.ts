@@ -836,7 +836,12 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     widthK = 0.7
   }
   const arch = p.archetype
-  const depth = p.slot.depth + (inPossession ? attackDepthFor(p) : 0)
+  // Out of possession with the ball in their half, wingers track back into the midfield line (a
+  // 4-3-3 defends as a 4-5-1), unless the side is pressing high. Left up the pitch, they cost a
+  // shape with wingers ~0.4 goals a game against one with wide midfielders.
+  const tracks = !inPossession && p.slot.role === 'W' && s.teams[team].block !== 'high' && b.x < PITCH_LENGTH / 2
+  const restDepth = tracks ? Math.min(p.slot.depth, 0.55) : p.slot.depth
+  const depth = restDepth + (inPossession ? attackDepthFor(p) : 0)
   const x = lineX + depth * length
   // A winger holds the touchline to stretch them; a target man stays central for the cross.
   const width = inPossession && arch === 'winger' ? 1.15 : inPossession && arch === 'targetMan' ? 0.4 : 1
