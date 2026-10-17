@@ -285,10 +285,17 @@ const raceLost = (margin: number): number => 1 / (1 + Math.exp(margin * 8))
 
 /**
  * How much a passer is being hurried, 0 (nobody near) to 1 (an opponent on him): passes played
- * under pressure are less accurate, by up to double.
+ * under pressure are less accurate, by up to double. A defender who closes down well (tackling,
+ * positioning) hurries him more; a composed player is hurried less.
  */
 export function pressureOn(s: MatchState, p: PlayerState): number {
-  return clamp((3 - nearestDist(opponentsOf(s, p.team), p.pos)) / 2.5, 0, 1)
+  let most = 0
+  for (const o of opponentsOf(s, p.team)) {
+    const near = (3 - dist(o.pos, p.pos)) / 2.5
+    if (near <= 0) continue
+    most = Math.max(most, Math.min(1, near) * (0.4 + ((o.attrs.tackling + o.attrs.positioning) / 40) * 0.9))
+  }
+  return clamp(most * (1 + (13 - p.attrs.composure) * 0.03), 0, 1)
 }
 
 function nearestDist(ps: PlayerState[], p: Vec): number {
@@ -443,7 +450,7 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
     const ta = af(s, p.team, target)
     const space = clamp(nearestDist(opps, target) / 6, 0.5, 1.1)
     const value = threat(ta) * space + POSSESSION_VALUE
-    const misplace = ((21 - attrs.passing) / 20) * (len / 40) * 0.25 * (1 + d.hurried)
+    const misplace = judgedLooseness(attrs.passing) * (len / 40) * 0.25 * (1 + d.hurried)
 
     // Along the ground: can an opponent get to the ball's path before the ball does?
     const { speed } = passKinematics(len)
@@ -574,6 +581,19 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
  * finishers are more accurate, but only so much: the best put under half their shots on target
  * and beat their xG by a quarter or so over a season, not double.
  */
+/**
+ * How loose a passer is (a multiplier on misplacing it), by his passing: rising steeply below the
+ * best, so a poor passer gives the ball away several times as often as a good one, not a little more.
+ */
+export const passLooseness = (passing: number): number => ((21 - passing) / 20) ** 2 * 2.8
+
+/**
+ * How loose a passer thinks he is, when choosing a pass: the game asks for the same ball whoever has
+ * it, and a poor passer only partly plays within himself. (Judged fully, he'd pick safe passes and
+ * give the ball away no more often than a good one: passing would decide nothing.)
+ */
+const judgedLooseness = (passing: number): number => passLooseness(14 + (passing - 14) * 0.3)
+
 export const finishingError = (shooting: number): number => Math.max(0.35, 0.6 - (shooting - 14) * 0.025)
 
 /**
@@ -672,7 +692,7 @@ function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, ma
       const path = ballPath(passMotion(ball, target, lofted, THROUGH_BALL_HEIGHT), 45)
       const race = raceFor(s, q, path, ball, target)
       if (!race) continue
-      const misplace = ((21 - attrs.passing) / 20) * (d / 40) * (lofted ? 0.4 : 0.3) * (1 + pressureOn(s, p))
+      const misplace = judgedLooseness(attrs.passing) * (d / 40) * (lofted ? 0.4 : 0.3) * (1 + pressureOn(s, p))
       // Weighting a ball into space is harder than playing it to feet.
       const risk = clamp(race.lost + misplace + (lofted ? 0.08 : 0) + 0.18, 0, 1)
       // Onto the ball in space: worth more the further clear of the defence he is.
@@ -747,7 +767,7 @@ function crossesIntoSpace(
     const d = dist(ball, target)
     if (d > maxPass + 5 || (lofted && d < 12)) continue
     const path = ballPath(passMotion(ball, target, lofted, CROSS_HEIGHT), 45)
-    const misplace = ((21 - p.attrs.passing) / 20) * (d / 40) * (lofted ? 0.375 : 0.25) * (1 + pressureOn(s, p)) * (1 + (1 - footQ) * 2.5)
+    const misplace = judgedLooseness(p.attrs.passing) * (d / 40) * (lofted ? 0.375 : 0.25) * (1 + pressureOn(s, p)) * (1 + (1 - footQ) * 2.5)
     for (const q of teammatesOf(s, p.team)) {
       if (q.idx === p.idx || q.slot.role === 'GK' || offside.has(q.idx) || dist(q.pos, target) > 16) continue
       const race = raceFor(s, q, path, ball, target)
@@ -784,8 +804,9 @@ function attackDepthFor(p: PlayerState): number {
       // A wing-back is already as high as he goes.
       return Math.max(base, Math.min(base + 0.2, 0.6))
     case 'defensiveFullBack':
-      // Less than he'd be asked (a wing-back still goes), but he's the one who stays.
-      return Math.max(0.05, base - 0.3)
+      // Still gets forward, just less than an overlapping one. Full-backs in the final third are
+      // worth a lot here: one who stayed (base - 0.3) cost his side ~0.4 goals a game.
+      return Math.min(base + 0.1, Math.max(base, 0.45))
     case 'anchor':
       return Math.min(base, 0.05)
     case 'playmaker':

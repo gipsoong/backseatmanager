@@ -198,6 +198,8 @@ pulling the repo.
   two shapes against itself, and a whole league of every club-decade next to squad ratings. Use
   them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game. Archetype shapes are levelled by
   measured attribute worth per line (`LEVELLED`, archetypes.ts); re-measure if attributes' effects change.
+  Measure attribute and archetype worth with a mirror test (a side against a copy of itself with
+  one change), 250+ matches; xGD is far less noisy than goals.
 - `chooseAction` (ai.ts) gathers options from `passOptions`, `throughBallOptions`, crosses,
   `dribbleOptions`, then `shotIfWorthIt` and `clearanceTarget`; `resolveTouch` (match.ts)
   dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,

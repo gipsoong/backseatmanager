@@ -39,6 +39,24 @@ request).
   defending attributes barely matter in the engine (tackling-heavy sides underperform,
   correlation -0.27). Next balance step: make defenders' tackling/positioning count.
 
+- **Attributes and results (follow-up)**: a mirror test (each club against a copy of itself with
+  one line's attribute -6, 250–300 matches; ±0.07 xGD noise) found pace decided most things.
+  Finishing was fine (-6 shooting for forwards ≈ -0.2 goals a game; one 300-match run said 0,
+  which was noise: use 600+ for goal differences). Passing: a poor passer judged his own
+  looseness exactly and chose safe passes, so he never gave it away more; now `passLooseness`
+  rises steeply below the best, the occasional pass goes astray (×4 error, far likelier for poor or
+  hurried passers), and the AI judges looseness only partly by his own passing
+  (`judgedLooseness`). A whole side's passing -6 went from 0.3 to 0.5 goals a game. Pressure
+  (`pressureOn`) is weighted by the closer's tackling + positioning and the carrier's composure.
+  Defenders' tackling/positioning still only ~0.1; tried and dropped (no effect, or realism fell):
+  tackle timing and win chance, block chance, tighter marking, a reaction delay reading passes,
+  anticipating runs, pressure on shot accuracy (goals fell to 0.9). Midfielders get few passes
+  (CBs and FBs ~7,000 each over 30 matches, CMs ~2,700), so midfield-only changes barely register.
+  Archetype mirror (`archetype` swapped, same attributes): two defensive full-backs cost ~0.4
+  goals a game against overlapping ones (Chelsea 14/15's problem); they now push to base + 0.1.
+  Club residual RMS over 96 matches each 0.19 (noise ~0.14); Newcastle 23/24 -0.11, Chelsea 14/15
+  -0.27 (was -0.6 to -0.8). Still: 3-5-2 ~0.3 weaker, winger ~0.1 under inside forward.
+
 ## Done (session 13): ratings, deeper stats, January window, review
 
 - **Match ratings** were a goals-and-assists scale: centre-backs averaged 6.4 a game, strikers

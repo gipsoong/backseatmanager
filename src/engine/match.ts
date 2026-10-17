@@ -98,6 +98,7 @@ import {
   wf,
   xgFrom,
   finishingError,
+  passLooseness,
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
@@ -372,8 +373,11 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       // A cross off his weaker side is harder to put where he wants it.
       const crossing = action.lofted && !action.through && isCross(af(s, p.team, action.target))
       const footQ = crossing ? strikingFoot(p, af(s, p.team, s.ball.pos), 'cross').q : 1
-      const sigma = ((21 - p.attrs.passing) / 20) * d * (action.lofted ? 0.075 : 0.05) * (1 + pressureOn(s, p)) * (1 + (1 - footQ) * 2.5)
-      const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2), clamp(s.rng.gauss() * sigma, -d * 0.2, d * 0.2))
+      const loose = passLooseness(p.attrs.passing) * (1 + pressureOn(s, p))
+      // Now and then one gets away from him altogether: a poor passer, hurried, far more often.
+      const astray = s.rng.chance(loose * 0.1) ? 4 : 1
+      const sigma = loose * d * (action.lofted ? 0.07 : 0.045) * (1 + (1 - footQ) * 2.5) * astray
+      const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.3, d * 0.3), clamp(s.rng.gauss() * sigma, -d * 0.3, d * 0.3))
       const target = add(action.target, err)
       const dt = dist(s.ball.pos, target)
       if (action.lofted) {
