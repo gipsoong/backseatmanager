@@ -285,7 +285,7 @@ export function xgFrom(a: Vec): number {
  * so carrying on past a good shooting chance is rarely worth it.
  */
 export function threat(a: Vec): number {
-  return 0.005 + 0.03 * (a.x / PITCH_LENGTH) ** 2 + 0.3 * xgFrom(a) + cutBackValue(a)
+  return 0.005 + 0.03 * (a.x / PITCH_LENGTH) ** 2 + 0.4 * xgFrom(a) + cutBackValue(a)
 }
 
 /**
@@ -300,7 +300,7 @@ function cutBackValue(a: Vec): number {
 }
 
 /** Value of simply keeping the ball, on top of where it is: a shot gives this up. */
-const POSSESSION_VALUE = 0.03
+const POSSESSION_VALUE = 0.02
 /** Extra worth of winning the ball in the box beyond the chance itself: knock-downs, second balls. */
 const SECOND_BALLS = 1.2
 /** Cost of losing the ball at a: the value of keeping it, plus what the opponent could do from there. */

@@ -23,8 +23,15 @@ request).
   scored 6 in a season). Random clubs' strength is 12–14 (was 11–15) for the same reason.
 - **Newcastle 23/24** now plays to its rating (+0.04 ppg over 48 matches); club residuals are
   within noise and no attribute correlates with over/under-performance (|r| ≤ 0.11).
-- **Still weak**: single defending attributes (team shape decides most defending); 3-5-2
-  (Sheffield United) still bottom by a distance; goals per game in draft seasons ~2.3 (real ~2.8).
+- **Low scoring**: draft seasons made ~2.2 xG a game (real ~2.9). Shooting more eagerly changed
+  nothing (shots aren't the limit); valuing the ball near goal more (`threat` 0.4 × xG, was 0.3)
+  and keeping it a little less (`POSSESSION_VALUE` 0.02, was 0.03) did: calibrate shots 12.5 and
+  xG 1.4–1.5 a team, seasons 2.4–2.5 goals a game (was 2.1), realism 29/31 on both sets.
+- **Still weak**: 3-5-2 is far behind (xG for 0.9, against 1.85, against club-seasons in their
+  own shapes; 4-3-3 1.6 / 1.3; 3-4-3 -0.34 xGD). Pushing its central midfielders or wing-backs
+  further forward didn't help, so the cause is elsewhere (three at the back's build-up, or no
+  width in midfield). Single defending attributes still count little (team shape decides most
+  defending).
 
 ## Done (session 14): fair attributes, single-season squads
 
