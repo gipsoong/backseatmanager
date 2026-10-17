@@ -99,7 +99,6 @@ import {
   finishingError,
   passLooseness,
   crossSkill,
-  OFF,
   accelOf,
   turnOf,
   slideReach,
@@ -714,7 +713,7 @@ function keeperSave(t: Touch): boolean {
   const flight = k ? (s.tick - k.tick) * DT : 1
   // A great keeper saves more, but not wildly more: the best are a few points of save rate above
   // the average, not ten.
-  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.reflexes - 12) * 0.012, 0.05, 0.96)
+  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.reflexes - 12) * 0.02, 0.05, 0.96)
   if (!rng.chance(pSave)) return miss(t)
   if (speed < 21 && rng.chance(0.3 + p.attrs.handling / 40)) {
     takePossession(s, p, contact, height, 'save', out)
@@ -790,7 +789,7 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   }
   // Two going up: the better in the air (jumping, strength) wins more of them. Alone, it's timing.
   const opponent = rival ?? s.players.find((o) => o.onPitch && o.team !== p.team && o.slot.role !== 'GK' && dist(o.pos, contact) < 1.5)
-  const pWin = OFF('H') ? (challenged ? 0.6 : 0.8) : opponent ? 0.6 + (aerialPower(p) - aerialPower(opponent)) * 0.025 : 0.8 + (p.attrs.heading - 12) * 0.01
+  const pWin = opponent ? 0.6 + (aerialPower(p) - aerialPower(opponent)) * 0.015 : 0.8 + (p.attrs.heading - 12) * 0.01
   if (!rng.chance(clamp(pWin, 0.25, 0.95))) {
     // Mistimed: it goes over or past him. He can have another go once it's past his head.
     p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
@@ -989,7 +988,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
     if (!o.onPitch || o.team === c.team || s.tick < o.tackleReadyAt) continue
     const d = dist(o.pos, c.pos)
     // From beyond standing reach only by sliding in, and only as far as he slides well.
-    if (d > (OFF('S') ? 1.6 : slideReach(o.attrs.slidingTackle))) continue
+    if (d > slideReach(o.attrs.slidingTackle)) continue
     if (!tackler || d < dist(tackler.pos, c.pos)) tackler = o
   }
   if (!tackler) return
@@ -1011,7 +1010,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   // His tackling against the carrier's close control and footwork; the stronger man holds his ground.
   const evade = ca.dribbling * 0.7 + ca.agility * 0.3
   const pFoul = clamp(0.08 + traits.temper * 0.1 + traits.aggression * 0.06 + ((evade - skill) / 20) * 0.08, 0.04, 0.3) * care
-  const won = rng.chance(OFF('K') ? 0.58 : clamp(0.58 + (skill - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
+  const won = rng.chance(clamp(0.58 + (skill - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
   // Beaten outside his own box, a hot-headed defender may just pull him back.
   const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care)
   // A poor slide tackle is a foul waiting to happen.

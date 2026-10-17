@@ -190,6 +190,27 @@ pulling the repo.
   and without the ball (`attackDepthFor`, width, inverted full-backs, false nines dropping and
   arriving late, poachers on the shoulder, inside forwards coming in), runs in behind, pressing,
   aerial duels, how eagerly he shoots or passes forward. Pitch labels ("Roles") show them.
+- Sub-attributes (session 15, `engine/attributes.ts`): 26 outfield (sprintSpeed, acceleration,
+  finishing, longShots, shotPower, positioning, penalties, shortPassing, longPassing, crossing,
+  vision, curve, freeKicks, dribbling, ballControl, agility, reactions, composure, interceptions,
+  marking, standingTackle, slidingTackle, heading, strength, jumping, stamina) and 5 keeper
+  (diving, handling, reflexes, gkPositioning, kicking). They're made from a broad nine-number
+  profile (`expandAttributes`: profile, then position and archetype tweaks, then a little noise);
+  `broad()` gives the old nine back (archetype reading), `upgradeAttributes` converts old saves
+  (store.ts), `groupRatings` the six card ratings (PAC SHO PAS DRI DEF PHY; keepers DIV HAN KIC REF
+  SPD POS). Draft level = 13.5 + (overall - 80) / 4; `toRating` is its inverse. Where each acts:
+  ai.ts helpers `accelOf`, `turnOf` (agility, braking/turning), `jumpReach`, `slideReach`,
+  `readDelay` (interceptions for an opponent's pass, reactions for other loose balls), `sees`
+  (vision gates long and through balls), `crossSkill` (crossing + curve), shot skill (finishing in
+  the box, longShots outside, freeKicks direct), finesse by curve, carrier pace by dribbling;
+  match.ts: pass execution (short/long/kicking), header duels (`aerialPower`), tackles (sliding vs
+  standing, strength), saves (reflexes), catches/claims (handling), shot pace (shotPower).
+  Measured worth, -6 for every outfield line (150 matches each, ±0.1): sprint speed and acceleration
+  ~0.55 xGD each, jumping ~0.4, dribbling (forwards) ~0.3, agility ~0.3, short and long passing ~0.25,
+  crossing ~0.25, finishing (forwards) ~0.2 goals, strength ~0.15, stamina ~0.15; vision, curve,
+  free kicks, penalties, heading and each single defending attribute ~0.1 or less (rare events,
+  or defending decided by team shape). Rating now decides results about 1 goal a game per 5
+  overall (it barely did before, which is why shape and archetype quirks showed).
 - Feet (session 12): `PlayerDef.foot` and `weakFoot` (1-5 stars); `strikingFoot` in ai.ts picks the
   foot from where he strikes it (inside foot shooting from wide, outside foot crossing) and how
   well (a one-footed player on the wrong side: 0.8); it scales shot accuracy, pace and cross

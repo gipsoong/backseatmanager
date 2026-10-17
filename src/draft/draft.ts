@@ -36,12 +36,6 @@ function hash(text: string): number {
 }
 
 /**
- * A pool player as the engine sees him: attributes to match his overall, shaped by his
- * archetype (a poacher finishes, a playmaker passes), so players of the same overall and type are
- * about as good as each other. The overall maps onto the made-up league's scale, where a mid-table side's
- * players are around 70 and the best around 90.
- */
-/**
  * A real player's personality: his archetype's, a little varied, then what we know of him (a
  * flair player, a hot head, a tireless runner). Not rolled at random: Hazard plays like Hazard.
  */
@@ -57,12 +51,18 @@ function draftTraits(rng: Rng, name: string, archetype: Archetype): Traits {
   }
 }
 
+/**
+ * A pool player as the engine sees him: attributes to match his overall, shaped by his
+ * archetype (a poacher finishes, a playmaker passes), so players of the same overall and type are
+ * about as good as each other. An overall of 80 is a level of 13.5, and 4 overall points are one
+ * attribute point (FIFA's 1-99 against our 1-20): an 88 is better than an 80, not another sport.
+ */
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
   const [name, positions, overall] = pool.players[i]
   const [role, ...others] = positions.split('/') as Role[]
   const rng = new Rng(hash(name))
-  const quality = (overall - 45) / 2.6
+  const quality = 13.5 + (overall - 80) / 4
   // Players without a curated archetype get one read off a random profile for his position.
   const known = ARCHETYPE[name]
   const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)

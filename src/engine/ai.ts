@@ -45,6 +45,7 @@ import {
   GK_REACTION_TICKS,
   KEEPER_STAND_OFF,
   HEADER_REACH,
+  PLAYER_ACCEL,
   MAX_SHOT_DISTANCE,
   PASS_ARRIVAL_SPEED,
   SLIDE_TACKLE_DISTANCE,
@@ -97,24 +98,23 @@ export function reachHeightOf(s: MatchState, p: PlayerState): number {
   return keeperInOwnBox(s, p) ? GK_HAND_REACH : jumpReach(p.def.attrs.jumping)
 }
 
-/** A header's reach by jumping: 2.4 m at 12, from about 2.1 m to 2.7 m. */
-export const jumpReach = (jumping: number): number => HEADER_REACH + (OFF('J') ? 0 : (jumping - 12) * 0.04)
+/** A header's reach by jumping: 2.4 m at 12, a centimetre a point either way. */
+export const jumpReach = (jumping: number): number => HEADER_REACH + (jumping - 12) * 0.01
 
-/** How quickly he gets up to speed (m/s²), by acceleration: about 5 at 8, 6.2 at 14, 7.5 at 20. */
-export const OFF = (k: string): boolean => ((globalThis as any).process?.env.OFF ?? '').includes(k)
-export const accelOf = (p: PlayerState): number => OFF('A') ? 6 : 3.5 + p.def.attrs.acceleration * 0.2
+/** How quickly he gets up to speed (m/s²), by acceleration: 6 at 12, from about 5.8 at 6 to 6.3 at 20. */
+export const accelOf = (p: PlayerState): number => PLAYER_ACCEL + (p.def.attrs.acceleration - 12) * 0.04
 
 /**
  * How much of his acceleration he can use to stop or turn, by agility: all of it at 12 (a typical
- * player), a fifth more at 20, a fifth less at 4. A nimble player changes direction without losing his stride.
+ * player), a tenth more at 20, a tenth less at 4. A nimble player changes direction without losing his stride.
  */
-export const turnOf = (p: PlayerState): number => OFF('T') ? 1 : 0.7 + p.def.attrs.agility / 40
+export const turnOf = (p: PlayerState): number => 1 + (p.def.attrs.agility - 12) / 80
 
 /** How far he can go in from by going to ground: a poor slider only from close in. */
 export const slideReach = (sliding: number): number => SLIDE_TACKLE_DISTANCE + (TACKLE_RANGE - SLIDE_TACKLE_DISTANCE) * clamp(0.3 + sliding / 20 * 0.7, 0, 1)
 
-/** Ticks a poor reader loses: none at 11 or more (most players), one at 8-10, two below. */
-const delayFor = (v: number): number => clamp(Math.round((Number((globalThis as any).process?.env.DC ?? 12) - v) / 3), 0, 2)
+/** Ticks a poor reader loses: none at 13 or more, one at 11-12, two at 9-10, three below. */
+const delayFor = (v: number): number => clamp(Math.round((13 - v) / 2), 0, 3)
 
 /**
  * Ticks before he moves for the ball as it is now: an opponent's pass he reads (interceptions);
@@ -470,7 +470,7 @@ function decisionFor(s: MatchState, p: PlayerState, opts: ChooseOpts): Decision 
   )
   return { s, p, opts, rng, ball, a, opps: opponentsOf(s, p.team), attrs, loss: lossCost(a), offside, hurried: pressureOn(s, p),
     // Whether he sees the ambitious ball this time: a through ball, a long pass.
-    sees: rng.chance(clamp(0.35 + (attrs.vision / 20) * 0.75, 0, 1)) || OFF('V') }
+    sees: rng.chance(clamp(0.2 + attrs.vision * 0.045, 0, 1)) }
 }
 
 /** Passes to teammates, to feet along the ground and (for longer ones) in the air. */
@@ -624,21 +624,16 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   return { kind: 'shot', target, xg: q, height, finesse, foot, footQ }
 }
 
-/**
- * How far off a finisher's aim goes (a multiplier on the spread), by his shooting. Better
- * finishers are more accurate, but only so much: the best put under half their shots on target
- * and beat their xG by a quarter or so over a season, not double.
- */
-/**
- * How loose a passer is (a multiplier on misplacing it), by his passing: rising steeply below the
- * best, so a poor passer gives the ball away several times as often as a good one, not a little more.
- */
 /** Passes longer than this (m) are long passes: longPassing, and only on if he sees them (vision). */
 const LONG_PASS = 25
 
 /** A cross: mostly crossing, partly how well he whips it (curve). */
 export const crossSkill = (a: PlayerState['attrs']): number => a.crossing * 0.75 + a.curve * 0.25
 
+/**
+ * How loose a passer is (a multiplier on misplacing it), by his passing: rising steeply below the
+ * best, so a poor passer gives the ball away several times as often as a good one, not a little more.
+ */
 export const passLooseness = (passing: number): number => ((21 - passing) / 20) ** 2 * 2.8
 
 /**
@@ -648,7 +643,12 @@ export const passLooseness = (passing: number): number => ((21 - passing) / 20) 
  */
 const judgedLooseness = (passing: number): number => passLooseness(14 + (passing - 14) * 0.3)
 
-export const finishingError = (shooting: number): number => Math.max(0.35, 0.6 - (shooting - 14) * 0.025)
+/**
+ * How far off a finisher's aim goes (a multiplier on the spread), by his finishing. A poor finisher
+ * sprays it (steep below 14); better ones are more accurate, but only so much: the best put under
+ * half their shots on target and beat their xG by a quarter or so over a season, not half again.
+ */
+export const finishingError = (finishing: number): number => Math.max(0.35, 0.56 - (finishing - 14) * (finishing > 14 ? 0.025 : 0.055))
 
 /**
  * From the spot: picks a side and places it, low or high, well inside the post. Nobody's closing
@@ -1040,7 +1040,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
       const to = sub(o.pos, p.pos)
       return len(to) < 2 && (to.x * dir.x + to.y * dir.y) / (len(to) || 1) > 0.5
     })
-    return { target: s.dribbleTarget, urgency: blocked ? 0.3 : 0.65 }
+    // A good dribbler keeps more of his pace with the ball at his feet.
+    return { target: s.dribbleTarget, urgency: blocked ? 0.3 : 0.65 + (p.attrs.dribbling - 12) * 0.015 }
   }
 
   // Loose ball: the quickest player from each team goes for it.
@@ -1103,7 +1104,7 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
       if (o.slot.role === 'GK' || o.idx === s.ball.ownerIdx) continue
       const oa = af(s, p.team, o.pos)
       // A good marker picks up a run before the man is past him, not after.
-      const early = o.runUntil > s.tick ? Math.max(0, (p.attrs.marking - 10) * 0.4) : 0
+      const early = o.runUntil > s.tick ? Math.max(0, (p.attrs.marking - 8) * 0.4) : 0
       if (oa.x >= pa.x - 0.5 + early || Math.abs(oa.y - pa.y) > 12) continue
       if (af(s, o.team, o.pos).x > theirLine + 0.3) continue
       // Unless a teammate is already closer to him.
@@ -1124,7 +1125,7 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
     }
     if (mark) {
       // Tighter in our own box, and the better a marker he is.
-      const tight = clamp((inPenaltyArea(mark.pos, ownGoal.x) ? 0.95 : 0.7) + (p.attrs.marking - 12) * 0.03, 0.4, 1)
+      const tight = clamp((inPenaltyArea(mark.pos, ownGoal.x) ? 0.95 : 0.7) + (p.attrs.marking - 12) * 0.05, 0.4, 1)
       target = lerp(zone, add(mark.pos, scale(norm(sub(ownGoal, mark.pos)), 1.5)), tight)
       // Whatever the zone says, never be caught on the wrong side of him: stay at least a yard deeper.
       // (Unless he's offside: then the line holds and leaves him there.) With the man on the ball

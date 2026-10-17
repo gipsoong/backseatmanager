@@ -131,8 +131,8 @@ export function checkMatch(
     const keeperInBox = (i: number, pos: Vec): boolean => s.players[i].slot.role === 'GK' && inBox(pos, ownGoalX(team(i), half))
     const reach = (i: number, pos: Vec): number =>
       keeperInBox(i, pos) ? CONTROL_RADIUS + (GK_EXTRA_REACH * s.players[i].def.attrs.diving) / 20 : CONTROL_RADIUS
-    // A header: as high as he jumps (2.4 m at a jumping of 12, 4 cm a point either way).
-    const reachHeight = (i: number, pos: Vec): number => (keeperInBox(i, pos) ? GK_HAND_REACH : HEADER_REACH + (s.players[i].def.attrs.jumping - 12) * 0.04)
+    // A header: as high as he jumps (2.4 m at a jumping of 12, 1 cm a point either way).
+    const reachHeight = (i: number, pos: Vec): number => (keeperInBox(i, pos) ? GK_HAND_REACH : HEADER_REACH + (s.players[i].def.attrs.jumping - 12) * 0.01)
     const UNDER_BAR = CROSSBAR_HEIGHT - 0.11
     const restartEv = events.find((e) => e.type === 'restart')
 

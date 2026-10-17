@@ -9,6 +9,23 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 15): sub-attributes (attributes v2)
+
+- **31 sub-attributes** instead of 9 (spec: the "Matchday player attributes v2" Claude Doc), each
+  with a real effect in the engine; the card shows six simple group ratings. See CLAUDE.md.
+- **Checked with**: a mirror test of every sub-attribute (150 matches each), calibrate on seed
+  sets 1 and 201, a 1,000-match league of every club-season, and full 38-matchday seasons.
+- **Tuned on the way**: acceleration was worth 2x sprint speed (cut to 0.04 m/s² a point);
+  strength + jumping was worth over a goal a game (jump reach 1 cm a point, duels 1.5% a point);
+  finishing was worth ~0 (now steep below 14, flat above); dribbling did nothing (now keeps
+  pace with the ball); keepers' reflexes 2% a point. Overall to attributes is gentler (4 overall a
+  point, was 2.6): with every attribute counting, 88s were crushing 78s (Sheffield United 19/20
+  scored 6 in a season). Random clubs' strength is 12–14 (was 11–15) for the same reason.
+- **Newcastle 23/24** now plays to its rating (+0.04 ppg over 48 matches); club residuals are
+  within noise and no attribute correlates with over/under-performance (|r| ≤ 0.11).
+- **Still weak**: single defending attributes (team shape decides most defending); 3-5-2
+  (Sheffield United) still bottom by a distance; goals per game in draft seasons ~2.3 (real ~2.8).
+
 ## Done (session 14): fair attributes, single-season squads
 
 - **Why Hazard, Mané, Son, Kane and Ibrahimović looked overpowered next to Ronaldo**: a draft

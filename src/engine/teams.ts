@@ -198,8 +198,9 @@ function madeUp(rng: Rng, role: Role, quality: number): Pick<PlayerDef, 'attrs' 
 export function randomTeam(seed: number, block?: Block, formation?: Formation): TeamDef {
   const rng = new Rng(seed)
   const f = formation ?? rng.pick(FORMATION_NAMES)
-  // Squad strength: from a relegation battler to a title contender, in the same league.
-  const quality = rng.int(11, 15)
+  // Squad strength: from a relegation battler to a title contender, in the same league. About
+  // as wide as the Premier League's real squads (draft mode): ability now decides more than it did.
+  const quality = 12 + rng.int(0, 4) / 2
   const names = new Set<string>()
   const uniqueName = (): string => {
     let name: string
