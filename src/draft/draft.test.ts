@@ -44,7 +44,7 @@ describe('draft pools', () => {
     const sums = POOLS.flatMap((pool, pi) =>
       pool.players.flatMap((_, i) => {
         const p = poolPlayer(pi, i)
-        return p.archetype === 'poacher' && (p.overall ?? 0) >= 88 ? [p.attrs.shooting + p.attrs.composure + p.attrs.positioning] : []
+        return p.archetype === 'poacher' && (p.overall ?? 0) >= 88 ? [p.attrs.finishing + p.attrs.composure + p.attrs.positioning] : []
       }),
     )
     expect(sums.length).toBeGreaterThan(3)
@@ -104,7 +104,7 @@ describe('positions', () => {
     expect(fitFor(haaland, 'W')).toBeLessThanOrEqual(0.75)
     const wide = playingAttributes(haaland, 'W')
     expect(wide.dribbling).toBeLessThan(haaland.attrs.dribbling)
-    expect(wide.pace).toBe(haaland.attrs.pace)
+    expect(wide.sprintSpeed).toBe(haaland.attrs.sprintSpeed)
   })
 
   it('does not shoehorn strikers onto the wings ahead of wingers', () => {

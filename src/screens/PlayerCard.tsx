@@ -2,7 +2,7 @@
  * A player's season in full: the totals, the numbers underneath them (expected goals and assists,
  * chances, finishing, defending, keeping) and every match he played.
  */
-import type { PlayerDef } from '../engine/index.ts'
+import { type PlayerDef, groupRatings } from '../engine/index.ts'
 import { positionsLabel, styleLabel } from '../names.ts'
 import { RATED_MINUTES, type Season, type SeasonStats, avgRating, playerRating, squadOf } from '../season/season.ts'
 import { clubOf, goalsPrevented, matchLog, onTargetRate, per90 } from '../season/stats.ts'
@@ -113,6 +113,19 @@ export function PlayerCard({ season, id, onClose }: { season: Season; id: string
           {playerRating(p)}
         </span>
       </div>
+      <dl className="attrs">
+        {groupRatings(p.attrs, p.role).map((g) => (
+          <div key={g.key}>
+            <dt>{g.label}</dt>
+            <dd>
+              <span className="attr-bar" aria-hidden="true">
+                <span style={{ width: `${g.value}%` }} />
+              </span>
+              <span className="attr-val">{g.value}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
       {!st.apps ? (
         <p className="meta">He hasn't played this season.</p>
       ) : (

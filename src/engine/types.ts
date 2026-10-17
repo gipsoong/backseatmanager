@@ -9,8 +9,82 @@ export type Foot = 'left' | 'right'
 
 export type Formation = '4-4-2' | '4-3-3' | '4-2-3-1' | '4-1-4-1' | '3-5-2' | '3-4-3'
 
-/** Visible attributes, 1–20. */
+/**
+ * Visible attributes, 1–20: sub-attributes in FIFA's groups, each with one job in a match (see
+ * docs: "Matchday player attributes v2"). Player cards show the group averages (`groupRatings`).
+ */
 export interface Attributes {
+  // Pace
+  /** Top speed. */
+  sprintSpeed: number
+  /** How quickly he gets up to it. */
+  acceleration: number
+  // Shooting
+  /** Accuracy of shots inside the box. */
+  finishing: number
+  /** Accuracy of shots from outside it, and how keen he is to try them. */
+  longShots: number
+  /** How hard he strikes it. */
+  shotPower: number
+  /** Off the ball in attack: runs in behind, one-twos. */
+  positioning: number
+  /** From the spot. */
+  penalties: number
+  // Passing
+  /** Passes along the ground, up to about 25 m. */
+  shortPassing: number
+  /** Lofted and long passes, aimed clearances. */
+  longPassing: number
+  crossing: number
+  /** Which passes he sees: through balls, long progressive ones, a teammate offside. */
+  vision: number
+  /** Bending it: curled shots, whipped crosses. */
+  curve: number
+  /** Direct free kicks at goal. */
+  freeKicks: number
+  // Dribbling
+  /** Beating a man with the ball. */
+  dribbling: number
+  /** First touch, and keeping it close. */
+  ballControl: number
+  /** Turning: how much speed he keeps when he changes direction. */
+  agility: number
+  /** How quickly he moves for a loose ball. */
+  reactions: number
+  /** How little being closed down hurts him. */
+  composure: number
+  // Defending
+  /** Reading an opponent's pass: how early he moves for it and how far he can stretch. */
+  interceptions: number
+  /** How tight he stays to his man, and picking up a runner. */
+  marking: number
+  standingTackle: number
+  /** Tackling from further away by going to ground. */
+  slidingTackle: number
+  /** Where his headers go. */
+  heading: number
+  // Physical
+  /** Holding off a challenge; aerial duels. */
+  strength: number
+  /** How high he reaches; aerial duels. */
+  jumping: number
+  /** How long he lasts: the lower it is, the sooner he tires over a match. */
+  stamina: number
+  // Goalkeeping (outfield players have 1-4)
+  /** How far he dives. */
+  diving: number
+  /** Catching rather than parrying; claiming crosses. */
+  handling: number
+  /** Saving what he reaches. */
+  reflexes: number
+  /** Narrowing the angle, and how early he moves for a shot. */
+  gkPositioning: number
+  /** Goal kicks and kicks out of his hands. */
+  kicking: number
+}
+
+/** The attributes of saves from before attributes v2 (17 Oct 2026); `upgradeAttributes` converts them. */
+export interface LegacyAttributes {
   pace: number
   passing: number
   shooting: number
@@ -19,7 +93,6 @@ export interface Attributes {
   positioning: number
   composure: number
   keeping: number
-  /** How long he lasts: the lower it is, the sooner he tires over a match. */
   stamina: number
 }
 
@@ -312,6 +385,8 @@ export interface MatchState {
   subWindows: [number, number]
   events: MatchEvent[]
   /** Next tick the ball carrier makes a decision. */
+  /** Tick the ball last came loose (a kick, a deflection, a tackle); null while someone has it. */
+  looseAt: number | null
   decisionAt: number
   /** Tick the current carrier got the ball. */
   possessedSince: number

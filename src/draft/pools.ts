@@ -206,3 +206,25 @@ export const ARCHETYPE: Record<string, Archetype> = {
   'Filipe Luís': 'overlapping', 'Kieran Tierney': 'overlapping', 'Ola Aina': 'overlapping',
   'Timothy Castagne': 'overlapping', 'Victor Moses': 'winger',
 }
+
+/**
+ * Personalities people know (hidden traits): players otherwise get their archetype's typical
+ * traits with a little variety (`draftTraits`). Flair: tricks, take-ons, curled shots. Hot heads:
+ * fouls, cards, the cynical pull-back. Tireless: pressing and getting up and down all game.
+ */
+export const FLAIR = new Set([
+  'Eden Hazard', 'Luis Suárez', 'Alexis Sánchez', 'Philippe Coutinho', 'Riyad Mahrez', 'Mesut Özil', 'David Silva',
+  'Jack Grealish', 'Hatem Ben Arfa', 'Santi Cazorla', 'Samir Nasri', 'Erik Lamela', 'Zlatan Ibrahimović', 'Paul Pogba',
+  'Roberto Firmino', 'Sergio Agüero', 'Mohamed Salah', 'Son Heung-min', 'Cesc Fàbregas', 'Bruno Fernandes', 'Martin Ødegaard',
+  'Manuel Lanzini', 'Dele Alli', 'Raheem Sterling',
+])
+export const HOT_HEADS = new Set([
+  'Diego Costa', 'Luis Suárez', 'Mario Balotelli', 'Granit Xhaka', 'Wayne Rooney', 'Jamie Vardy', 'Fernandinho', 'Casemiro',
+  'Cristian Romero', 'Lisandro Martínez', 'Antonio Rüdiger', 'David Luiz', 'Dele Alli', 'Zlatan Ibrahimović', 'Carlos Tevez',
+  'Emiliano Martínez', 'Bruno Fernandes',
+])
+export const TIRELESS = new Set([
+  'N’Golo Kanté', 'James Milner', 'Park Ji-sung', 'Jordan Henderson', 'Jamie Vardy', 'Roberto Firmino', 'Sadio Mané',
+  'Carlos Tevez', 'Dirk Kuyt', 'Bukayo Saka', 'Son Heung-min', 'Jarrod Bowen', 'Wayne Rooney', 'Steven Gerrard', 'Erling Haaland',
+])
+

@@ -3,7 +3,7 @@
  * player). All read what the engine produced up to the playhead; none feed back into it.
  */
 import { useState } from 'react'
-import { ARCHETYPE_NAMES, type Attributes, type Kit, type MatchState, type TeamStats } from '../engine/index.ts'
+import { ARCHETYPE_NAMES, groupRatings, type Kit, type MatchState, type TeamStats } from '../engine/index.ts'
 import type { Line } from './commentary.ts'
 import type { ReplayMoment } from './highlights.ts'
 import { type PlayerLine, describeTraits } from './players.ts'
@@ -98,16 +98,6 @@ export function Stats({
   )
 }
 
-const ATTRIBUTES: [keyof Attributes, string][] = [
-  ['pace', 'Pace'],
-  ['passing', 'Passing'],
-  ['shooting', 'Shooting'],
-  ['dribbling', 'Dribbling'],
-  ['tackling', 'Tackling'],
-  ['positioning', 'Positioning'],
-  ['composure', 'Composure'],
-  ['keeping', 'Goalkeeping'],
-]
 
 /** The notable numbers from a player's match, as a short line. */
 function summary(l: PlayerLine, keeper: boolean): string {
@@ -165,14 +155,14 @@ export function Players({
           </ul>
         )}
         <dl className="attrs">
-          {ATTRIBUTES.filter(([k]) => keeper || k !== 'keeping').map(([k, label]) => (
-            <div key={k}>
-              <dt>{label}</dt>
+          {groupRatings(p.def.attrs, p.def.role).map((g) => (
+            <div key={g.key}>
+              <dt>{g.label}</dt>
               <dd>
                 <span className="attr-bar" aria-hidden="true">
-                  <span style={{ width: `${(p.def.attrs[k] / 20) * 100}%` }} />
+                  <span style={{ width: `${g.value}%` }} />
                 </span>
-                <span className="attr-val">{p.def.attrs[k]}</span>
+                <span className="attr-val">{g.value}</span>
               </dd>
             </div>
           ))}

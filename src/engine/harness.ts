@@ -130,8 +130,9 @@ export function checkMatch(
     const team = (i: number): Side => s.players[i].team
     const keeperInBox = (i: number, pos: Vec): boolean => s.players[i].slot.role === 'GK' && inBox(pos, ownGoalX(team(i), half))
     const reach = (i: number, pos: Vec): number =>
-      keeperInBox(i, pos) ? CONTROL_RADIUS + (GK_EXTRA_REACH * s.players[i].def.attrs.keeping) / 20 : CONTROL_RADIUS
-    const reachHeight = (i: number, pos: Vec): number => (keeperInBox(i, pos) ? GK_HAND_REACH : HEADER_REACH)
+      keeperInBox(i, pos) ? CONTROL_RADIUS + (GK_EXTRA_REACH * s.players[i].def.attrs.diving) / 20 : CONTROL_RADIUS
+    // A header: as high as he jumps (2.4 m at a jumping of 12, 4 cm a point either way).
+    const reachHeight = (i: number, pos: Vec): number => (keeperInBox(i, pos) ? GK_HAND_REACH : HEADER_REACH + (s.players[i].def.attrs.jumping - 12) * 0.04)
     const UNDER_BAR = CROSSBAR_HEIGHT - 0.11
     const restartEv = events.find((e) => e.type === 'restart')
 
@@ -272,6 +273,11 @@ export function checkMatch(
       if (e.type === 'tackle' || e.type === 'foul') {
         const d = dist(C.players[e.byIdx], C.players[e.onIdx])
         if (d > TACKLE_RANGE + EPS) v(`${e.type}-range`, `${e.type} from ${d.toFixed(2)}m`)
+        // Sliding in from beyond standing reach: only as far as his sliding takes him (30% to all of
+        // the gap between standing reach and the longest slide, by sliding tackle).
+        const slider = s.players[e.byIdx].def.attrs.slidingTackle
+        const slideMax = SLIDE_TACKLE_DISTANCE + (TACKLE_RANGE - SLIDE_TACKLE_DISTANCE) * Math.min(1, 0.3 + (slider / 20) * 0.7)
+        if (e.type === 'tackle' && d > slideMax + EPS) v('slide-range', `slide from ${d.toFixed(2)}m (his reach ${slideMax.toFixed(2)}m)`)
         if ((e.style === 'slide') !== d > SLIDE_TACKLE_DISTANCE) v('tackle-style', `${e.style} ${e.type} from ${d.toFixed(2)}m`)
         if (e.type === 'tackle' && (e.beaten !== undefined) === e.won) v('tackle-beaten', `won=${e.won} but beaten=${e.beaten}`)
         const gained = events.some((g) => g.type === 'possession' && g.idx === e.onIdx)

@@ -4,8 +4,8 @@
  * club-seasons, one per club. A player can be in several seasons' squads, but only ever turns up
  * once: in your side, or for one opponent.
  */
-import { ARCHETYPES, FORMATIONS, Rng, archetypeOf, fitFor, makeAttributes, makeTraits, shapedAttributes, type Formation, type Kit, type PlayerDef, type Role, type TeamDef } from '../engine/index.ts'
-import { ARCHETYPE, LEFT_FOOTED, POOLS, type Pool, WEAK_FOOT } from './pools.ts'
+import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, fitFor, makeAttributes, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
+import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type Pool, TIRELESS, WEAK_FOOT } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
 export const DRAFT_SUBS = 9
@@ -41,6 +41,22 @@ function hash(text: string): number {
  * about as good as each other. The overall maps onto the made-up league's scale, where a mid-table side's
  * players are around 70 and the best around 90.
  */
+/**
+ * A real player's personality: his archetype's, a little varied, then what we know of him (a
+ * flair player, a hot head, a tireless runner). Not rolled at random: Hazard plays like Hazard.
+ */
+function draftTraits(rng: Rng, name: string, archetype: Archetype): Traits {
+  const lean = TRAIT_LEAN[archetype]
+  const vary = (v: number): number => Math.max(0, Math.min(1, v + rng.gauss() * 0.1))
+  return {
+    flair: FLAIR.has(name) ? Math.max(0.85, vary(lean.flair)) : vary(lean.flair),
+    temper: HOT_HEADS.has(name) ? Math.max(0.8, vary(lean.temper)) : vary(lean.temper),
+    aggression: vary(lean.aggression),
+    workRate: TIRELESS.has(name) ? Math.max(0.9, vary(lean.workRate)) : vary(lean.workRate),
+    directness: vary(lean.directness),
+  }
+}
+
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
   const [name, positions, overall] = pool.players[i]
@@ -48,9 +64,9 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const rng = new Rng(hash(name))
   const quality = (overall - 45) / 2.6
   // Players without a curated archetype get one read off a random profile for his position.
-  const traits = makeTraits(rng, role)
   const known = ARCHETYPE[name]
-  const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality), traits } as PlayerDef)
+  const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)
+  const traits = draftTraits(rng, name, archetype)
   return {
     id: `p${poolIdx}-${i}`,
     name,

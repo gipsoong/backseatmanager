@@ -5,7 +5,8 @@
  * Played out of position he plays the new one the way his attributes suggest.
  */
 import type { Rng } from './rng.ts'
-import type { Attributes, PlayerDef, Role } from './types.ts'
+import { broad, expandAttributes } from './attributes.ts'
+import type { Attributes, LegacyAttributes, PlayerDef, Role, Traits } from './types.ts'
 
 export type Archetype =
   | 'shotStopper'
@@ -59,11 +60,38 @@ export const ARCHETYPE_NAMES: Record<Archetype, { name: string; short: string }>
   falseNine: { name: 'False nine', short: 'F9' },
 }
 
+/**
+ * The personality that goes with each way of playing (hidden traits, 0-1): a winger's flair, a
+ * ball-winner's aggression and work rate. Used for real players we know nothing more about.
+ */
+export const TRAIT_LEAN: Record<Archetype, Traits> = {
+  shotStopper: { flair: 0.15, temper: 0.35, aggression: 0.3, workRate: 0.5, directness: 0.3 },
+  sweeperKeeper: { flair: 0.3, temper: 0.35, aggression: 0.35, workRate: 0.5, directness: 0.4 },
+  stopper: { flair: 0.1, temper: 0.55, aggression: 0.8, workRate: 0.55, directness: 0.3 },
+  ballPlayer: { flair: 0.25, temper: 0.4, aggression: 0.6, workRate: 0.5, directness: 0.45 },
+  overlapping: { flair: 0.4, temper: 0.4, aggression: 0.55, workRate: 0.85, directness: 0.55 },
+  inverted: { flair: 0.35, temper: 0.35, aggression: 0.5, workRate: 0.7, directness: 0.45 },
+  defensiveFullBack: { flair: 0.15, temper: 0.5, aggression: 0.7, workRate: 0.6, directness: 0.35 },
+  anchor: { flair: 0.2, temper: 0.45, aggression: 0.65, workRate: 0.7, directness: 0.35 },
+  deepPlaymaker: { flair: 0.5, temper: 0.35, aggression: 0.4, workRate: 0.55, directness: 0.6 },
+  ballWinner: { flair: 0.2, temper: 0.6, aggression: 0.85, workRate: 0.85, directness: 0.4 },
+  boxToBox: { flair: 0.45, temper: 0.45, aggression: 0.6, workRate: 0.85, directness: 0.55 },
+  playmaker: { flair: 0.7, temper: 0.35, aggression: 0.3, workRate: 0.55, directness: 0.55 },
+  winger: { flair: 0.75, temper: 0.35, aggression: 0.3, workRate: 0.55, directness: 0.6 },
+  insideForward: { flair: 0.8, temper: 0.4, aggression: 0.35, workRate: 0.5, directness: 0.7 },
+  poacher: { flair: 0.5, temper: 0.45, aggression: 0.4, workRate: 0.45, directness: 0.75 },
+  targetMan: { flair: 0.3, temper: 0.5, aggression: 0.6, workRate: 0.55, directness: 0.6 },
+  falseNine: { flair: 0.7, temper: 0.35, aggression: 0.35, workRate: 0.6, directness: 0.45 },
+}
+
 /** How he plays `role`: his own archetype if it's one of that position's, otherwise read off his attributes. */
 export function archetypeOf(def: PlayerDef, role: Role = def.role): Archetype {
   if (def.archetype && ARCHETYPES[role].includes(def.archetype)) return def.archetype
-  const a = def.attrs
-  const t = def.traits
+  return archetypeFrom(broad(def.attrs), def.traits, role)
+}
+
+/** The archetype a broad profile suggests for `role`. */
+export function archetypeFrom(a: LegacyAttributes, t: Traits, role: Role): Archetype {
   switch (role) {
     case 'GK':
       return a.pace >= 11 ? 'sweeperKeeper' : 'shotStopper'
@@ -161,7 +189,8 @@ const LEVELLED: Record<Archetype, Shape> = (() => {
  * which is better on the day is down to the match, not to how his name happened to hash.
  */
 export function shapedAttributes(rng: Rng, role: Role, archetype: Archetype, level: number): Attributes {
-  const at = (offset: number): number => Math.round(Math.max(1, Math.min(20, level + offset + rng.gauss() * 0.7)))
+  const at = (offset: number): number => Math.max(1, Math.min(20, level + offset + rng.gauss() * 0.7))
   const [pace, passing, shooting, tackling, dribbling, positioning, composure, stamina] = LEVELLED[archetype].map(at)
-  return { pace, passing, shooting, tackling, dribbling, positioning, composure, stamina, keeping: role === 'GK' ? at(1) : rng.int(1, 4) }
+  const profile = { pace, passing, shooting, tackling, dribbling, positioning, composure, stamina, keeping: role === 'GK' ? at(1) : rng.int(1, 4) }
+  return expandAttributes(profile, role, archetype, () => rng.gauss() * 0.5)
 }

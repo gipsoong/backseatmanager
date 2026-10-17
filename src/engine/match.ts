@@ -58,7 +58,6 @@ import {
   KICKER_IMMUNITY_TICKS,
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
-  PLAYER_ACCEL,
   RESTART_SPOT_TOLERANCE,
   RESTART_TIMEOUT_TICKS,
   SLIDE_TACKLE_DISTANCE,
@@ -99,6 +98,11 @@ import {
   xgFrom,
   finishingError,
   passLooseness,
+  crossSkill,
+  OFF,
+  accelOf,
+  turnOf,
+  slideReach,
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
@@ -149,7 +153,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
   const teams: [TeamDef, TeamDef] = [home, away]
   const players: PlayerState[] = []
   const player = (team: Side, def: PlayerDef, slot: Slot, onPitch: boolean): PlayerState => {
-    const baseSpeed = 5.8 + (def.attrs.pace / 20) * 2.8
+    const baseSpeed = 5.8 + (def.attrs.sprintSpeed / 20) * 2.8
     const energy = config.fitness?.[def.id] ?? 1
     return {
       idx: players.length,
@@ -198,6 +202,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
     stats: [emptyStats(), emptyStats()],
     events: [],
     decisionAt: 0,
+    looseAt: null,
     subbedOn: [[], []],
     subWindows: [0, 0],
     subbedOff: [[], []],
@@ -252,6 +257,9 @@ function emit(s: MatchState, out: MatchEvent[], e: EventBody): void {
 // ---------------------------------------------------------------------------
 // Public API
 
+/** Events after which the ball is loose in a new way: everyone has to react to it afresh. */
+const LOOSENERS = new Set<MatchEvent['type']>(['pass', 'shot', 'clearance', 'deflection', 'woodwork', 'tackle'])
+
 /** Advance one tick. Returns the events emitted during it. */
 export function step(s: MatchState): MatchEvent[] {
   const out: MatchEvent[] = []
@@ -283,6 +291,10 @@ export function step(s: MatchState): MatchEvent[] {
 
   // 4. challenges
   if (s.phase.kind === 'play' && s.ball.ownerIdx !== null) challenges(s, out)
+
+  // When the ball last came loose: players' reactions (and reading of a pass) count from then.
+  if (s.ball.ownerIdx !== null) s.looseAt = null
+  else if (s.looseAt === null || out.some((e) => LOOSENERS.has(e.type))) s.looseAt = s.tick
 
   // 5. clock, and legs
   if (s.phase.kind === 'play') tire(s, out)
@@ -329,7 +341,10 @@ function movePlayer(p: PlayerState, intent: MoveIntent): void {
   const wanted = Math.min(p.maxSpeed * intent.urgency, L / 0.4)
   const desired = scale(norm(d), wanted)
   let dv = sub(desired, p.vel)
-  const maxDv = PLAYER_ACCEL * DT
+  // Slowing down or turning uses only part of his acceleration, by his agility.
+  const v = len(p.vel)
+  const braking = v > 0.1 && len(dv) > 0 ? Math.max(0, -(dv.x * p.vel.x + dv.y * p.vel.y) / (len(dv) * v)) : 0
+  const maxDv = accelOf(p) * (1 - (1 - turnOf(p)) * braking) * DT
   if (len(dv) > maxDv) dv = scale(norm(dv), maxDv)
   p.vel = add(p.vel, dv)
   if (len(p.vel) > p.maxSpeed) p.vel = scale(norm(p.vel), p.maxSpeed)
@@ -373,7 +388,9 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       // A cross off his weaker side is harder to put where he wants it.
       const crossing = action.lofted && !action.through && isCross(af(s, p.team, action.target))
       const footQ = crossing ? strikingFoot(p, af(s, p.team, s.ball.pos), 'cross').q : 1
-      const loose = passLooseness(p.attrs.passing) * (1 + pressureOn(s, p))
+      // Short along the ground, long or lofted, or a cross: each its own skill.
+      const skill = crossing ? crossSkill(p.attrs) : action.lofted || d > 25 ? (p.slot.role === 'GK' ? p.attrs.kicking : p.attrs.longPassing) : p.attrs.shortPassing
+      const loose = passLooseness(skill) * (1 + pressureOn(s, p))
       // Now and then one gets away from him altogether: a poor passer, hurried, far more often.
       const astray = s.rng.chance(loose * 0.1) ? 4 : 1
       const sigma = loose * d * (action.lofted ? 0.07 : 0.045) * (1 + (1 - footQ) * 2.5) * astray
@@ -417,7 +434,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
     }
     case 'shot': {
       // A curled shot trades pace for placement; one off his weaker side has less on it.
-      const speed = 22 + (p.attrs.shooting / 20) * 5 + s.rng.range(0, 2) - (action.finesse ? 3 : 0) - (1 - action.footQ) * 10
+      const speed = 22 + (p.attrs.shotPower / 20) * 6 + s.rng.range(0, 2) - (action.finesse ? 3 : 0) - (1 - action.footQ) * 10
       shoot(s, p, action.target, speed, action.height, action.xg, restart, false, out, action.finesse, action.foot)
       return
     }
@@ -597,7 +614,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   if (fromOpponent && k?.lofted && p.slot.role !== 'GK' && glancedBehind(t)) return true
   if (height > AERIAL_HEIGHT) return header(s, p, contact, height, out)
   // A pass arriving at normal pace is almost always controlled; a hard ball less so.
-  const pControl = clamp(0.985 + (p.attrs.dribbling - 10) * 0.003 - Math.max(0, speed - 8) * 0.02, 0.5, 0.995)
+  const pControl = clamp(0.985 + (p.attrs.ballControl - 10) * 0.003 - Math.max(0, speed - 8) * 0.02, 0.5, 0.995)
   if (s.rng.chance(pControl)) {
     takePossession(s, p, contact, height, fromOpponent ? 'interception' : 'control', out)
     return true
@@ -667,7 +684,7 @@ function keeperClaim(t: Touch): boolean {
   const { s, p, contact, height, out } = t
   // Unchallenged he rarely drops it; with an attacker going for it too, he often does.
   const contested = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 3)
-  const pClaim = clamp((contested ? 0.7 : 0.95) + (p.attrs.keeping - 12) * 0.02, 0.4, 0.98)
+  const pClaim = clamp((contested ? 0.7 : 0.95) + (p.attrs.handling - 12) * 0.02, 0.4, 0.98)
   if (!s.rng.chance(pClaim)) {
     // Misjudged it in the air: he can still gather it if it drops to him.
     p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
@@ -697,9 +714,9 @@ function keeperSave(t: Touch): boolean {
   const flight = k ? (s.tick - k.tick) * DT : 1
   // A great keeper saves more, but not wildly more: the best are a few points of save rate above
   // the average, not ten.
-  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.keeping - 12) * 0.012, 0.05, 0.96)
+  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.reflexes - 12) * 0.012, 0.05, 0.96)
   if (!rng.chance(pSave)) return miss(t)
-  if (speed < 21 && rng.chance(0.3 + p.attrs.keeping / 40)) {
+  if (speed < 21 && rng.chance(0.3 + p.attrs.handling / 40)) {
     takePossession(s, p, contact, height, 'save', out)
     return true
   }
@@ -771,9 +788,10 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
       return true
     }
   }
-  // Target men and stoppers win more of their headers.
-  const aerial = p.archetype === 'targetMan' || p.archetype === 'stopper' ? 0.1 : 0
-  if (!rng.chance((challenged ? 0.6 : 0.8) + aerial)) {
+  // Two going up: the better in the air (jumping, strength) wins more of them. Alone, it's timing.
+  const opponent = rival ?? s.players.find((o) => o.onPitch && o.team !== p.team && o.slot.role !== 'GK' && dist(o.pos, contact) < 1.5)
+  const pWin = OFF('H') ? (challenged ? 0.6 : 0.8) : opponent ? 0.6 + (aerialPower(p) - aerialPower(opponent)) * 0.025 : 0.8 + (p.attrs.heading - 12) * 0.01
+  if (!rng.chance(clamp(pWin, 0.25, 0.95))) {
     // Mistimed: it goes over or past him. He can have another go once it's past his head.
     p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
     return false
@@ -798,20 +816,25 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
 
   if (cross) {
     const attrs = p.attrs
-    const sigma = finishingError(attrs.shooting) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
+    const sigma = finishingError(attrs.heading) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
     const aimY = CENTER.y + rng.range(-3, 3) + rng.gauss() * sigma
     const target = wf(s, p.team, vec(PITCH_LENGTH, aimY))
     const aimH = Math.max(0.05, rng.range(0.1, 1.6) + rng.gauss() * sigma * 0.4)
-    shoot(s, p, target, 12 + (attrs.shooting / 20) * 5, aimH, xgFrom(a) * (challenged ? 0.3 : 0.5), null, true, out)
+    shoot(s, p, target, 12 + (attrs.heading / 20) * 5, aimH, xgFrom(a) * (challenged ? 0.3 : 0.5), null, true, out)
     return true
   }
-  const target = wf(s, p.team, vec(a.x + rng.range(18, 28), a.y + rng.range(-12, 12)))
+  // A good header of the ball sends it further and where he means it to go.
+  const reach = 10 + p.attrs.heading * 0.8
+  const target = wf(s, p.team, vec(a.x + rng.range(reach - 5, reach + 5), a.y + rng.range(-12, 12) * (1.3 - p.attrs.heading / 20 * 0.6)))
   const d = dist(contact, target)
   const time = 1.3
   kick(s, p, 'clearance', target, d / time, null, null, { lofted: true, vz: shotVz(-height, time) })
   emit(s, out, { type: 'clearance', byIdx: p.idx, from: { ...contact }, target, header: true })
   return true
 }
+
+/** How strong he is in the air: mostly his spring, partly his strength. */
+const aerialPower = (p: PlayerState): number => p.def.attrs.jumping * 0.6 + p.def.attrs.strength * 0.4
 
 function takePossession(
   s: MatchState,
@@ -965,7 +988,8 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   for (const o of s.players) {
     if (!o.onPitch || o.team === c.team || s.tick < o.tackleReadyAt) continue
     const d = dist(o.pos, c.pos)
-    if (d > TACKLE_RANGE) continue
+    // From beyond standing reach only by sliding in, and only as far as he slides well.
+    if (d > (OFF('S') ? 1.6 : slideReach(o.attrs.slidingTackle))) continue
     if (!tackler || d < dist(tackler.pos, c.pos)) tackler = o
   }
   if (!tackler) return
@@ -981,14 +1005,17 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const inOwnBox = inPenaltyArea(c.pos, ownGoalX(o.team, s.half))
   // Players go in more carefully in their own box, and once they've been booked.
   const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
-  const pFoul = clamp(0.08 + traits.temper * 0.1 + traits.aggression * 0.06 + ((ca.dribbling - oa.tackling) / 20) * 0.08, 0.04, 0.3) * care
   // Going in from beyond standing reach means going to ground.
   const style: TackleStyle = dist(o.pos, c.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
-  const skill = o.slot.role === 'GK' ? oa.keeping + 3 : oa.tackling
-  const won = rng.chance(clamp(0.58 + (skill - ca.dribbling) * 0.03, 0.25, 0.88))
+  const skill = o.slot.role === 'GK' ? (oa.diving + oa.handling) / 2 + 3 : style === 'slide' ? oa.slidingTackle : oa.standingTackle
+  // His tackling against the carrier's close control and footwork; the stronger man holds his ground.
+  const evade = ca.dribbling * 0.7 + ca.agility * 0.3
+  const pFoul = clamp(0.08 + traits.temper * 0.1 + traits.aggression * 0.06 + ((evade - skill) / 20) * 0.08, 0.04, 0.3) * care
+  const won = rng.chance(OFF('K') ? 0.58 : clamp(0.58 + (skill - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
   // Beaten outside his own box, a hot-headed defender may just pull him back.
   const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care)
-  if (cynical || rng.chance(pFoul * (style === 'slide' ? 1.4 : 1))) {
+  // A poor slide tackle is a foul waiting to happen.
+  if (cynical || rng.chance(pFoul * (style === 'slide' ? 1.8 - (oa.slidingTackle / 20) * 0.8 : 1))) {
     commitFoul(s, o, c, style, (cynical ? 0.35 : 0.08) + traits.temper * 0.12, false, out)
     return
   }

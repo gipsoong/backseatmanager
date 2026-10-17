@@ -1,6 +1,8 @@
 import { clamp } from './geometry.ts'
 import { Rng } from './rng.ts'
-import type { Attributes, Block, Formation, Kit, PlayerDef, Role, Slot, TeamDef, Traits } from './types.ts'
+import { archetypeFrom } from './archetypes.ts'
+import { POSITIONAL, expandAttributes } from './attributes.ts'
+import type { Attributes, Block, Formation, Kit, LegacyAttributes, PlayerDef, Role, Slot, TeamDef, Traits } from './types.ts'
 
 const s = (role: Role, depth: number, y: number, attackDepth = 0): Slot => ({ role, depth, y, attackDepth })
 
@@ -139,7 +141,7 @@ const CLUBS = [
 const BENCH_ROLES: Role[] = ['GK', 'CB', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 
 /** Role-specific attribute emphasis: which attributes are strengths. */
-const ROLE_FOCUS: Record<Role, (keyof Attributes)[]> = {
+const ROLE_FOCUS: Record<Role, (keyof LegacyAttributes)[]> = {
   GK: ['keeping', 'positioning', 'composure'],
   CB: ['tackling', 'positioning'],
   FB: ['pace', 'tackling', 'passing', 'stamina'],
@@ -150,9 +152,10 @@ const ROLE_FOCUS: Record<Role, (keyof Attributes)[]> = {
   ST: ['shooting', 'composure', 'pace'],
 }
 
-export function makeAttributes(rng: Rng, role: Role, quality: number): Attributes {
+/** A made-up player's broad profile (the nine attributes sub-attributes are made from). */
+function makeProfile(rng: Rng, role: Role, quality: number): LegacyAttributes {
   const base = (): number => Math.round(Math.max(1, Math.min(20, quality - 3 + rng.gauss() * 2)))
-  const attrs: Attributes = {
+  const attrs: LegacyAttributes = {
     pace: base(),
     passing: base(),
     shooting: base(),
@@ -167,6 +170,12 @@ export function makeAttributes(rng: Rng, role: Role, quality: number): Attribute
   return attrs
 }
 
+/** A made-up player's sub-attributes: a random profile for his position, played his way. */
+export function makeAttributes(rng: Rng, role: Role, quality: number, traits: Traits): Attributes {
+  const profile = makeProfile(rng, role, quality)
+  return expandAttributes(profile, role, archetypeFrom(profile, traits, role), () => rng.gauss() * 0.8)
+}
+
 /** Hidden traits, spread across the whole range but leaning the way players in a role tend to. */
 export function makeTraits(rng: Rng, role: Role): Traits {
   const lean = (k: number): number => clamp(rng.next() * 0.8 + k * 0.2 + rng.gauss() * 0.05, 0, 1)
@@ -179,6 +188,11 @@ export function makeTraits(rng: Rng, role: Role): Traits {
     workRate: lean(role === 'CM' || role === 'FB' || role === 'DM' ? 0.8 : 0.5),
     directness: lean(role === 'ST' || role === 'W' ? 0.7 : role === 'CB' || role === 'GK' ? 0.3 : 0.5),
   }
+}
+
+function madeUp(rng: Rng, role: Role, quality: number): Pick<PlayerDef, 'attrs' | 'traits'> {
+  const traits = makeTraits(rng, role)
+  return { attrs: makeAttributes(rng, role, quality, traits), traits }
 }
 
 export function randomTeam(seed: number, block?: Block, formation?: Formation): TeamDef {
@@ -199,8 +213,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     name: uniqueName(),
     shirt: i + 1,
     role: slot.role,
-    attrs: makeAttributes(rng, slot.role, quality),
-    traits: makeTraits(rng, slot.role),
+    ...madeUp(rng, slot.role, quality),
     positions: makePositions(rng, slot.role),
     ...makeFeet(rng),
   }))
@@ -210,8 +223,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     name: uniqueName(),
     shirt: 12 + i,
     role,
-    attrs: makeAttributes(rng, role, quality - 1),
-    traits: makeTraits(rng, role),
+    ...madeUp(rng, role, quality - 1),
     positions: makePositions(rng, role),
     ...makeFeet(rng),
   }))
@@ -267,14 +279,6 @@ export function fitFor(def: PlayerDef, role: Role): number {
   return LINES[def.role].includes(role) ? 0.75 : 0.55
 }
 
-/** The attributes that come from knowing a position: reading the game, and technique in it. */
-const POSITIONAL: (keyof Attributes)[] = ['passing', 'shooting', 'tackling', 'dribbling', 'positioning', 'composure']
-
-/**
- * His attributes when playing `role`: out of position he's as quick and fit as ever, but reads
- * the game and uses the ball less well (a striker on the wing crosses and dribbles like a lesser
- * player): the positional ones scale from 100% in his own position to 80% in a strange one.
- */
 export function playingAttributes(def: PlayerDef, role: Role): Attributes {
   const fit = fitFor(def, role)
   if (fit >= 1 || fit === 0) return def.attrs
@@ -307,7 +311,9 @@ function makePositions(rng: Rng, role: Role): Role[] | undefined {
  */
 export function ability(def: PlayerDef): number {
   if (def.overall) return def.overall / 5
-  const { keeping, ...rest } = def.attrs
-  const vals = def.role === 'GK' ? [keeping, rest.positioning, rest.composure] : Object.values(rest)
-  return vals.reduce((a, b) => a + b, 0) / vals.length
+  const a = def.attrs
+  const vals = def.role === 'GK' ? [a.diving, a.handling, a.reflexes, a.gkPositioning, a.kicking] : (Object.keys(a) as (keyof Attributes)[]).filter((k) => !GK_ONLY.includes(k)).map((k) => a[k])
+  return vals.reduce((x, y) => x + y, 0) / vals.length
 }
+
+const GK_ONLY: (keyof Attributes)[] = ['diving', 'handling', 'reflexes', 'gkPositioning', 'kicking']
