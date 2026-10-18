@@ -7,7 +7,11 @@
  */
 import type { Formation, Kit } from '../engine/index.ts'
 
+export type League = 'Premier League' | 'La Liga' | 'Bundesliga' | 'Serie A' | 'Ligue 1'
+
 export interface Pool {
+  /** Unset for the Premier League (the original pools). */
+  league?: League
   club: string
   shortName: string
   /** The season, e.g. '2015/16'. */
@@ -17,7 +21,7 @@ export interface Pool {
   players: [name: string, positions: string, overall: number, knownAs?: string][]
 }
 
-const kit = (shirt: string, number: string, family: string): Kit => ({ shirt, number, family })
+export const kit = (shirt: string, number: string, family: string): Kit => ({ shirt, number, family })
 const RED = kit('#c8202f', '#ffffff', 'red')
 const CLARET = kit('#7a1f2b', '#9fd3f0', 'red')
 const ROYAL = kit('#1f3a8a', '#ffffff', 'blue')
@@ -28,7 +32,7 @@ const GOLD = kit('#f0a81c', '#1b1f1c', 'yellow')
 const PALACE = kit('#1b458f', '#f0c330', 'blue')
 
 /** One player a line: `Name, POS[/POS…], overall[, known as]`. */
-function squad(lines: string): Pool['players'] {
+export function squad(lines: string): Pool['players'] {
   return lines
     .trim()
     .split('\n')
@@ -38,7 +42,7 @@ function squad(lines: string): Pool['players'] {
     })
 }
 
-const pool = (club: string, shortName: string, season: string, k: Kit, formation: Formation, lines: string): Pool => ({
+export const pool = (club: string, shortName: string, season: string, k: Kit, formation: Formation, lines: string): Pool => ({
   club,
   shortName,
   season,
