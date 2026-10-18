@@ -132,9 +132,11 @@ export function review(s: Season): Review {
   top('Chief creator', all, (x) => count(x.st, 'xa'), (x) => `${count(x.st, 'xa').toFixed(1)} xA, ${count(x.st, 'keyPasses')} chances created, ${x.st.assists} assists`)
   top(
     'The wall',
-    regulars.filter((x) => x.player.role !== 'GK'),
-    (x) => per90(count(x.st, 'tackles') + count(x.st, 'interceptions') + count(x.st, 'blocks'), x.st),
-    (x) => `${per90(count(x.st, 'tackles') + count(x.st, 'interceptions') + count(x.st, 'blocks'), x.st).toFixed(1)} tackles, interceptions and blocks per 90`,
+    // A defender's award: the back line and the holding midfielders, by the ball won and kept out.
+    regulars.filter((x) => ['CB', 'FB', 'DM'].includes(x.player.role)),
+    (x) => per90(count(x.st, 'tackles') + count(x.st, 'interceptions') + count(x.st, 'blocks') + count(x.st, 'clearances'), x.st),
+    (x) =>
+      `${per90(count(x.st, 'tackles') + count(x.st, 'interceptions') + count(x.st, 'blocks') + count(x.st, 'clearances'), x.st).toFixed(1)} tackles, interceptions, blocks and clearances per 90`,
   )
   top(
     'Best keeper',

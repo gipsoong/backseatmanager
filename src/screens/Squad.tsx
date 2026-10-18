@@ -138,7 +138,7 @@ export function Squad({
         <div className="mini-pitch">
           {slots.map((slot, i) => {
             const p = byId(xi[i])
-            const fit = fitFor(p, slot.role)
+            const fit = fitFor(p, slot)
             return (
               <button
                 key={i}

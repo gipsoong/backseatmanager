@@ -4,7 +4,7 @@
  * each fixture has its own match seed, so a match plays out the same whether it's watched or not.
  * No React, no storage: the app keeps a Season and replaces it with the updated one.
  */
-import { FORMATIONS, type MatchState, type PlayerDef, type TeamDef, ability, fitFor, leagueTeams } from '../engine/index.ts'
+import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, ability, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
 
 export const LEAGUE_SIZE = 10
@@ -213,8 +213,8 @@ export const squadOf = (t: TeamDef): PlayerDef[] => [...t.players, ...t.bench]
 export const isAvailable = (s: Season, p: PlayerDef): boolean => s.condition[p.id].injuredUntil <= s.matchday
 
 /** How much a player's freshness counts when picking: a tired star can still get the nod. */
-const selectionScore = (s: Season, p: PlayerDef, role: PlayerDef['role']): number =>
-  fitFor(p, role) * ability(p) * (0.55 + 0.45 * s.condition[p.id].fitness)
+const selectionScore = (s: Season, p: PlayerDef, slot: Slot): number =>
+  fitFor(p, slot) * ability(p) * (0.55 + 0.45 * s.condition[p.id].fitness)
 
 /**
  * The staff's eleven: the best available fits, fitness counted. Best pairings first across the
@@ -227,7 +227,7 @@ export function autoPick(s: Season, club: number): string[] {
   const used = new Set<string>()
   // An injury crisis: if nobody fit is left, someone carrying a knock plays.
   for (const pool of [squadOf(t).filter((p) => isAvailable(s, p)), squadOf(t)]) {
-    const pairs = pool.flatMap((p) => slots.map((slot, i) => ({ p, i, score: selectionScore(s, p, slot.role) })))
+    const pairs = pool.flatMap((p) => slots.map((slot, i) => ({ p, i, score: selectionScore(s, p, slot) })))
     pairs.sort((a, b) => b.score - a.score)
     for (const { p, i } of pairs) {
       if (picked[i] || used.has(p.id)) continue

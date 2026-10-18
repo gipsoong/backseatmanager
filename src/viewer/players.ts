@@ -145,8 +145,10 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
           lines[pending.by].passesCompleted++
           receivedFrom = { by: pending.by, to: e.idx }
         } else receivedFrom = null
-        if (e.via === 'interception') lines[e.idx].interceptions++
-        else if (e.via === 'control' && !pending && lastTeam !== null && lastTeam !== team) lines[e.idx].recoveries++
+        // Cutting out an opponent's pass is an interception; collecting a clearance, a hoofed ball or
+        // a loose one is a recovery.
+        if (e.via === 'interception' && pending && teamOf(pending.by) !== team) lines[e.idx].interceptions++
+        else if ((e.via === 'control' || e.via === 'interception') && !pending && lastTeam !== null && lastTeam !== team) lines[e.idx].recoveries++
         if (e.via === 'save' && shot) {
           lines[e.idx].saves++
           lines[e.idx].savedXg += shot.xg
@@ -162,7 +164,8 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
           // Met a team-mate's cross with his head: the cross is what made the chance.
           if (pending && teamOf(pending.by) === teamOf(e.idx) && pending.by !== e.idx) receivedFrom = { by: pending.by, to: e.idx }
         }
-        if (e.kind === 'block' && lastTeam !== null && lastTeam !== teamOf(e.idx)) lines[e.idx].blocks++
+        // A block stops a shot, cross or pass, not a clearance smashed into him.
+        if (e.kind === 'block' && lastTeam !== null && lastTeam !== teamOf(e.idx) && (shot || pending)) lines[e.idx].blocks++
         if (e.kind === 'parry' && shot) {
           lines[e.idx].saves++
           lines[e.idx].savedXg += shot.xg
@@ -283,7 +286,7 @@ const GROUPS = {
  * near 6.75 whatever his position (measured over whole simulated seasons; scripts/diag-ratings.ts
  * shows single matches). A great game still stands out in any position.
  */
-const OFFSET: Record<Role, number> = { GK: -0.15, CB: -0.31, FB: 0, DM: 0.03, CM: -0.14, WM: -0.19, W: -0.43, ST: -0.34 }
+const OFFSET: Record<Role, number> = { GK: -0.09, CB: -0.34, FB: 0.17, DM: 0.01, CM: -0.14, WM: -0.27, W: -0.64, ST: -0.37 }
 /**
  * The same within a position, by how he plays it: an inside forward shoots where a winger
  * crosses, so he scores more without helping his side more (measured over 150 matches with the

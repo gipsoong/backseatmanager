@@ -159,7 +159,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
       team,
       def,
       slot,
-      attrs: playingAttributes(def, slot.role),
+      attrs: playingAttributes(def, slot),
       archetype: archetypeOf(def, slot.role),
       pos: onPitch ? vec(0, 0) : vec(HALFWAY_X, -2),
       vel: vec(0, 0),
@@ -394,7 +394,10 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       const astray = s.rng.chance(loose * 0.1) ? 4 : 1
       const sigma = loose * d * (action.lofted ? 0.07 : 0.045) * (1 + (1 - footQ) * 2.5) * astray
       const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.3, d * 0.3), clamp(s.rng.gauss() * sigma, -d * 0.3, d * 0.3))
-      const target = add(action.target, err)
+      // Nobody kicks it further than about 60 m, however it comes off his foot.
+      const wild = add(action.target, err)
+      const reach = dist(s.ball.pos, wild)
+      const target = reach > 62 ? add(s.ball.pos, scale(sub(wild, s.ball.pos), 62 / reach)) : wild
       const dt = dist(s.ball.pos, target)
       if (action.lofted) {
         // Aimed to arrive at head height for a cross into the box, chest height otherwise.
@@ -1145,11 +1148,11 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       const off = hurt ?? tired
       if (!off) break
       const bench = unusedSubs(s, team)
-      const on = bench.sort((a, b) => fitFor(b.def, off.slot.role) * ability(b.def) - fitFor(a.def, off.slot.role) * ability(a.def))[0]
-      if (!on || fitFor(on.def, off.slot.role) === 0) break
+      const on = bench.sort((a, b) => fitFor(b.def, off.slot) * ability(b.def) - fitFor(a.def, off.slot) * ability(a.def))[0]
+      if (!on || fitFor(on.def, off.slot) === 0) break
       on.onPitch = true
       on.slot = off.slot
-      on.attrs = playingAttributes(on.def, on.slot.role)
+      on.attrs = playingAttributes(on.def, on.slot)
       on.archetype = archetypeOf(on.def, on.slot.role)
       on.pos = { ...off.pos }
       on.vel = vec(0, 0)

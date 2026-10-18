@@ -105,7 +105,7 @@ export function offer(d: Draft): { pool: Pool; players: PlayerDef[] } {
 }
 
 /** How much a player counts in a starting place: his overall, less out of position. */
-export const fitted = (p: PlayerDef, slot: number, formation: Formation): number => (p.overall ?? 0) * fitFor(p, FORMATIONS[formation][slot].role)
+export const fitted = (p: PlayerDef, slot: number, formation: Formation): number => (p.overall ?? 0) * fitFor(p, FORMATIONS[formation][slot])
 
 export function place(d: Draft, p: PlayerDef, at: Place): Draft {
   if ('xi' in at) {
@@ -141,7 +141,7 @@ export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[
   const pool = POOLS[poolIdx]
   const left = pool.players.map((_, i) => poolPlayer(poolIdx, i)).filter((p) => !taken.has(p.name))
   const players = FORMATIONS[formation].map((slot, i) => {
-    const best = left.reduce((a, b) => ((b.overall ?? 0) * fitFor(b, slot.role) > (a.overall ?? 0) * fitFor(a, slot.role) ? b : a))
+    const best = left.reduce((a, b) => ((b.overall ?? 0) * fitFor(b, slot) > (a.overall ?? 0) * fitFor(a, slot) ? b : a))
     left.splice(left.indexOf(best), 1)
     return { ...best, shirt: i + 1 }
   })

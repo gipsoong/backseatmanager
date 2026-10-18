@@ -216,7 +216,7 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     role: slot.role,
     ...madeUp(rng, slot.role, quality),
     positions: makePositions(rng, slot.role),
-    ...makeFeet(rng),
+    ...makeFeet(rng, slot),
   }))
   // A bench covering every line, a notch below the first team.
   const bench: PlayerDef[] = BENCH_ROLES.map((role, i) => ({
@@ -272,16 +272,38 @@ const LINES: Record<Role, Role[]> = {
  * How familiar `def` is with a position, 0-1: 1 in his own, 0.95 and 0.9 in his secondary and
  * tertiary positions, 0.75 elsewhere in a line he knows, 0.55 anywhere else, 0 in or out of goal.
  */
-export function fitFor(def: PlayerDef, role: Role): number {
-  if (role === def.role) return 1
-  if (role === 'GK' || def.role === 'GK') return 0
-  const i = def.positions?.indexOf(role) ?? -1
-  if (i >= 0) return i === 0 ? 0.95 : 0.9
-  return LINES[def.role].includes(role) ? 0.75 : 0.55
+/** Which flank a place is on, facing up the pitch (y above 40 is the right), or null if central. */
+export const sideOf = (slot: Slot): 'L' | 'R' | null => (slot.y > 40 ? 'R' : slot.y < 28 ? 'L' : null)
+
+/**
+ * The flank a wide player is at home on: his strong foot's side (a left-footer at left-back), or
+ * the other one for an inside forward, who cuts in onto his strong foot.
+ */
+export function naturalSide(def: PlayerDef): 'L' | 'R' {
+  const footSide = def.foot === 'left' ? 'L' : 'R'
+  return def.archetype === 'insideForward' ? (footSide === 'L' ? 'R' : 'L') : footSide
 }
 
-export function playingAttributes(def: PlayerDef, role: Role): Attributes {
-  const fit = fitFor(def, role)
+const WIDE: Role[] = ['FB', 'WM', 'W']
+
+/**
+ * How familiar a player is with a place: his own position, one he lists, his line, or neither.
+ * Given the place itself (not just its role), a wide player on his wrong flank loses a tenth:
+ * Robertson at right-back crosses on his weaker foot and turns the wrong way.
+ */
+export function fitFor(def: PlayerDef, place: Role | Slot): number {
+  const role = typeof place === 'string' ? place : place.role
+  const side = typeof place === 'string' ? null : sideOf(place)
+  const wrongSide = side !== null && WIDE.includes(role) && naturalSide(def) !== side ? 0.9 : 1
+  if (role === def.role) return wrongSide
+  if (role === 'GK' || def.role === 'GK') return 0
+  const i = def.positions?.indexOf(role) ?? -1
+  if (i >= 0) return (i === 0 ? 0.95 : 0.9) * wrongSide
+  return (LINES[def.role].includes(role) ? 0.75 : 0.55) * wrongSide
+}
+
+export function playingAttributes(def: PlayerDef, place: Role | Slot): Attributes {
+  const fit = fitFor(def, place)
   if (fit >= 1 || fit === 0) return def.attrs
   const k = 0.55 + 0.45 * fit
   const attrs = { ...def.attrs }
@@ -289,9 +311,13 @@ export function playingAttributes(def: PlayerDef, role: Role): Attributes {
   return attrs
 }
 
-/** Made-up players' feet: about one in four left-footed; most with an average weaker foot. */
-function makeFeet(rng: Rng): Pick<PlayerDef, 'foot' | 'weakFoot'> {
-  const foot = rng.chance(0.25) ? 'left' : 'right'
+/**
+ * Made-up players' feet: about one in four left-footed; most with an average weaker foot. Wide
+ * players are mostly on their own foot's flank, as clubs pick them.
+ */
+function makeFeet(rng: Rng, slot?: Slot): Pick<PlayerDef, 'foot' | 'weakFoot'> {
+  const side = slot && WIDE.includes(slot.role) ? sideOf(slot) : null
+  const foot = rng.chance(side === 'L' ? 0.85 : side === 'R' ? 0.1 : 0.25) ? 'left' : 'right'
   const r = rng.next()
   return { foot, weakFoot: r < 0.15 ? 2 : r < 0.75 ? 3 : r < 0.95 ? 4 : 5 }
 }

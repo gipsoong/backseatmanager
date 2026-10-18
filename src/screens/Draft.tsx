@@ -79,7 +79,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
           <div className="mini-pitch">
             {slots.map((slot, i) => {
               const p = draft.xi[i]
-              const fit = chosen && !p ? fitFor(chosen, slot.role) : null
+              const fit = chosen && !p ? fitFor(chosen, slot) : null
               return (
                 <button
                   key={i}

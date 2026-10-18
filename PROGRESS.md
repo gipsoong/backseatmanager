@@ -9,6 +9,17 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 15, later): owner's odd things
+
+- **"The wall"** went to forwards: wingers' clearances and loose balls counted as interceptions,
+  and any block counted. Now interceptions are only against an opponent's pass, blocks only of a
+  shot or pass, and the award is for CB/FB/DM regulars (tackles + interceptions + blocks +
+  clearances per 90). Rating offsets relevelled: every position's mean is 6.74–6.89 (W was 7.29).
+- **Wrong flank**: `fitFor` takes a slot; a wide player on his wrong side plays at 0.9 (Robertson
+  at RB). Random clubs' wide players are footed for their flank (`makeFeet(rng, slot)`).
+- **Over-long passes**: a wild corner could fly 66 m (harness limit 65); kicks are now capped at 62 m.
+- **Next (owner's ask)**: La Liga, Bundesliga, Serie A, Ligue 1 squads, and a European cup mode.
+
 ## Done (session 15): sub-attributes (attributes v2)
 
 - **31 sub-attributes** instead of 9 (spec: the "Matchday player attributes v2" Claude Doc), each

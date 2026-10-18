@@ -64,7 +64,7 @@ function strength(s: Season, club: number, squad: PlayerDef[]): { rating: number
   const slots = FORMATIONS[s.teams[club].formation]
   const total = ids.reduce((a, id, i) => {
     const p = squad.find((q) => q.id === id)!
-    return a + (p.overall ?? 70) * fitFor(p, slots[i].role)
+    return a + (p.overall ?? 70) * fitFor(p, slots[i])
   }, 0)
   return { rating: total / 11, starters: new Set(ids) }
 }

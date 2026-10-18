@@ -181,7 +181,8 @@ pulling the repo.
   ("van Persie", "De Bruyne", "Son").
 - Positions (session 11): a player's `role` plus `positions` (secondary, tertiary). `fitFor` is
   his familiarity with a slot (1, 0.95, 0.9, 0.75 in a line he knows, 0.55 otherwise, 0 in/out of
-  goal); `playingAttributes` scales his positional attributes by it, and the engine plays him
+  goal), times 0.9 for a full-back, wide midfielder or winger on his wrong flank (`naturalSide`:
+  his foot, reversed for inside forwards; `sideOf` reads a slot's flank); `playingAttributes` scales his positional attributes by it, and the engine plays him
   with those (`PlayerState.attrs`; `def.attrs` is his best). The staff pick, subs and the draft
   all use `fitFor`. Draft pools write positions as 'W/CM'.
 - Archetypes (session 12, `engine/archetypes.ts`): one per player for his position (curated for
