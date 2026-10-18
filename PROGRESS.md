@@ -27,11 +27,16 @@ request).
   nothing (shots aren't the limit); valuing the ball near goal more (`threat` 0.4 × xG, was 0.3)
   and keeping it a little less (`POSSESSION_VALUE` 0.02, was 0.03) did: calibrate shots 12.5 and
   xG 1.4–1.5 a team, seasons 2.4–2.5 goals a game (was 2.1), realism 29/31 on both sets.
-- **Still weak**: 3-5-2 is far behind (xG for 0.9, against 1.85, against club-seasons in their
-  own shapes; 4-3-3 1.6 / 1.3; 3-4-3 -0.34 xGD). Pushing its central midfielders or wing-backs
-  further forward didn't help, so the cause is elsewhere (three at the back's build-up, or no
-  width in midfield). Single defending attributes still count little (team shape decides most
-  defending).
+- **Three at the back** was far behind: against club-seasons in their own shapes 3-5-2 made 0.9
+  xG and conceded 1.85, and opponents reached its final third 55 times a game (normal ~37): the
+  back five sat deep with nobody wide in midfield. Now the ball-side wing-back steps out to press
+  once the ball is past the first third, a midfield three with no wide men slides further across,
+  and the far wing-back attacks the back post. 3-4-3 went from -0.34 to about level; 3-5-2 from
+  -0.97 to -0.49 xGD (~-0.4 allowing for players out of position). Tried and dropped: wing-backs
+  coming short, outside centre-backs splitting, pushing its midfielders higher, earlier pressing.
+  Four-at-the-back shapes are untouched (4-4-2 0.00, 4-3-3 +0.26 with a +0.29 rating edge).
+- **Still weak**: 3-5-2 still concedes many long shots (16 a game against, 0.09 xG each); single
+  defending attributes count little (team shape decides most defending).
 
 ## Done (session 14): fair attributes, single-season squads
 

@@ -228,7 +228,7 @@ pulling the repo.
   byte-identical (fingerprint a few seeds' events before and after).
 - `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
-  are `FB` slots with a big `attackDepth`. Random clubs use all six; check a shape change with
+  are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Random clubs use all six; check a shape change with
   `calibrate` and a per-formation shots comparison, as one-striker shapes were once far weaker.
 - Corners (session 10): `cornerPlan` in `ai.ts` sends the aerial threats up and a marker with
   each; `cornerSetUp` gates the kick until they're there. Harness: `restart-corner` checks both

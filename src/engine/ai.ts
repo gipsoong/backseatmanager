@@ -915,12 +915,20 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   // 4-3-3 defends as a 4-5-1), unless the side is pressing high. Left up the pitch, they cost a
   // shape with wingers ~0.4 goals a game against one with wide midfielders.
   const tracks = !inPossession && p.slot.role === 'W' && s.teams[team].block !== 'high' && b.x < PITCH_LENGTH / 2
-  const restDepth = tracks ? Math.min(p.slot.depth, 0.55) : p.slot.depth
+  // A wing-back on the ball's side steps out of the back five to press their full-back once the
+  // ball is past the first third; the far one tucks in with the centre-backs.
+  const wingBack = p.slot.role === 'FB' && p.slot.attackDepth > 0.6
+  const ballSide = Math.sign(b.y - CENTER.y) === Math.sign(p.slot.y - CENTER.y)
+  const presses = !inPossession && wingBack && ballSide && b.x > 35
+  const restDepth = tracks ? Math.min(p.slot.depth, 0.55) : presses ? 0.4 : p.slot.depth
   const depth = restDepth + (inPossession ? attackDepthFor(p) : 0)
   const x = lineX + depth * length
   // A winger holds the touchline to stretch them; a target man stays central for the cross.
   const width = inPossession && arch === 'winger' ? 1.15 : inPossession && arch === 'targetMan' ? 0.4 : 1
-  const y = CENTER.y + (p.slot.y - CENTER.y) * widthK * width + (b.y - CENTER.y) * (inPossession ? 0.2 : 0.4)
+  // With no wide midfielders (a back five's midfield three), the central midfielders slide further
+  // across to the ball's side out of possession.
+  const noWide = !inPossession && p.slot.role === 'CM' && !teammatesOf(s, team).some((q) => q.slot.role === 'WM' || q.slot.role === 'W')
+  const y = CENTER.y + (p.slot.y - CENTER.y) * widthK * width + (b.y - CENTER.y) * (inPossession ? 0.2 : noWide ? 0.6 : 0.4)
 
   let target = vec(x, y)
   // An inverted full-back steps into midfield with the ball, beside the holding player.
@@ -1009,7 +1017,9 @@ function boxRun(s: MatchState, p: PlayerState, b: Vec): Vec | null {
   // The main striker attacks the near post; a second, deeper one arrives late around the spot.
   if (role === 'ST' && (p.slot.depth < 1 || p.archetype === 'falseNine')) return spot(PITCH_LENGTH - 12, CENTER.y - side * 2)
   if (role === 'ST') return spot(PITCH_LENGTH - 6, CENTER.y + side * (p.slot.y > CENTER.y === side > 0 ? 3 : -2))
-  if ((role === 'W' || role === 'WM') && Math.sign(p.slot.y - CENTER.y) === -side) return spot(PITCH_LENGTH - 7, CENTER.y - side * 5)
+  // The far winger attacks the back post; so does the far wing-back.
+  const wingBack = role === 'FB' && p.slot.attackDepth > 0.6
+  if ((role === 'W' || role === 'WM' || wingBack) && Math.sign(p.slot.y - CENTER.y) === -side) return spot(PITCH_LENGTH - 7, CENTER.y - side * 5)
   if (role === 'CM') {
     const cms = teammatesOf(s, p.team).filter((q) => q.slot.role === 'CM')
     const furthest = cms.reduce((m, q) => (q.slot.depth + q.slot.attackDepth > m.slot.depth + m.slot.attackDepth ? q : m))
