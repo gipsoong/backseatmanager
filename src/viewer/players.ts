@@ -121,6 +121,8 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
   let lastTeam: 0 | 1 | null = null
   let lastTick = 0
   for (const e of events) {
+    // Penalties after extra time aren't part of anyone's game.
+    if (e.type === 'shootout') break
     lastTick = e.tick
     if (e.type === 'pass' || e.type === 'clearance' || e.type === 'restart') shot = null
     switch (e.type) {

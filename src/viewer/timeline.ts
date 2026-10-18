@@ -6,6 +6,7 @@
  * then [x, y] for each player (NaN when off the pitch). PLAYERS_AT is where the players start.
  */
 import {
+  type MatchConfig,
   type MatchEvent,
   type MatchState,
   type TeamDef,
@@ -27,15 +28,22 @@ export class Timeline {
   done = false
   halfTimeTick: number | null = null
   private frames: Float32Array
-  /** Per tick: clock ticks gone in the half (the clock also counts stoppages it didn't simulate). */
+  /** Per tick: clock ticks gone in the period (the clock also counts stoppages it didn't simulate). */
   private clock: Float64Array
+  /** Per tick: the period (1-4, 5 for penalties) and which way round the teams are playing. */
+  private period: Uint8Array
+  private halves: Uint8Array
+  /** Ticks of a whistle ending a period: they belong to the period just ended. */
+  private whistleTicks = new Set<number>()
   private stats: [TeamStats, TeamStats][] = []
 
-  constructor(home: TeamDef, away: TeamDef, seed: number, fitness?: Record<string, number>) {
-    this.state = createMatch(home, away, { seed, fitness })
+  constructor(home: TeamDef, away: TeamDef, seed: number, fitness?: Record<string, number>, knockout?: MatchConfig['knockout']) {
+    this.state = createMatch(home, away, { seed, fitness, knockout })
     this.stride = PLAYERS_AT + this.state.players.length * 2
     this.frames = new Float32Array(this.stride * 70_000)
     this.clock = new Float64Array(70_000)
+    this.period = new Uint8Array(70_000)
+    this.halves = new Uint8Array(70_000)
     this.record()
   }
 
@@ -44,7 +52,10 @@ export class Timeline {
     let n = 0
     while (n < ticks && !this.done) {
       const events = step(this.state)
-      for (const e of events) if (e.type === 'halfTime') this.halfTimeTick = e.tick
+      for (const e of events) {
+        if (e.type === 'halfTime') this.halfTimeTick = e.tick
+        if (e.type === 'halfTime' || e.type === 'extraTime' || e.type === 'shootout') this.whistleTicks.add(e.tick)
+      }
       this.record()
       n++
       if (this.state.phase.kind === 'fullTime') this.done = true
@@ -71,13 +82,22 @@ export class Timeline {
       this.frames = grown
     }
     if (s.tick >= this.clock.length) {
-      const grown = new Float64Array(this.clock.length * 2)
-      grown.set(this.clock)
-      this.clock = grown
+      const grow = <T extends Float64Array | Uint8Array>(a: T): T => {
+        const grown = new (a.constructor as new (n: number) => T)(a.length * 2)
+        grown.set(a)
+        return grown
+      }
+      this.clock = grow(this.clock)
+      this.period = grow(this.period)
+      this.halves = grow(this.halves)
     }
-    // The half-time whistle's tick belongs to the first half: the engine has already reset the
-    // clock for the second by the time it's recorded.
-    this.clock[s.tick] = s.tick === this.halfTimeTick ? (s.firstHalfElapsed ?? 0) : halfElapsed(s)
+    // A whistle's tick belongs to the period it ends: the engine has already reset the clock for
+    // the next by the time it's recorded.
+    const whistle = this.whistleTicks.has(s.tick)
+    const period = s.shootout ? 5 : s.period
+    this.period[s.tick] = whistle ? (s.shootout ? s.period : s.period - 1) : period
+    this.clock[s.tick] = whistle ? (s.shootout ? halfElapsed(s) : (s.prevPeriodElapsed ?? 0)) : halfElapsed(s)
+    this.halves[s.tick] = s.half
     const o = s.tick * this.stride
     const f = this.frames
     f[o] = s.ball.pos.x
@@ -124,8 +144,14 @@ export class Timeline {
 
   clockAt(tick: number): string {
     const t = Math.max(0, Math.min(Math.floor(tick), this.lastTick))
-    const half = this.halfTimeTick === null || t <= this.halfTimeTick ? 1 : 2
-    return formatClock(half, this.clock[t], this.state.halfTicks)
+    const period = this.period[t]
+    return period === 5 ? 'Pens' : formatClock(period, this.clock[t], this.state.halfTicks)
+  }
+
+  /** Which way round the teams were playing at a tick (for ownGoalX and the like). */
+  halfAt(tick: number): 1 | 2 {
+    const t = Math.max(0, Math.min(Math.floor(tick), this.lastTick))
+    return this.halves[t] === 2 ? 2 : 1
   }
 
   statsAt(tick: number): [TeamStats, TeamStats] {

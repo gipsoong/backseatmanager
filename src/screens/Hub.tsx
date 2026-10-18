@@ -8,6 +8,8 @@ import { Transfers } from './Transfers.tsx'
 import { type Deal, windowOpen } from '../draft/transfers.ts'
 import { SeasonReview, Stats } from './Stats.tsx'
 import { surname } from '../viewer/commentary.ts'
+import { CUP_NAME, CUP_PLACES, ROUND_NAMES, cupLive, cupTeam, cupWinner, isCupDay, userCupFixture } from '../draft/cup.ts'
+import { CupBracket } from './Cup.tsx'
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 
@@ -34,12 +36,14 @@ export function Hub({
   onFormation: (f: Formation) => void
   onDeal: (deal: Deal) => void
 }) {
-  const [tab, setTab] = useState<'review' | 'table' | 'fixtures' | 'squad' | 'stats' | 'transfers'>(isOver(season) ? 'review' : 'table')
+  const [tab, setTab] = useState<'review' | 'table' | 'fixtures' | 'squad' | 'stats' | 'transfers' | 'cup'>(
+    season.cup ? 'cup' : isOver(season) ? 'review' : 'table',
+  )
   // The last matchday played: open the review.
   const [wasOver, setWasOver] = useState(isOver(season))
   if (isOver(season) !== wasOver) {
     setWasOver(isOver(season))
-    if (isOver(season)) setTab('review')
+    if (isOver(season)) setTab(season.cup ? 'cup' : 'review')
   }
   // The matchday shown in Fixtures: the current one, unless the manager has paged away from it
   // since the last matchday was played.
@@ -51,6 +55,9 @@ export function Hub({
   const rows = table(season)
   const over = isOver(season)
   const next = over ? undefined : userFixture(season, season.matchday)
+  const cupNext = isCupDay(season) ? userCupFixture(season) : undefined
+  const cupOn = cupLive(season)
+  const champion = season.cup ? cupWinner(season.cup) : null
   const last = season.matchday > 1 ? userFixture(season, season.matchday - 1) : undefined
   const place = rows.findIndex((r) => r.team === season.userTeam) + 1
 
@@ -58,12 +65,13 @@ export function Hub({
     <div className="hub">
       <header className="top">
         <div className="fixture">
-          <p className="eyebrow">{season.mode === 'draft' ? 'Draft · Premier League 2010–now' : `Matchday · Season ${season.startDate.slice(0, 4)}`}</p>
+          <p className="eyebrow">{season.mode === 'draft' ? `Draft · ${season.league ?? 'Premier League'} 2010–now` : `Matchday · Season ${season.startDate.slice(0, 4)}`}</p>
           <h1>
             <Swatch kit={me.kit} /> {me.name}
           </h1>
           <p className="meta">
-            {ordinal(place)} of {season.teams.length} · {over ? 'Season over' : `Matchday ${season.matchday} of ${matchdays(season)}`}
+            {ordinal(place)} of {season.teams.length} ·{' '}
+            {cupOn ? CUP_NAME : over ? 'Season over' : `Matchday ${season.matchday} of ${matchdays(season)}`}
           </p>
         </div>
       </header>
@@ -96,6 +104,35 @@ export function Hub({
                 </button>
               </div>
             </>
+          ) : cupNext ? (
+            <>
+              <p className="eyebrow">
+                {CUP_NAME} · {ROUND_NAMES[cupNext.round]}
+                {cupNext.leg ? `, ${cupNext.leg === 1 ? 'first' : 'second'} leg` : ''} · {cupNext.home === season.userTeam ? 'Home' : 'Away'}
+              </p>
+              <h2 className="versus">
+                <TeamName team={cupTeam(season, cupNext.home)} /> <span className="v">v</span> <TeamName team={cupTeam(season, cupNext.away)} />
+              </h2>
+              <div className="actions">
+                <button type="button" className="btn" onClick={onWatch} disabled={busy}>
+                  Watch the match
+                </button>
+                <button type="button" className="btn ghost" onClick={onSimulate} disabled={busy}>
+                  {busy ? 'Playing…' : 'Just the result'}
+                </button>
+              </div>
+            </>
+          ) : cupOn ? (
+            <>
+              <p className="eyebrow">{CUP_NAME}</p>
+              <h2 className="versus">{me.name} are out</h2>
+              <p className="meta">The cup goes on without you.</p>
+              <div className="actions">
+                <button type="button" className="btn" onClick={onSimulate} disabled={busy}>
+                  {busy ? 'Playing…' : 'Play the next round'}
+                </button>
+              </div>
+            </>
           ) : (
             <>
               <p className="eyebrow">Season over</p>
@@ -104,6 +141,8 @@ export function Hub({
               </h2>
               <p className="meta">
                 {me.name} finished {ordinal(place)} with {rows[place - 1].points} points.
+                {champion !== null && ` ${champion === season.userTeam ? `And ${me.name} won` : `${cupTeam(season, champion).name} won`} the ${CUP_NAME}.`}
+                {season.mode === 'draft' && !season.cup && place > CUP_PLACES && ` A top-${CUP_PLACES} finish plays on in the ${CUP_NAME}.`}
               </p>
               <div className="actions">
                 <button type="button" className="btn" onClick={onNewSeason}>
@@ -139,6 +178,11 @@ export function Hub({
             <button type="button" role="tab" aria-selected={tab === 'stats'} onClick={() => setTab('stats')}>
               Stats
             </button>
+            {season.cup && (
+              <button type="button" role="tab" aria-selected={tab === 'cup'} onClick={() => setTab('cup')}>
+                Cup
+              </button>
+            )}
             {season.mode === 'draft' && (
               <button type="button" role="tab" aria-selected={tab === 'transfers'} onClick={() => setTab('transfers')}>
                 Deals
@@ -146,6 +190,7 @@ export function Hub({
             )}
           </div>
           {tab === 'transfers' && <Transfers season={season} onDeal={onDeal} />}
+          {tab === 'cup' && season.cup && <CupBracket season={season} />}
           {tab === 'squad' && <Squad season={season} onLineup={onLineup} onFormation={onFormation} />}
           {tab === 'stats' && <Stats season={season} />}
           {tab === 'review' && <SeasonReview season={season} />}

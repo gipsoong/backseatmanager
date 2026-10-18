@@ -4,7 +4,8 @@
  */
 import { useState } from 'react'
 import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
-import { DRAFT_ROUNDS, DRAFT_SUBS, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
+import { DRAFT_ROUNDS, DRAFT_SUBS, LEAGUES, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
+import type { League } from '../draft/pools.ts'
 import { Swatch } from './Hub.tsx'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { positionsLabel, shortName as surname, styleLabel } from '../names.ts'
@@ -13,8 +14,10 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
   const [draft, setDraft] = useState<DraftState | null>(null)
   const [chosen, setChosen] = useState<PlayerDef | null>(null)
   const [name, setName] = useState('Backseat XI')
+  const [league, setLeague] = useState<League>('Premier League')
 
-  if (!draft) return <PickShape onPick={(f) => setDraft(newDraft(seed, f))} onBack={onBack} />
+  if (!draft) return <PickShape league={league} onLeague={setLeague} onPick={(f) => setDraft(newDraft(seed, f, league))} onBack={onBack} />
+  const where = draft.league ?? 'Premier League'
 
   const slots = FORMATIONS[draft.formation]
   const done = isComplete(draft)
@@ -29,7 +32,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
     <div className="draft">
       <header className="top">
         <div className="fixture">
-          <p className="eyebrow">Draft · Premier League 2010–now</p>
+          <p className="eyebrow">Draft · {where} 2010–now</p>
           <h1>{done ? 'Your side is picked' : `Round ${round + 1} of ${DRAFT_ROUNDS}`}</h1>
           <p className="meta">
             {draft.formation} · starters {draft.xi.filter(Boolean).length}/11 · subs {draft.bench.filter(Boolean).length}/{draft.bench.length}
@@ -57,7 +60,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
             >
               <label htmlFor="club-name">Name your side</label>
               <input id="club-name" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
-              <p className="meta">A 38-match season against 19 Premier League sides from 2010 to now. No transfers: this squad is the squad.</p>
+              <p className="meta">A 38-match season against 19 {where} sides from 2010 to now. No transfers: this squad is the squad. Finish in the top four to play on in the European Cup.</p>
               <button type="submit" className="btn">
                 Start the season
               </button>
@@ -122,11 +125,20 @@ export const FORMATION_BLURB: Record<Formation, string> = {
   '3-4-3': 'Three centre-backs, wing-backs, a front three',
 }
 
-function PickShape({ onPick, onBack }: { onPick: (f: Formation) => void; onBack: () => void }) {
+function PickShape({ league, onLeague, onPick, onBack }: { league: League; onLeague: (l: League) => void; onPick: (f: Formation) => void; onBack: () => void }) {
   return (
     <div className="start">
-      <p className="eyebrow">Draft · Premier League 2010–now</p>
+      <p className="eyebrow">Draft · {league} 2010–now</p>
       <h1>Draft a side. Try to go unbeaten.</h1>
+      {LEAGUES.length > 1 && (
+        <div className="segmented league-pick" role="group" aria-label="League">
+          {LEAGUES.map((l) => (
+            <button key={l} type="button" aria-pressed={l === league} onClick={() => onLeague(l)}>
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
       <p className="meta">
         {DRAFT_ROUNDS} rounds. Each one shows a club's squad from one season: pick one of its players and put him in your side, as one of eleven starters
         or {DRAFT_SUBS} substitutes. A player out of position counts for less. You can change the shape later.

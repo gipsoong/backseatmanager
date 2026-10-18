@@ -47,7 +47,7 @@ function momentsOf(timeline: Timeline, events: MatchEvent[]): ReplayMoment[] {
   return replayMoments(
     events,
     (idx) => players[idx].team,
-    (team, tick) => ownGoalX(team, timeline.halfTimeTick !== null && tick > timeline.halfTimeTick ? 2 : 1),
+    (team, tick) => ownGoalX(team, timeline.halfAt(tick)),
   )
 }
 
@@ -144,7 +144,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
 
     const teamOf = (idx: number): 0 | 1 => timeline.state.players[idx].team
     const attacksHigh = (team: 0 | 1, tick: number): boolean =>
-      ownGoalX(team, timeline.halfTimeTick !== null && tick > timeline.halfTimeTick ? 2 : 1) === 0
+      ownGoalX(team, timeline.halfAt(tick)) === 0
     const draw = (ph: number, cam: Camera, roles: boolean): void => {
       const canvas = canvasRef.current
       if (!canvas) return
@@ -278,6 +278,9 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
   const playerStats = useMemo(() => (tab === 'commentary' ? null : playerLines(match, events)), [tab, match, events])
   const score = timeline.scoreAt(tick)
   const status = periodStatus(events)
+  const pens = shootoutScore(events)
+  // A second leg: the first leg's goals, from this match's sides.
+  const carried = match.carried && (match.carried[0] || match.carried[1]) ? match.carried : null
   const goalStrip = currentGoal(events)
   // Only goals already seen: marking future ones on the scrubber would give the result away.
   const goalsSoFar = events.filter((e): e is Goal => e.type === 'goal')
@@ -312,10 +315,16 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
             <span className="abbr">{home.shortName}</span>
             <span className="score">
               {score[0]}–{score[1]}
+              {pens && <small className="pens"> ({pens[0]}–{pens[1]})</small>}
             </span>
             <span className="abbr">{away.shortName}</span>
             <span className="swatch" style={{ background: kits[1].shirt }} />
             <span className="clock">{status ?? timeline.clockAt(tick)}</span>
+            {carried && (
+              <span className="agg" title="On aggregate, counting the first leg">
+                Agg {score[0] + carried[0]}–{score[1] + carried[1]}
+              </span>
+            )}
           </div>
           {replayAngle && (
             <div className="replay-chip">
@@ -428,20 +437,30 @@ function currentGoal(events: MatchEvent[]): Extract<MatchEvent, { type: 'goal' }
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i]
     if (e.type === 'goal') return e
-    if (e.type === 'restart' || e.type === 'halfTime' || e.type === 'fullTime') return null
+    if (e.type === 'restart' || e.type === 'halfTime' || e.type === 'extraTime' || e.type === 'shootout' || e.type === 'fullTime') return null
   }
   return null
 }
 
-/** "HT" between half-time and the second-half kick-off, "FT" at the end. */
+/** "HT" between half-time and the second-half kick-off, "ET" before each half of extra time, "FT" (or "AET") at the end. */
 function periodStatus(events: MatchEvent[]): string | null {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i]
-    if (e.type === 'fullTime') return 'FT'
+    if (e.type === 'fullTime') return events.some((f) => f.type === 'shootout') ? 'Pens' : events.some((f) => f.type === 'extraTime') ? 'AET' : 'FT'
     if (e.type === 'halfTime') return 'HT'
+    if (e.type === 'extraTime') return 'ET'
+    if (e.type === 'shootout' || e.type === 'shootoutKick') return null
     if (e.type === 'restart' && e.restart === 'kickoff') return null
   }
   return null
+}
+
+/** Penalties scored by each side so far, once there's a shootout. */
+function shootoutScore(events: MatchEvent[]): [number, number] | null {
+  if (!events.some((e) => e.type === 'shootout')) return null
+  const pens: [number, number] = [0, 0]
+  for (const e of events) if (e.type === 'shootoutKick' && e.scored) pens[e.team]++
+  return pens
 }
 
 function PlayIcon() {

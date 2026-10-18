@@ -29,6 +29,11 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
   const teamName = (t: Side): string => match.teams[t].name
   const score: [number, number] = [0, 0]
   let half: 1 | 2 = 1
+  let period = 1
+  const pens: [number, number] = [0, 0]
+  // In the shootout only the kicks get a line; `keeperTouched`: the keeper got to the one being taken.
+  let shootout = false
+  let keeperTouched = false
   let lastShot: { tick: number; byIdx: number } | null = null
   let afterGoal = false
 
@@ -42,12 +47,14 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
   let lastKick: { tick: number; byIdx: number; lofted: boolean; through: boolean } | null = null
 
   for (const e of events) {
+    if (shootout && ((e.type === 'possession' && e.via === 'save') || (e.type === 'deflection' && e.kind === 'parry'))) keeperTouched = true
+    if (shootout && e.type !== 'shootoutKick' && e.type !== 'fullTime') continue
     if (e.type === 'pass') lastKick = { tick: e.tick, byIdx: e.byIdx, lofted: e.lofted, through: e.through }
     else if (e.type === 'clearance') lastKick = { tick: e.tick, byIdx: e.byIdx, lofted: true, through: false }
     switch (e.type) {
       case 'restart':
         if (e.restart === 'kickoff' && !afterGoal) {
-          add(e, half === 1 ? `Kick-off. ${teamName(e.team)} get us under way.` : 'The second half is under way.', 'period', null)
+          add(e, period === 1 ? `Kick-off. ${teamName(e.team)} get us under way.` : period === 2 ? 'The second half is under way.' : period === 3 ? 'Extra time is under way.' : 'The second half of extra time is under way.', 'period', null)
         }
         afterGoal = false
         break
@@ -201,10 +208,27 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
       case 'halfTime':
         add(e, `Half-time. ${teamName(0)} ${score[0]}–${score[1]} ${teamName(1)}.`, 'period', null)
         half = 2
+        period = 2
         break
-      case 'fullTime':
-        add(e, `Full-time. ${teamName(0)} ${score[0]}–${score[1]} ${teamName(1)}.`, 'period', null)
+      case 'extraTime':
+        period = e.period
+        half = e.period === 3 ? 1 : 2
+        add(e, e.period === 3 ? `Level at full-time, ${score[0]}–${score[1]}. Extra time.` : `Half-time in extra time. ${teamName(0)} ${score[0]}–${score[1]} ${teamName(1)}.`, 'period', null)
         break
+      case 'shootout':
+        add(e, `Still level after extra time. Penalties.`, 'period', null)
+        shootout = true
+        break
+      case 'shootoutKick':
+        pens[e.team] += e.scored ? 1 : 0
+        add(e, `${name(e.takerIdx)} ${e.scored ? 'scores' : keeperTouched ? 'is saved' : 'misses'}. ${pens[0]}–${pens[1]}.`, e.scored ? 'goal' : 'chance', e.team)
+        keeperTouched = false
+        break
+      case 'fullTime': {
+        const after = pens[0] + pens[1] > 0 || events.some((f) => f.type === 'shootout') ? ` ${teamName(pens[0] > pens[1] ? 0 : 1)} win ${Math.max(...pens)}–${Math.min(...pens)} on penalties.` : ''
+        add(e, `Full-time. ${teamName(0)} ${score[0]}–${score[1]} ${teamName(1)}.${after}`, 'period', null)
+        break
+      }
     }
   }
   return lines

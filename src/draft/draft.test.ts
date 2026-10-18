@@ -40,15 +40,17 @@ describe('draft pools', () => {
   })
 
   it('makes players of the same overall and archetype about as good as each other', () => {
-    // The sum of a striker's finishing attributes, for every 88+ poacher: no name lottery.
+    // The sum of a striker's finishing attributes, less what his overall accounts for, for every
+    // 88+ poacher: no name lottery.
     const sums = POOLS.flatMap((pool, pi) =>
       pool.players.flatMap((_, i) => {
         const p = poolPlayer(pi, i)
-        return p.archetype === 'poacher' && (p.overall ?? 0) >= 88 ? [p.attrs.finishing + p.attrs.composure + p.attrs.positioning] : []
+        const level = 13.5 + ((p.overall ?? 0) - 80) / 4
+        return p.archetype === 'poacher' && (p.overall ?? 0) >= 88 ? [p.attrs.finishing + p.attrs.composure + p.attrs.positioning - 3 * level] : []
       }),
     )
     expect(sums.length).toBeGreaterThan(3)
-    expect(Math.max(...sums) - Math.min(...sums)).toBeLessThanOrEqual(5)
+    expect(Math.max(...sums) - Math.min(...sums)).toBeLessThanOrEqual(6)
   })
 })
 

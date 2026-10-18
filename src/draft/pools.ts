@@ -4,10 +4,21 @@
  */
 import type { Archetype } from '../engine/index.ts'
 
-export { POOLS, type Pool } from './squads.ts'
+import { POOLS as PREMIER_LEAGUE, type Pool } from './squads.ts'
+import * as laLiga from './squads-laliga.ts'
+import * as bundesliga from './squads-bundesliga.ts'
+import * as serieA from './squads-seriea.ts'
+import * as ligue1 from './squads-ligue1.ts'
+
+export type { League, Pool } from './squads.ts'
+
+const LEAGUES = [laLiga, bundesliga, serieA, ligue1]
+
+/** Every club-season: the Premier League first (saves refer to pools by index), then the rest. */
+export const POOLS: Pool[] = [...PREMIER_LEAGUE, ...LEAGUES.flatMap((l) => l.POOLS)]
 
 /** Left-footed players (everyone else in the pools is right-footed). */
-export const LEFT_FOOTED = new Set([
+const PL_LEFT_FOOTED = [
   'Mesut Özil', 'Kieran Gibbs', 'Nacho Monreal', 'Olivier Giroud', 'Robin van Persie',
   'Bukayo Saka', 'Martin Ødegaard', 'Oleksandr Zinchenko', 'Gabriel Magalhães',
   'Kai Havertz', 'Ashley Cole', 'Marcos Alonso', 'Juan Mata', 'Marc Cucurella',
@@ -31,13 +42,14 @@ export const LEFT_FOOTED = new Set([
   'Ezgjan Alioski', 'Kostas Tsimikas', 'Riccardo Calafiori', 'Myles Lewis-Skelly',
   'Jakub Kiwior', 'Mamadou Sakho', 'Matija Nastasić', 'Joleon Lescott', 'Ben Mee',
   'Jack Robinson', 'Robbie Brady', 'James Rodríguez', 'Giovani Lo Celso', 'Antony',
-])
+]
+export const LEFT_FOOTED = new Set([...PL_LEFT_FOOTED, ...LEAGUES.flatMap((l) => l.LEFT_FOOTED)])
 
 /**
  * Weak foot, in the familiar 1-5 stars, where it isn't the usual 3: the two-footed (5) and nearly
  * so (4), and the famously one-footed (2).
  */
-export const WEAK_FOOT: Record<string, number> = {
+const PL_WEAK_FOOT: Record<string, number> = {
   'Santi Cazorla': 5, 'Son Heung-min': 5, 'Nani': 5, 'Kevin De Bruyne': 5, 'Ashley Young': 5,
   'Leandro Trossard': 5, 'Mousa Dembélé': 5, 'Harry Kane': 5, 'Sadio Mané': 4,
   'Eden Hazard': 4, 'Luka Modrić': 4, 'Diogo Jota': 4, 'Paul Pogba': 4,
@@ -48,12 +60,13 @@ export const WEAK_FOOT: Record<string, number> = {
   'Rodri': 4, 'Thiago Alcântara': 4, 'Mesut Özil': 2, 'Riyad Mahrez': 2, 'Leroy Sané': 2,
   'Gareth Bale': 2, 'Andrew Robertson': 2,
 }
+export const WEAK_FOOT: Record<string, number> = Object.assign({}, ...LEAGUES.map((l) => l.WEAK_FOOT), PL_WEAK_FOOT)
 
 /**
  * How the best-known players play their position (see engine/archetypes.ts). Anyone not listed
  * gets one read off his attributes.
  */
-export const ARCHETYPE: Record<string, Archetype> = {
+const PL_ARCHETYPE: Record<string, Archetype> = {
   'Erling Haaland': 'poacher', 'Sergio Agüero': 'poacher', 'Robin van Persie': 'poacher',
   'Jamie Vardy': 'poacher', 'Fernando Torres': 'poacher', 'Daniel Sturridge': 'poacher',
   'Alexander Isak': 'poacher', 'Ollie Watkins': 'poacher', 'Edinson Cavani': 'poacher',
@@ -206,6 +219,7 @@ export const ARCHETYPE: Record<string, Archetype> = {
   'Filipe Luís': 'overlapping', 'Kieran Tierney': 'overlapping', 'Ola Aina': 'overlapping',
   'Timothy Castagne': 'overlapping', 'Victor Moses': 'winger',
 }
+export const ARCHETYPE: Record<string, Archetype> = Object.assign({}, ...LEAGUES.map((l) => l.ARCHETYPE), PL_ARCHETYPE)
 
 /**
  * Personalities people know (hidden traits): players otherwise get their archetype's typical

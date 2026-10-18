@@ -5,7 +5,7 @@
  * once: in your side, or for one opponent.
  */
 import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, fitFor, makeAttributes, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
-import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type Pool, TIRELESS, WEAK_FOOT } from './pools.ts'
+import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, TIRELESS, WEAK_FOOT } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
 export const DRAFT_SUBS = 9
@@ -15,6 +15,8 @@ export const DRAFT_LEAGUE_SIZE = 20
 
 export interface Draft {
   seed: number
+  /** Whose club-seasons are drafted and played against; unset in old saves (the Premier League). */
+  league?: League
   formation: Formation
   /** Pool (index into POOLS) offered in each round. */
   rounds: number[]
@@ -27,6 +29,14 @@ export interface Draft {
 export type Place = { xi: number } | { bench: number }
 
 export const poolName = (pool: Pool): string => `${pool.club} ${pool.season}`
+
+export const leagueOf = (pool: Pool): League => pool.league ?? 'Premier League'
+
+/** Leagues with club-seasons to draft, in the order they're offered. */
+export const LEAGUES: League[] = (['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1'] as League[]).filter((l) => POOLS.some((p) => leagueOf(p) === l))
+
+/** Indices into POOLS of one league's club-seasons. */
+const poolsIn = (league: League): number[] => POOLS.flatMap((p, i) => (leagueOf(p) === league ? [i] : []))
 
 /** Stable across sessions: the same name always gets the same attributes. */
 function hash(text: string): number {
@@ -82,10 +92,10 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   }
 }
 
-export function newDraft(seed: number, formation: Formation): Draft {
+export function newDraft(seed: number, formation: Formation, league: League = 'Premier League'): Draft {
   const rng = new Rng(seed)
-  const rounds = rng.shuffle(POOLS.map((_, i) => i)).slice(0, DRAFT_ROUNDS)
-  return { seed, formation, rounds, xi: Array(11).fill(null), bench: Array(DRAFT_SUBS).fill(null) }
+  const rounds = rng.shuffle(poolsIn(league)).slice(0, DRAFT_ROUNDS)
+  return { seed, league, formation, rounds, xi: Array(11).fill(null), bench: Array(DRAFT_SUBS).fill(null) }
 }
 
 /** The round being played (0-based): how many have been picked so far. */
@@ -168,7 +178,7 @@ export function draftLeague(d: Draft, name: string): TeamDef[] {
   const taken = draftedNames(d)
   const rng = new Rng(d.seed + 1)
   const clubs = new Set<string>()
-  const pools = rng.shuffle(POOLS.map((_, i) => i)).filter((i) => !clubs.has(POOLS[i].club) && clubs.add(POOLS[i].club))
+  const pools = rng.shuffle(poolsIn(d.league ?? 'Premier League')).filter((i) => !clubs.has(POOLS[i].club) && clubs.add(POOLS[i].club))
   const teams = pools.slice(0, DRAFT_LEAGUE_SIZE - 1).map((i) => {
     const team = poolTeam(i, taken)
     for (const p of [...team.players, ...team.bench]) taken.add(p.name)

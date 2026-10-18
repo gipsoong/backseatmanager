@@ -659,7 +659,9 @@ function penaltyKick(d: Decision): Action {
   const { s, p, rng, attrs } = d
   const side = rng.chance(0.5) ? -1 : 1
   const aim = CENTER.y + side * rng.range(1.6, GOAL_HALF_WIDTH - 0.45)
-  const sigma = ((26 - attrs.penalties) / 20) * (1.15 - attrs.composure / 40)
+  // In a shootout the nerves tell: about a quarter are missed or saved there, a fifth in a match.
+  const nerve = s.shootout ? 1.6 : 1
+  const sigma = ((26 - attrs.penalties) / 20) * (1.15 - attrs.composure / 40) * nerve
   const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
   const height = Math.max(0.1, rng.range(0.2, 1.9) + Math.abs(rng.gauss()) * sigma * 0.35)
   return { kind: 'shot', target, xg: 0, height, finesse: false, foot: p.def.foot ?? 'right', footQ: 1 }
@@ -1291,6 +1293,31 @@ export function giveAndGo(s: MatchState, p: PlayerState, to: PlayerState): Vec |
 
 // ---------------------------------------------------------------------------
 // Restarts
+
+/** Where a player waits while the others take their kicks. */
+export function shootoutSpot(s: MatchState, p: PlayerState): Vec {
+  if (p.slot.role === 'GK') return vec(PITCH_LENGTH - 0.5, CENTER.y + (p.team === 0 ? -1 : 1) * (BOX_HALF_WIDTH + 2))
+  const mates = s.players.filter((q) => q.onPitch && q.team === p.team && q.slot.role !== 'GK')
+  const k = mates.indexOf(p)
+  return vec(HALFWAY_X + (p.team === 0 ? -1.2 : 1.2), CENTER.y - 6 + (k * 12) / Math.max(1, mates.length - 1))
+}
+
+/**
+ * Penalties: the taker walks up to the spot and stays put once he's struck it, the keeper in goal
+ * plays it as he would any penalty, everyone else waits.
+ */
+export function shootoutIntent(s: MatchState, p: PlayerState, chasers: Map<number, number>): MoveIntent {
+  const defending = s.phase.kind === 'restart' ? 1 - s.phase.restart.team : s.ball.kick ? 1 - s.ball.kick.team : -1
+  const keeper = p.slot.role === 'GK' && p.team === defending
+  if (s.phase.kind === 'restart') {
+    const r = s.phase.restart
+    if (p.idx === r.takerIdx || keeper) return restartIntent(s, p, r)
+  } else {
+    if (keeper) return playIntent(s, p, chasers)
+    if (s.ball.kick && p.idx === s.ball.kick.byIdx) return { target: p.pos, urgency: 0 }
+  }
+  return { target: shootoutSpot(s, p), urgency: 0.5 }
+}
 
 /** Where each player goes while a restart is being set up. */
 export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIntent {

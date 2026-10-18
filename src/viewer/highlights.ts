@@ -54,6 +54,9 @@ const endsFlight = (e: MatchEvent): boolean =>
   e.type === 'out' ||
   e.type === 'woodwork' ||
   e.type === 'halfTime' ||
+  e.type === 'extraTime' ||
+  e.type === 'shootout' ||
+  e.type === 'shootoutKick' ||
   e.type === 'fullTime'
 
 /**

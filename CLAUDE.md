@@ -227,6 +227,23 @@ pulling the repo.
   dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,
   `header`. Keep the order of RNG draws when touching either: a refactor should leave matches
   byte-identical (fingerprint a few seeds' events before and after).
+- Leagues (session 16): `squads.ts` is the Premier League; `squads-laliga.ts`, `-bundesliga.ts`,
+  `-seriea.ts`, `-ligue1.ts` hold ~40 club-seasons each (`Pool.league`), with their own
+  LEFT_FOOTED / WEAK_FOOT / ARCHETYPE tables merged in pools.ts. POOLS keeps the Premier League
+  first (saves refer to pools by index). A draft is of one league (`Draft.league`, `Season.league`).
+  Check a squads file with `node scripts/check-squads.ts <file>`; names must match across files.
+- Knockout matches (session 16): `MatchConfig.knockout` ({ carried } from a first leg). Level on
+  aggregate after 90 goes to extra time (`period` 3 and 4, 15 minutes each; `half` stays the
+  direction), then penalties (`MatchState.shootout`): each kick is an ordinary penalty restart at
+  the x = 105 goal (the teams are turned round before each kick), ended when it's in, out, held or
+  dead; the kicks don't count in the stats or player lines (everything after the `shootout` event).
+  Harness: `knockout-level`, `shootout-*`. `node scripts/diag-knockout.ts [n] [seed]`: how often ties
+  go to extra time and penalties and how penalties go (real: ~75% in shootouts).
+- European cup (session 16, `draft/cup.ts`, `screens/Cup.tsx`): after a draft league, a top-four
+  side plays on with the league's top four and three club-seasons from each other league; last 16,
+  quarters, semis over two legs, a one-off final, a round a matchday. `Season.cup` keeps guests,
+  entrants (`CupSide`: league index, or GUEST + guest index) and fixtures; cup results don't add to
+  the league's player stats but fitness and injuries carry on (`recover`).
 - `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
   are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Random clubs use all six; check a shape change with

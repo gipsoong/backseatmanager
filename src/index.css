@@ -1970,3 +1970,18 @@ button.name-link {
 .notable .game {
   font-weight: 600;
 }
+
+.league-pick {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  border: 0;
+  background: transparent;
+}
+
+.league-pick button,
+.league-pick button + button {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}

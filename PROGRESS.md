@@ -18,7 +18,12 @@ request).
 - **Wrong flank**: `fitFor` takes a slot; a wide player on his wrong side plays at 0.9 (Robertson
   at RB). Random clubs' wide players are footed for their flank (`makeFeet(rng, slot)`).
 - **Over-long passes**: a wild corner could fly 66 m (harness limit 65); kicks are now capped at 62 m.
-- **Next (owner's ask)**: La Liga, Bundesliga, Serie A, Ligue 1 squads, and a European cup mode.
+- **Leagues**: La Liga, Bundesliga, Serie A, Ligue 1 (158 club-seasons, recalled ratings: means 78.2,
+  76.6, 77.7, 75.1 against the Premier League's 79.5), chosen at the start of a draft.
+- **Extra time and penalties** in the engine; shootout conversion tuned to ~74% (nerves: a
+  penalty's error x1.6 in a shootout), ~5 rounds a shootout; zero harness violations over 180 ties.
+- **European cup** for a top-four draft side (16-team knockout, the recommended format; the owner
+  hadn't chosen yet when it was built: groups or an 8-team knockout were the alternatives).
 
 ## Done (session 15): sub-attributes (attributes v2)
 

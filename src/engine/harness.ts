@@ -97,6 +97,9 @@ export function checkMatch(
   let release: { tick: number; team: Side } | null = null
   let stillBallTicks = 0
   let heldTicks = 0
+  // Penalties: each kick's taker (from its restart) and every kick, in order.
+  let shootoutTaker: { idx: number; team: Side } | null = null
+  let shootoutKicks: { team: Side; scored: boolean }[] | null = null
   const tally: [number, number] = [0, 0]
   // Everyone who has been on the pitch, and substitutions made, by team.
   const everOn = new Set<number>()
@@ -104,6 +107,9 @@ export function checkMatch(
   // Each player's top speed going into the tick being checked.
   let topSpeed: number[] = []
 
+  const v0 = (tick: number, rule: string, detail: string): void => {
+    violations.push({ tick, rule, detail })
+  }
   const state = runMatch(home, away, config, (s, events) => {
     opts.tamper?.(s)
     const cur = frameOf(s)
@@ -120,9 +126,15 @@ export function checkMatch(
   })
 
   function checkTick(s: MatchState, P: Frame, C: Frame, events: MatchEvent[], v: (rule: string, detail: string) => void): void {
-    // Players are repositioned for the second half, so positions can't be checked on that tick.
-    if (events.some((e) => e.type === 'halfTime')) {
+    // Players are repositioned for a new period or the shootout, so positions can't be checked on that tick.
+    const newPeriod = events.find((e) => e.type === 'halfTime' || e.type === 'extraTime' || e.type === 'shootout')
+    if (newPeriod) {
       for (const e of events) if (e.type === 'goal') tally[e.team]++
+      // Extra time and penalties only for a knockout tie that's level (counting a first leg).
+      const c = config.knockout ? (config.knockout.carried ?? [0, 0]) : null
+      const level = c !== null && tally[0] + c[0] === tally[1] + c[1]
+      if ((newPeriod.type === 'shootout' || (newPeriod.type === 'extraTime' && newPeriod.period === 3)) && !level) v0(s.tick, 'knockout-level', `${newPeriod.type} with the tie at ${tally} (carried ${c})`)
+      if (newPeriod.type === 'shootout') shootoutKicks = []
       pending = null
       return
     }
@@ -327,6 +339,31 @@ export function checkMatch(
       }
     }
 
+    // --- Penalties: kicks alternate, each by the player who stepped up, scored iff the ball
+    // crossed the goal line between the posts and under the bar.
+    if (shootoutKicks && restartEv?.type === 'restart') shootoutTaker = { idx: restartEv.takerIdx, team: restartEv.team }
+    for (const e of events) {
+      if (e.type === 'goal' && shootoutKicks) v('shootout-goal', 'a goal event during penalties')
+      if (e.type !== 'shootoutKick') continue
+      if (!shootoutKicks) {
+        v('shootout-kick', 'a kick before the shootout')
+        continue
+      }
+      const last = shootoutKicks.at(-1)
+      if (last && last.team === e.team) v('shootout-order', `team ${e.team} kicked twice running`)
+      if (!shootoutTaker || shootoutTaker.idx !== e.takerIdx || shootoutTaker.team !== e.team || team(e.takerIdx) !== e.team) {
+        v('shootout-taker', `kick credited to ${e.takerIdx} (team ${e.team}), stepped up: ${shootoutTaker?.idx}`)
+      }
+      const onGoalLine = Math.abs(e.pos.x - PITCH_LENGTH) < EPS && Math.abs(e.pos.y - CENTER.y) < GOAL_HALF_WIDTH
+      if (e.scored && (!onGoalLine || e.height >= UNDER_BAR)) v('shootout-goal-pos', `scored at ${fmt(e.pos)}, ${e.height.toFixed(2)}m up`)
+      if (!e.scored && onGoalLine && Math.abs(e.pos.y - CENTER.y) < GOAL_HALF_WIDTH - 0.11 && e.height < UNDER_BAR) {
+        v('shootout-miss-pos', `missed, but crossed at ${fmt(e.pos)} ${e.height.toFixed(2)}m up`)
+      }
+      if (dist(P.ball, e.pos) > BALL_STEP + DRIBBLE_OFFSET) v('shootout-path', `ball was ${dist(P.ball, e.pos).toFixed(1)}m from ${fmt(e.pos)}`)
+      shootoutKicks.push({ team: e.team, scored: e.scored })
+      shootoutTaker = null
+    }
+
     // --- Restarts are taken only once players are where the laws require.
     if (restartEv?.type === 'restart') {
       if (restartEv.forced) forcedRestarts++
@@ -392,6 +429,25 @@ export function checkMatch(
         for (const x of opps) if (dist(x.pos, e.spot) < 2 - EPS) fail(`player ${x.i} within 2m of the thrower`)
         break
     }
+  }
+
+  // A shootout ends as soon as it's decided, and not before.
+  // (Set inside the tick callback, which the compiler can't see.)
+  const kicks = shootoutKicks as { team: Side; scored: boolean }[] | null
+  if (kicks) {
+    const decidedAfter = (n: number): boolean => {
+      const ks = kicks.slice(0, n)
+      const goals = [0, 1].map((t) => ks.filter((k) => k.team === t && k.scored).length)
+      const taken = [0, 1].map((t) => ks.filter((k) => k.team === t).length)
+      if (Math.max(...taken) <= 5) return goals[0] + (5 - taken[0]) < goals[1] || goals[1] + (5 - taken[1]) < goals[0]
+      return taken[0] === taken[1] && goals[0] !== goals[1]
+    }
+    const n = kicks.length
+    if (!decidedAfter(n)) v0(state.tick, 'shootout-end', `ended undecided after ${n} kicks`)
+    for (let i = 1; i < n; i++) if (decidedAfter(i)) v0(state.tick, 'shootout-end', `decided after ${i} kicks but went on to ${n}`)
+  } else if (config.knockout) {
+    const c = config.knockout.carried ?? [0, 0]
+    if (tally[0] + c[0] === tally[1] + c[1]) v0(state.tick, 'knockout-level', 'a knockout tie ended level')
   }
 
   const tallied = tally as [number, number]

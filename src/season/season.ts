@@ -87,6 +87,9 @@ export interface Result {
   injuries: { id: string; weeks: number }[]
   /** Home and away sides' numbers (results saved before they were kept have none). */
   teams?: [TeamLine, TeamLine]
+  /** A knockout tie that went to extra time, and to penalties (home, away). */
+  aet?: boolean
+  pens?: [number, number]
 }
 
 export interface Fixture {
@@ -145,8 +148,41 @@ export interface Season {
   lineup: string[] | null
   /** A drafted side against clubs of the past, rather than a club in a league of made-up ones. */
   mode?: 'draft'
+  /** Draft mode: whose club-seasons the league is made of (unset: the Premier League). */
+  league?: string
   /** Deals done in the January window (draft mode), oldest first. */
   transfers?: Transfer[]
+  /** The European cup after the league, for a draft side that finished in the top four. */
+  cup?: Cup
+}
+
+/**
+ * A side in the cup: a club in the league (its index into Season.teams), or a guest from another
+ * league (GUEST + its index into Cup.guests).
+ */
+export type CupSide = number
+export const GUEST = 100
+
+export interface CupFixture {
+  id: number
+  /** 0 = last 16, 1 = quarter-finals, 2 = semi-finals, 3 = final. */
+  round: number
+  /** The tie within its round. */
+  tie: number
+  /** 1 or 2 of a two-legged tie; 0 for a one-off final. */
+  leg: 0 | 1 | 2
+  matchday: number
+  home: CupSide
+  away: CupSide
+  seed: number
+  result: Result | null
+}
+
+export interface Cup {
+  guests: TeamDef[]
+  /** The sixteen, in the order they were drawn: ties are pairs. */
+  entrants: CupSide[]
+  fixtures: CupFixture[]
 }
 
 /**
@@ -307,10 +343,12 @@ export function resultOf(m: MatchState): Result {
     if (e.type === 'card' && e.color === 'red') off.set(e.idx, e.tick)
   }
   const lines = playerLines(m, m.events)
+  // The final whistle: penalties after extra time aren't minutes played.
+  const end = m.events.find((e) => e.type === 'shootout')?.tick ?? m.tick
   const appearances: Appearance[] = [...on.entries()].map(([i, from]) => {
     const l = lines[i]
     const p = m.players[i]
-    const minutes = Math.max(1, Math.round((((off.get(i) ?? m.tick) - from) / m.tick) * 90))
+    const minutes = Math.max(1, Math.round((((off.get(i) ?? end) - from) / end) * (m.period >= 3 ? 120 : 90)))
     const a: Appearance = {
       id: p.def.id,
       starts: from === 0 ? 1 : 0,
@@ -338,7 +376,14 @@ export function resultOf(m: MatchState): Result {
     corners: t.corners,
     fouls: t.fouls,
   })) as [TeamLine, TeamLine]
-  return { score: [m.score[0], m.score[1]], goals, xg: [m.stats[0].xg, m.stats[1].xg], appearances, injuries, teams }
+  const result: Result = { score: [m.score[0], m.score[1]], goals, xg: [m.stats[0].xg, m.stats[1].xg], appearances, injuries, teams }
+  if (m.period >= 3) result.aet = true
+  if (m.shootout) {
+    const pens: [number, number] = [0, 0]
+    for (const k of m.shootout.kicks) if (k.scored) pens[k.team]++
+    result.pens = pens
+  }
+  return result
 }
 
 /**
@@ -348,13 +393,10 @@ export function resultOf(m: MatchState): Result {
 export function completeMatchday(s: Season, results: Map<number, Result>): Season {
   const today = fixturesOn(s, s.matchday)
   for (const f of today) if (!results.has(f.id)) throw new Error(`no result for fixture ${f.id}`)
-  // A week to recover: most of the way back, but not all of it after a full ninety.
-  const condition: Record<string, Condition> = {}
-  for (const [id, c] of Object.entries(s.condition)) condition[id] = { ...c, fitness: Math.min(1, c.fitness + REST_RECOVERY) }
+  const condition = recover(s, [...results.values()])
   const stats = { ...s.stats }
   for (const r of results.values()) {
     for (const a of r.appearances) {
-      condition[a.id] = { ...condition[a.id], fitness: Math.min(1, a.energy + MATCH_RECOVERY) }
       const st = stats[a.id]
       const rated = a.minutes >= RATED_MINUTES
       const next: SeasonStats = {
@@ -368,7 +410,6 @@ export function completeMatchday(s: Season, results: Map<number, Result>): Seaso
       for (const k of COUNTERS) next[k] = (st[k] ?? (k === 'starts' ? st.apps : 0)) + (a[k] ?? 0)
       stats[a.id] = next
     }
-    for (const inj of r.injuries) condition[inj.id] = { ...condition[inj.id], injuredUntil: s.matchday + 1 + inj.weeks }
   }
   return {
     ...s,
@@ -377,6 +418,22 @@ export function completeMatchday(s: Season, results: Map<number, Result>): Seaso
     condition,
     stats,
   }
+}
+
+/**
+ * Everyone's condition after a matchday: a week to recover, most of the way back but not all of it
+ * after a full ninety; and whoever was hurt is out for a while.
+ */
+export function recover(s: Season, results: Result[]): Record<string, Condition> {
+  const condition: Record<string, Condition> = {}
+  for (const [id, c] of Object.entries(s.condition)) condition[id] = { ...c, fitness: Math.min(1, c.fitness + REST_RECOVERY) }
+  for (const r of results) {
+    // (A cup guest's condition starts with his first match.)
+    const was = (id: string): Condition => condition[id] ?? { fitness: 1, injuredUntil: 0 }
+    for (const a of r.appearances) condition[a.id] = { ...was(a.id), fitness: Math.min(1, a.energy + MATCH_RECOVERY) }
+    for (const inj of r.injuries) condition[inj.id] = { ...was(inj.id), injuredUntil: s.matchday + 1 + inj.weeks }
+  }
+  return condition
 }
 
 /** Fitness regained in a week by a player who didn't play, and on top of what's left after a match. */

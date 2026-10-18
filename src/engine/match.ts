@@ -86,6 +86,8 @@ import {
   reachHeightOf,
   reachOf,
   restartIntent,
+  shootoutIntent,
+  shootoutSpot,
   strikingFoot,
   cornerSetUp,
   defensiveLine,
@@ -118,6 +120,7 @@ import type {
   MatchState,
   PlayerState,
   Restart,
+  Shootout,
   RestartType,
   Side,
   TeamDef,
@@ -190,13 +193,16 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
     tick: 0,
     halfStartTick: 0,
     half: 1,
+    period: 1,
     addedTicks: rng.int(0, 3) * TICKS_PER_MINUTE + rng.int(0, 59) * 10,
     deadTicks: 0,
-    firstHalfElapsed: null,
+    prevPeriodElapsed: null,
     halfTicks,
     players,
     ball: emptyBall(),
     score: [0, 0],
+    carried: config.knockout ? (config.knockout.carried ?? [0, 0]) : null,
+    shootout: null,
     phase: { kind: 'play' },
     stats: [emptyStats(), emptyStats()],
     events: [],
@@ -235,16 +241,19 @@ export function halfElapsed(s: MatchState): number {
 }
 
 export function clockString(s: MatchState): string {
-  return formatClock(s.half, halfElapsed(s), s.halfTicks)
+  return s.shootout ? 'Pens' : formatClock(s.period, halfElapsed(s), s.halfTicks)
 }
 
-/** Broadcast clock ("23'", "45+2'") for a tick count into a half. */
-export function formatClock(half: 1 | 2, elapsedTicks: number, halfTicks: number): string {
-  const halfMinutes = halfTicks / TICKS_PER_MINUTE
-  const base = (half - 1) * halfMinutes
-  if (elapsedTicks < halfTicks) return `${Math.floor(base + elapsedTicks / TICKS_PER_MINUTE) + 1}'`
-  const extra = Math.floor((elapsedTicks - halfTicks) / TICKS_PER_MINUTE) + 1
-  return `${base + halfMinutes}+${extra}'`
+/** Length in ticks of a period: a half, or a third of one in extra time. */
+export const periodLength = (period: number, halfTicks: number): number => (period <= 2 ? halfTicks : Math.round(halfTicks / 3))
+
+/** Broadcast clock ("23'", "45+2'", "105+1'") for a tick count into a period. */
+export function formatClock(period: number, elapsedTicks: number, halfTicks: number): string {
+  const len = periodLength(period, halfTicks)
+  const base = (period <= 2 ? (period - 1) * halfTicks : 2 * halfTicks + (period - 3) * len) / TICKS_PER_MINUTE
+  if (elapsedTicks < len) return `${Math.floor(base + elapsedTicks / TICKS_PER_MINUTE) + 1}'`
+  const extra = Math.floor((elapsedTicks - len) / TICKS_PER_MINUTE) + 1
+  return `${base + len / TICKS_PER_MINUTE}+${extra}'`
 }
 
 function emit(s: MatchState, out: MatchEvent[], e: EventBody): void {
@@ -271,13 +280,14 @@ export function step(s: MatchState): MatchEvent[] {
 
   // 2. movement: everyone chooses from the same snapshot, then moves.
   beginMovement(s)
-  if (s.phase.kind === 'play') {
+  const so = s.shootout
+  if (s.phase.kind === 'play' && !so) {
     for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
   }
-  const chasers = s.phase.kind === 'play' ? pickChasers(s) : new Map<number, number>()
+  const chasers = s.phase.kind === 'play' && !so ? pickChasers(s) : new Map<number, number>()
   const phase = s.phase
   const intents = s.players.map((p) =>
-    !p.onPitch ? null : phase.kind === 'restart' ? restartIntent(s, p, phase.restart) : playIntent(s, p, chasers),
+    !p.onPitch ? null : so ? shootoutIntent(s, p, chasers) : phase.kind === 'restart' ? restartIntent(s, p, phase.restart) : playIntent(s, p, chasers),
   )
   endMovement(s)
   s.players.forEach((p, i) => {
@@ -287,6 +297,10 @@ export function step(s: MatchState): MatchEvent[] {
 
   // 3. ball
   if (s.phase.kind === 'play') updateBall(s, out)
+  if (so) {
+    resolveKick(s, out)
+    return out
+  }
 
   // 4. challenges
   if (s.phase.kind === 'play' && s.ball.ownerIdx !== null) challenges(s, out)
@@ -905,6 +919,7 @@ function crossesLine(s: MatchState, from: Vec, to: Vec, heightAt: (t: number) =>
     const underBar = height < CROSSBAR_HEIGHT - 0.11
     const betweenPosts = offCentre < GOAL_HALF_WIDTH - 0.11
     if (betweenPosts && underBar) {
+      if (s.shootout) return kickOver(s, 'goal', p, height)
       scoreGoal(s, (1 - defending) as Side, p, height, out)
       return true
     }
@@ -920,6 +935,7 @@ function crossesLine(s: MatchState, from: Vec, to: Vec, heightAt: (t: number) =>
       if (b.kick) b.kick.missedIdxs = []
       return true
     }
+    if (s.shootout) return kickOver(s, 'miss', p, height)
     if (lastTeam === defending) {
       const spot = vec(goalX === 0 ? 0.3 : PITCH_LENGTH - 0.3, p.y < CENTER.y ? 0.3 : PITCH_WIDTH - 0.3)
       emit(s, out, { type: 'out', award: 'corner', team: (1 - defending) as Side, pos: { ...p }, height })
@@ -933,10 +949,22 @@ function crossesLine(s: MatchState, from: Vec, to: Vec, heightAt: (t: number) =>
     return true
   }
 
+  if (s.shootout) return kickOver(s, 'miss', p, height)
   const spot = vec(clamp(p.x, 1, PITCH_LENGTH - 1), p.y < 1 ? 0.2 : PITCH_WIDTH - 0.2)
   const team = (1 - lastTeam) as Side
   emit(s, out, { type: 'out', award: 'throwIn', team, pos: { ...p }, height })
   setRestart(s, 'throwIn', team, spot)
+  return true
+}
+
+/** A kick in the shootout has crossed a line: in, or wide or over. The ball stops there. */
+function kickOver(s: MatchState, result: 'goal' | 'miss', at: Vec, height: number): boolean {
+  s.shootout!.result = result
+  s.shootout!.crossed = { pos: { ...at }, height }
+  s.ball.pos = { ...at }
+  s.ball.vel = vec(0, 0)
+  s.ball.vz = 0
+  s.ball.z = 0
   return true
 }
 
@@ -1281,32 +1309,136 @@ const OTHER_STOPPAGE_CHANCE = 0.1
 const OTHER_STOPPAGE_SECONDS: [number, number] = [30, 75]
 
 function checkPeriodEnd(s: MatchState, out: MatchEvent[]): void {
-  if (halfElapsed(s) < s.halfTicks + s.addedTicks) return
+  if (s.shootout) return
+  if (halfElapsed(s) < periodLength(s.period, s.halfTicks) + s.addedTicks) return
   // Don't blow up while a shot is on its way or a penalty is being set up.
   const k = s.ball.kick
   if (s.phase.kind === 'play' && s.ball.ownerIdx === null && k?.kind === 'shot' && !s.ball.touchedSinceKick) return
   if (s.phase.kind === 'restart' && s.phase.restart.type === 'penalty') return
 
-  if (s.half === 2) {
-    s.phase = { kind: 'fullTime' }
-    emit(s, out, { type: 'fullTime' })
+  if (s.period === 2 || s.period === 4) {
+    const c = s.carried
+    const level = c !== null && s.score[0] + c[0] === s.score[1] + c[1]
+    if (!level) {
+      s.phase = { kind: 'fullTime' }
+      emit(s, out, { type: 'fullTime' })
+    } else if (s.period === 2) startPeriod(s, 3, out)
+    else startShootout(s, out)
     return
   }
-  emit(s, out, { type: 'halfTime' })
-  s.firstHalfElapsed = halfElapsed(s)
-  s.half = 2
+  startPeriod(s, s.period === 1 ? 2 : 4, out)
+}
+
+/** The next period: the teams change ends and line up for the kick-off. */
+function startPeriod(s: MatchState, period: 2 | 3 | 4, out: MatchEvent[]): void {
+  if (period === 2) emit(s, out, { type: 'halfTime' })
+  else emit(s, out, { type: 'extraTime', period })
+  s.prevPeriodElapsed = halfElapsed(s)
+  s.period = period
+  s.half = period === 3 ? 1 : 2
   s.halfStartTick = s.tick
   s.deadTicks = 0
-  s.addedTicks = s.rng.int(1, 5) * TICKS_PER_MINUTE + s.rng.int(0, 59) * 10
+  s.addedTicks = (period === 2 ? s.rng.int(1, 5) : s.rng.int(0, 1)) * TICKS_PER_MINUTE + s.rng.int(0, 59) * 10
   s.ball = emptyBall()
-  // Teams come back out for the second half already in kick-off positions.
+  // Teams come back out already in kick-off positions.
   for (const p of s.players) {
     p.vel = vec(0, 0)
     p.tackleReadyAt = 0
     if (p.onPitch) p.pos = kickoffPosition(s, p)
   }
-  setRestart(s, 'kickoff', 1, CENTER)
+  setRestart(s, 'kickoff', period === 3 ? 0 : 1, CENTER)
   const r = (s.phase as { kind: 'restart'; restart: Restart }).restart
   s.players[r.takerIdx].pos = takerSpot(s, r)
+}
+
+// ---------------------------------------------------------------------------
+// Penalties
+//
+// Every kick is at the same goal (x = PITCH_LENGTH): before each one the teams are turned round
+// (`half`) so the side kicking attacks it. Each kick is an ordinary penalty restart, struck and
+// saved by the ordinary rules; it ends when the ball is in, out, held, or dead, and nobody
+// follows up. Those taking no part wait in the centre circle; the kicking side's keeper by the
+// corner of the box.
+
+const SHOOTOUT_KICK_TICKS = 4 * TICKS_PER_SECOND
+
+function startShootout(s: MatchState, out: MatchEvent[]): void {
+  emit(s, out, { type: 'shootout' })
+  const takers = (team: Side): number[] =>
+    s.players
+      .filter((p) => p.onPitch && p.team === team)
+      .sort((a, b) => Number(a.slot.role === 'GK') - Number(b.slot.role === 'GK') || b.attrs.penalties - a.attrs.penalties || a.idx - b.idx)
+      .map((p) => p.idx)
+  s.shootout = { first: s.rng.chance(0.5) ? 1 : 0, order: [takers(0), takers(1)], kicks: [], kickTick: null, result: null, crossed: null, statsAtStart: [{ ...s.stats[0] }, { ...s.stats[1] }] }
+  s.ball = emptyBall()
+  s.half = s.shootout.first === 0 ? 1 : 2
+  for (const p of s.players) {
+    p.vel = vec(0, 0)
+    p.tackleReadyAt = 0
+    p.runUntil = 0
+    p.runTo = null
+    if (p.onPitch) p.pos = shootoutSpot(s, p)
+  }
+  nextKick(s, out)
+}
+
+/** Kicks scored and taken by each side so far. */
+function shootoutTally(so: Shootout): { scored: [number, number]; taken: [number, number] } {
+  const scored: [number, number] = [0, 0]
+  const taken: [number, number] = [0, 0]
+  for (const k of so.kicks) {
+    taken[k.team]++
+    if (k.scored) scored[k.team]++
+  }
+  return { scored, taken }
+}
+
+/** Decided: in the first five each, once one side can't catch up; after that, at the end of a round. */
+export function shootoutOver(so: Shootout): boolean {
+  const { scored, taken } = shootoutTally(so)
+  if (taken[0] <= 5 && taken[1] <= 5) {
+    const left = [5 - taken[0], 5 - taken[1]]
+    return scored[0] > scored[1] + left[1] || scored[1] > scored[0] + left[0]
+  }
+  return taken[0] === taken[1] && scored[0] !== scored[1]
+}
+
+function nextKick(s: MatchState, out: MatchEvent[]): void {
+  const so = s.shootout!
+  if (shootoutOver(so)) {
+    // The kicks aren't shots in the match's stats.
+    s.stats = so.statsAtStart
+    s.phase = { kind: 'fullTime' }
+    emit(s, out, { type: 'fullTime' })
+    return
+  }
+  const team: Side = so.kicks.length % 2 === 0 ? so.first : ((1 - so.first) as Side)
+  const order = so.order[team]
+  const taker = order[shootoutTally(so).taken[team] % order.length]
+  s.half = team === 0 ? 1 : 2
+  setRestart(s, 'penalty', team, penaltySpot(PITCH_LENGTH))
+  const r = (s.phase as { kind: 'restart'; restart: Restart }).restart
+  r.takerIdx = taker
+  r.subsDone = true
+  so.kickTick = null
+  so.result = null
+  so.crossed = null
+}
+
+/** After the ball moves: has the kick being taken ended? Then record it and set up the next. */
+function resolveKick(s: MatchState, out: MatchEvent[]): void {
+  const so = s.shootout!
+  if (s.phase.kind !== 'play') return
+  if (so.kickTick === null) so.kickTick = s.tick
+  const b = s.ball
+  const dead = b.ownerIdx !== null || (len(b.vel) < 1 && b.z < 0.3) || s.tick - so.kickTick >= SHOOTOUT_KICK_TICKS
+  if (so.result === null && !dead) return
+  const r = so.kicks.length % 2 === 0 ? so.first : ((1 - so.first) as Side)
+  const takerIdx = so.order[r][shootoutTally(so).taken[r] % so.order[r].length]
+  const scored = so.result === 'goal'
+  so.kicks.push({ team: r, takerIdx, scored })
+  const at = so.crossed ?? { pos: { ...b.pos }, height: b.z }
+  emit(s, out, { type: 'shootoutKick', team: r, takerIdx, scored, pos: at.pos, height: at.height })
+  nextKick(s, out)
 }
 

@@ -345,6 +345,12 @@ export type MatchEvent = EventBase &
         celebration: Celebration | null
       }
     | { type: 'halfTime' }
+    /** The whistle for extra time (period 3) or its second half (period 4). */
+    | { type: 'extraTime'; period: 3 | 4 }
+    /** Level after extra time: penalties. Everything after this event is the shootout. */
+    | { type: 'shootout' }
+    /** A kick in the shootout: where the ball crossed a line (or stopped, or was held), and how high. */
+    | { type: 'shootoutKick'; team: Side; takerIdx: number; scored: boolean; pos: Vec; height: number }
     | { type: 'fullTime' }
   )
 
@@ -354,6 +360,27 @@ export interface MatchConfig {
   halfLengthMinutes?: number
   /** Match fitness (0-1) by player id, from the season: how fresh he starts. Default 1. */
   fitness?: Record<string, number>
+  /**
+   * A tie that must have a winner: level at full time (counting `carried`, the goals each side
+   * brings from a first leg) goes to extra time, then penalties.
+   */
+  knockout?: { carried?: [number, number] }
+}
+
+export interface Shootout {
+  /** Side that kicks first. */
+  first: Side
+  /** Each side's takers, in order (best penalty takers first, the keeper last). */
+  order: [number[], number[]]
+  kicks: { team: Side; takerIdx: number; scored: boolean }[]
+  /** Tick the kick being resolved was struck; null while the next is set up. */
+  kickTick: number | null
+  /** How the kick being resolved ended up, once it has: in, or not. */
+  result: 'goal' | 'miss' | null
+  /** Where the ball crossed the line, and how high, once it has. */
+  crossed: { pos: Vec; height: number } | null
+  /** The match's stats when the shootout began: the kicks don't count in them. */
+  statsAtStart: [TeamStats, TeamStats]
 }
 
 export interface MatchState {
@@ -362,7 +389,10 @@ export interface MatchState {
   tick: number
   /** Tick at which the current half began. */
   halfStartTick: number
+  /** Which way round the teams are playing (1 for periods 1 and 3, 2 for 2 and 4). */
   half: 1 | 2
+  /** 1 and 2 the halves, 3 and 4 the halves of extra time. */
+  period: 1 | 2 | 3 | 4
   /** Ticks of added time for the current half. */
   addedTicks: number
   /**
@@ -370,12 +400,16 @@ export interface MatchState {
    * fetched for a throw-in, a free kick being set up, a celebration. Counts on the clock only.
    */
   deadTicks: number
-  /** Clock ticks the first half ran, once it's over. */
-  firstHalfElapsed: number | null
+  /** Clock ticks the previous period ran, once it's over. */
+  prevPeriodElapsed: number | null
   halfTicks: number
   players: PlayerState[]
   ball: BallState
   score: [number, number]
+  /** A knockout tie: goals carried from a first leg ([0, 0] for a one-off); null for a league match. */
+  carried: [number, number] | null
+  /** Penalties, once a knockout tie gets to them. */
+  shootout: Shootout | null
   phase: Phase
   stats: [TeamStats, TeamStats]
   /** Substitutions made so far, by team: who came on, who went off. */

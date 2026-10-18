@@ -8,7 +8,8 @@ import { Match } from './screens/Match.tsx'
 import { PickTeam } from './screens/PickTeam.tsx'
 import { Start } from './screens/Start.tsx'
 import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, matchTeam, resultOf, userFixture } from './season/season.ts'
-import { simulate } from './season/simulate.ts'
+import { simulate, simulateMatches } from './season/simulate.ts'
+import { advanceCup, completeCupMatchday, cupFixturesToday, cupMatches, isCupDay, userCupFixture } from './draft/cup.ts'
 import { loadSeason, saveSeason } from './season/store.ts'
 import { MatchViewer } from './viewer/MatchViewer.tsx'
 import { Timeline } from './viewer/timeline.ts'
@@ -35,7 +36,7 @@ export default function App() {
 
   useEffect(() => {
     loadSeason()
-      .then((s) => setSeason(s))
+      .then((s) => setSeason(s && advanceCup(s)))
       .catch(() => setSeason(null))
       .finally(() => setScreen({ kind: 'start' }))
   }, [])
@@ -46,6 +47,13 @@ export default function App() {
   }
 
   const watch = (s: Season): void => {
+    if (isCupDay(s)) {
+      const f = userCupFixture(s)!
+      const [mine] = cupMatches(s, [f])
+      others.current = simulateMatches(cupMatches(s, cupFixturesToday(s).filter((g) => g.id !== f.id)), fitnessFor(s))
+      setScreen({ kind: 'match', timeline: new Timeline(mine.home, mine.away, f.seed, fitnessFor(s), mine.knockout) })
+      return
+    }
     const f = userFixture(s, s.matchday)!
     others.current = simulate(s, fixturesOn(s, s.matchday).filter((g) => g.id !== f.id))
     setScreen({ kind: 'match', timeline: new Timeline(matchTeam(s, f.home), matchTeam(s, f.away), f.seed, fitnessFor(s)) })
@@ -56,8 +64,13 @@ export default function App() {
     await nextFrame()
     while (!timeline.done) timeline.advance(5000)
     const results = await (others.current ?? Promise.resolve(new Map<number, Result>()))
-    results.set(userFixture(s, s.matchday)!.id, resultOf(timeline.state))
-    await commit(completeMatchday(s, results))
+    if (isCupDay(s)) {
+      results.set(userCupFixture(s)!.id, resultOf(timeline.state))
+      await commit(completeCupMatchday(s, results))
+    } else {
+      results.set(userFixture(s, s.matchday)!.id, resultOf(timeline.state))
+      await commit(advanceCup(completeMatchday(s, results)))
+    }
     others.current = null
     setBusy(false)
     setScreen({ kind: 'hub' })
@@ -65,7 +78,8 @@ export default function App() {
 
   const simulateMatchday = async (s: Season): Promise<void> => {
     setBusy(true)
-    await commit(completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday))))
+    if (isCupDay(s)) await commit(completeCupMatchday(s, await simulateMatches(cupMatches(s, cupFixturesToday(s)), fitnessFor(s))))
+    else await commit(advanceCup(completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday)))))
     setBusy(false)
   }
 
@@ -89,7 +103,7 @@ export default function App() {
           seed={screen.seed}
           onBack={() => setScreen({ kind: 'start' })}
           onDone={(d, name) => {
-            void commit({ ...createSeason(screen.seed, 0, new Date(), draftLeague(d, name)), mode: 'draft' })
+            void commit({ ...createSeason(screen.seed, 0, new Date(), draftLeague(d, name)), mode: 'draft', league: d.league })
             setScreen({ kind: 'hub' })
           }}
         />

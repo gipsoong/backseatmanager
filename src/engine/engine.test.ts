@@ -95,3 +95,30 @@ describe('the harness catches inconsistencies', () => {
     expect(violations.some((v) => v.rule === 'ball-bounds')).toBe(true)
   })
 })
+
+describe('knockout ties', () => {
+  // Short halves: plenty of ties level after extra time, so the shootout gets played.
+  const runs = [1, 2, 3, 4, 5, 6, 7, 8].map((seed) => {
+    const [h, a] = teams(seed)
+    return checkMatch(h, a, { seed, halfLengthMinutes: 4, knockout: { carried: seed % 3 === 0 ? [1, 0] : [0, 0] } })
+  })
+
+  it('go to extra time and penalties only when level, and end with a winner, with no violations', () => {
+    for (const r of runs) {
+      expect(r.violations).toEqual([])
+      const s = r.state
+      const pens = s.shootout ? s.shootout.kicks.filter((k) => k.scored && k.team === 0).length - s.shootout.kicks.filter((k) => k.scored && k.team === 1).length : 0
+      const agg = s.score[0] + s.carried![0] - s.score[1] - s.carried![1]
+      expect(agg !== 0 || pens !== 0).toBe(true)
+    }
+    expect(runs.some((r) => r.state.shootout)).toBe(true)
+  })
+
+  it('leave the match stats out of the shootout', () => {
+    const r = runs.find((x) => x.state.shootout)!
+    const kicks = r.state.events.filter((e) => e.type === 'shot' && r.state.events.findIndex((f) => f.type === 'shootout') < r.state.events.indexOf(e))
+    expect(kicks.length).toBeGreaterThan(0)
+    const before = r.state.events.filter((e) => e.type === 'shot' && !kicks.includes(e)).length
+    expect(r.state.stats[0].shots + r.state.stats[1].shots).toBe(before)
+  })
+})

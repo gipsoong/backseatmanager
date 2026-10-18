@@ -36,7 +36,7 @@ export function Start({
         </button>
         <button type="button" className="btn big ghost" onClick={onDraft}>
           <span>Draft a side</span>
-          <span className="sub">Premier League players, 2010 to now · 38 matches{saved ? ' · replaces your saved season' : ''}</span>
+          <span className="sub">Europe's top five leagues, 2010 to now · 38 matches and a European cup{saved ? ' · replaces your saved season' : ''}</span>
         </button>
         <button type="button" className="btn big ghost" onClick={onFriendly}>
           <span>Watch a friendly</span>
