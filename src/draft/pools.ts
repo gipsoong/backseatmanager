@@ -222,6 +222,21 @@ const PL_ARCHETYPE: Record<string, Archetype> = {
 export const ARCHETYPE: Record<string, Archetype> = Object.assign({}, ...LEAGUES.map((l) => l.ARCHETYPE), PL_ARCHETYPE)
 
 /**
+ * The flank a wide player made his own, where his foot and style would guess wrong: Messi on the
+ * right whatever he's listed as, Ronaldo and Mbappé on the left, right-footers like Mitoma and
+ * Nico Williams on the left, left-footers like Bailey and Diaby on the right.
+ */
+export const SIDE: Record<string, 'L' | 'R'> = {
+  'Lionel Messi': 'R', 'Cristiano Ronaldo': 'L', 'Kylian Mbappé': 'L', 'Jack Grealish': 'L',
+  'Kaoru Mitoma': 'L', 'Anthony Gordon': 'L', 'Ashley Young': 'L', 'Philippe Coutinho': 'L',
+  'Dimitri Payet': 'L', 'Kingsley Coman': 'L', 'Thorgan Hazard': 'L', 'Nico Williams': 'L',
+  'Gonçalo Guedes': 'L', 'Leon Bailey': 'R', 'Moussa Diaby': 'R', 'Eljero Elia': 'L', 'Robinho': 'L',
+  'Alexis Sánchez': 'L', 'Arjen Robben': 'R', 'Mohamed Salah': 'R', 'Riyad Mahrez': 'R',
+  'Ángel Di María': 'R', 'Paulo Dybala': 'R', 'Bukayo Saka': 'R', 'Neymar': 'L', 'Eden Hazard': 'L',
+  'Franck Ribéry': 'L', 'Vinícius Júnior': 'L', 'Sadio Mané': 'L', 'Raheem Sterling': 'L',
+}
+
+/**
  * Personalities people know (hidden traits): players otherwise get their archetype's typical
  * traits with a little variety (`draftTraits`). Flair: tricks, take-ons, curled shots. Hot heads:
  * fouls, cards, the cynical pull-back. Tireless: pressing and getting up and down all game.

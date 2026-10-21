@@ -152,6 +152,8 @@ export interface Season {
   league?: string
   /** Deals done in the January window (draft mode), oldest first. */
   transfers?: Transfer[]
+  /** Offers from other clubs turned down this window (draft mode). */
+  declined?: { club: number; give: string[]; get: string[] }[]
   /** The European cup after the league, for a draft side that finished in the top four. */
   cup?: Cup
 }

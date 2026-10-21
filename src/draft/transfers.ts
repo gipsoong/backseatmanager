@@ -1,18 +1,19 @@
 /**
  * The January window, in draft mode: swap players with the other clubs. No money, only players:
- * you offer one or two of yours for one or two of theirs, and they take it if it's worth it to
- * them. Pure: a deal is judged and applied the same way every time.
+ * one or two of yours for one or two of theirs. Clubs make offers too. Pure: a deal is judged and
+ * applied the same way every time.
  *
- * How a club judges a deal:
- * - Each player has a worth: his overall on a steep curve (one 88 is worth more than two 80s),
- *   nudged by his form this season and less if he's injured.
- * - A player is worth more to a club he'd start for than one he'd sit on the bench at: a club
- *   gives up a squad player more easily than a starter, and wants players who'd get in its side.
- * - They agree if what they get is worth at least 10% more to them than what they give up, and
- *   their best eleven isn't weakened.
+ * How a club judges a deal: by what it does to its side, the way a manager would.
+ * - Its eleven before and after (the staff pick with the new squad, fitness and injuries counted):
+ *   a player who'd walk into their side is worth a lot to them, one who wouldn't get a game little;
+ *   losing a starter costs them the gap to whoever replaces him, losing a squad player next to nothing.
+ * - A little for depth: the bench's best cover in each line.
+ * - They want to come out better, by more if you're a rival near them in the table, and a lot more
+ *   to let their best player go.
  */
-import { FORMATIONS, type PlayerDef, fitFor } from '../engine/index.ts'
-import { type Season, autoPick, avgRating, isOver, matchdayDate, matchdays, squadOf } from '../season/season.ts'
+import { FORMATIONS, type PlayerDef, Rng, type Role, type Slot, fitFor } from '../engine/index.ts'
+import { shortName } from '../names.ts'
+import { type Season, autoPick, avgRating, isOver, matchdayDate, matchdays, squadOf, table } from '../season/season.ts'
 
 /** Deals the manager can make in one window. */
 export const DEALS_PER_WINDOW = 3
@@ -21,10 +22,6 @@ export const MAX_PER_SIDE = 2
 /** Squad sizes a deal can leave a club with. */
 const MIN_SQUAD = 18
 const MAX_SQUAD = 22
-/** What a club wants over and above a like-for-like swap. */
-export const PREMIUM = 1.1
-/** A bench player's worth to a club, next to a starter's. */
-const BENCH_USE = 0.6
 
 export interface Deal {
   /** The club you're dealing with. */
@@ -48,77 +45,240 @@ export const dealsDone = (s: Season): number => (s.transfers ?? []).filter((t) =
 
 const byId = (s: Season, id: string): PlayerDef | undefined => s.teams.flatMap(squadOf).find((p) => p.id === id)
 
-/** A player's worth: his overall on a steep curve, his form, his fitness. */
+/** A player's worth, for ordering lists: his overall, nudged by his form. */
 export function worth(s: Season, p: PlayerDef): number {
-  const st = s.stats[p.id]
-  const avg = avgRating(st)
-  const form = avg !== null && st.apps >= 5 ? Math.min(1.25, Math.max(0.8, 1 + (avg - 6.75) * 0.3)) : 1
-  const out = Math.max(0, s.condition[p.id].injuredUntil - s.matchday)
-  return 100 * 1.12 ** ((p.overall ?? 70) - 80) * form * Math.max(0.4, 1 - out * 0.1)
+  const avg = avgRating(s.stats[p.id])
+  const form = avg !== null && (s.stats[p.id]?.apps ?? 0) >= 5 ? (avg - 6.75) * 2 : 0
+  return (p.overall ?? 70) + form
 }
 
-/** A squad's best eleven for its shape: the average of its players' overalls, each weighed by fit. */
-function strength(s: Season, club: number, squad: PlayerDef[]): { rating: number; starters: Set<string> } {
+/** A club's best eleven from a squad (the staff's pick, fitness and injuries counted), slot by slot. */
+export interface Eleven {
+  /** The players in formation slot order. */
+  xi: PlayerDef[]
+  /** Each one's overall as he'd play there (out of position or on the wrong flank counts less). */
+  fitted: number[]
+  rating: number
+  /** Best cover on the bench for defence, midfield and attack, summed. */
+  depth: number
+}
+
+const LINE_OF: Record<Role, number> = { GK: 0, CB: 0, FB: 0, DM: 1, CM: 1, WM: 1, W: 2, ST: 2 }
+
+export function elevenOf(s: Season, club: number, squad: PlayerDef[] = squadOf(s.teams[club])): Eleven {
   const probe: Season = { ...s, teams: s.teams.map((t, i) => (i === club ? { ...t, players: squad.slice(0, 11), bench: squad.slice(11) } : t)) }
-  const ids = autoPick(probe, club)
   const slots = FORMATIONS[s.teams[club].formation]
-  const total = ids.reduce((a, id, i) => {
-    const p = squad.find((q) => q.id === id)!
-    return a + (p.overall ?? 70) * fitFor(p, slots[i])
-  }, 0)
-  return { rating: total / 11, starters: new Set(ids) }
+  const xi = autoPick(probe, club).map((id) => squad.find((q) => q.id === id)!)
+  const fitted = xi.map((p, i) => (p.overall ?? 70) * fitFor(p, slots[i]))
+  const bench = squad.filter((p) => !xi.includes(p) && p.role !== 'GK' && s.condition[p.id]?.injuredUntil <= s.matchday)
+  const depth = [0, 1, 2].reduce((n, line) => n + Math.max(60, ...bench.filter((p) => LINE_OF[p.role] === line).map((p) => p.overall ?? 70)), 0)
+  return { xi, fitted, rating: fitted.reduce((a, b) => a + b, 0) / 11, depth }
+}
+
+/** A place's name: "right wing", "centre-back". */
+export function placeName(slot: Slot): string {
+  const side = slot.y > 40 ? 'right ' : slot.y < 28 ? 'left ' : ''
+  switch (slot.role) {
+    case 'GK':
+      return 'in goal'
+    case 'CB':
+      return 'centre-back'
+    case 'FB':
+      return slot.attackDepth > 0.5 ? `${side}wing-back` : `${side}back`
+    case 'DM':
+      return 'holding midfield'
+    case 'CM':
+      return slot.depth >= 0.65 ? 'attacking midfield' : 'central midfield'
+    case 'WM':
+      return `${side}midfield`
+    case 'W':
+      return `${side}wing`
+    case 'ST':
+      return 'up front'
+  }
+}
+
+/** What a deal does to one club: its eleven before and after, what it's worth to them, and why. */
+export interface Side {
+  club: number
+  before: Eleven
+  after: Eleven
+  /** What the eleven gains, a point near 80 worth about 1 and more higher up, plus a little for depth. */
+  value: number
+  /** What they'd want before saying yes, on the same scale. */
+  wanted: number
+  /** The deal in their eyes, a line per player and anything else that weighs. */
+  reasons: string[]
+}
+
+const surnameOf = (p: PlayerDef): string => shortName(p.name)
+
+/** How a deal looks to `club`, which gives up `out` and takes `in`. */
+export function sideOf(s: Season, club: number, out: PlayerDef[], incoming: PlayerDef[]): Side {
+  const squad = squadOf(s.teams[club])
+  const before = elevenOf(s, club, squad)
+  const after = elevenOf(s, club, [...squad.filter((p) => !out.includes(p)), ...incoming])
+  const slots = FORMATIONS[s.teams[club].formation]
+  const reasons: string[] = []
+  const you = club === s.userTeam
+  for (const p of incoming) {
+    const i = after.xi.indexOf(p)
+    if (i < 0) reasons.push(`${p.name} wouldn't get in ${you ? 'your' : 'their'} side.`)
+    else {
+      const was = before.xi[i]
+      reasons.push(`${p.name} would start ${placeName(slots[i])} (${Math.round(after.fitted[i])}), ahead of ${surnameOf(was)} (${Math.round(before.fitted[i])}).`)
+    }
+  }
+  for (const p of out) {
+    const i = before.xi.indexOf(p)
+    if (i < 0) reasons.push(`${p.name} is a squad player ${you ? 'for you' : 'there'}.`)
+    else {
+      const next = after.xi[i]
+      reasons.push(`${p.name} starts ${placeName(slots[i])}; ${surnameOf(next)} would take his place (${Math.round(after.fitted[i])}).`)
+    }
+  }
+  // A point at the top is worth more than one lower down: 88 over 85 matters more than 72 over 69.
+  const curve = (e: Eleven): number => e.fitted.reduce((n, f) => n + 10 * 1.12 ** (f - 80), 0)
+  const value = curve(after) - curve(before) + (after.depth - before.depth) * 0.15
+  let wanted = 1
+  if (!you) {
+    const rows = table(s)
+    const pos = (c: number): number => rows.findIndex((r) => r.team === c)
+    if (Math.abs(pos(club) - pos(s.userTeam)) <= 3 && pos(club) < 6) {
+      wanted += 2
+      reasons.push(`They're close to you in the table: they won't help a rival cheaply.`)
+    }
+    const best = [...squad].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))[0]
+    if (out.includes(best)) {
+      wanted += 3
+      reasons.push(`${best.name} is their best player: it would take a lot.`)
+    }
+  }
+  return { club, before, after, value, wanted, reasons }
 }
 
 export interface Verdict {
   ok: boolean
-  /** Worth to them of what they get over what they give up (1 = like for like). */
-  ratio: number
-  /** Their best eleven's rating before and after. */
-  before: number
-  after: number
-  /** Why it can't be done or why they said no, in a line. */
+  /** How keen they are: no, close, yes. */
+  interest: 'no' | 'close' | 'yes'
+  /** The deal for them, and for you. */
+  them: Side | null
+  you: Side | null
+  /** Why it can't be done or what they say, in a line. */
   reason: string
 }
 
 /** Whether the deal can be made at all, and whether they'd take it. */
 export function judge(s: Season, deal: Deal): Verdict {
-  const none = (reason: string): Verdict => ({ ok: false, ratio: 0, before: 0, after: 0, reason })
-  if (!windowOpen(s)) return none('The window is shut.')
-  if (dealsDone(s) >= DEALS_PER_WINDOW) return none(`That's ${DEALS_PER_WINDOW} deals this window, the most you can do.`)
-  if (deal.club === s.userTeam) return none('Pick another club.')
-  if (!deal.give.length || !deal.get.length) return none('Choose who you want and who you offer.')
-  if (deal.give.length > MAX_PER_SIDE || deal.get.length > MAX_PER_SIDE) return none(`At most ${MAX_PER_SIDE} players each way.`)
-  if ((s.transfers ?? []).some((t) => t.from.includes(deal.club) || t.to.includes(deal.club)))
-    return none(`You've already done a deal with ${s.teams[deal.club].name} this window.`)
+  const none = (reason: string): Verdict => ({ ok: false, interest: 'no', them: null, you: null, reason })
+  const problem = checkDeal(s, deal)
+  if (problem) return none(problem)
+  const mine = squadOf(s.teams[s.userTeam])
+  const theirs = squadOf(s.teams[deal.club])
+  const give = deal.give.map((id) => mine.find((p) => p.id === id)!)
+  const get = deal.get.map((id) => theirs.find((p) => p.id === id)!)
+  const them = sideOf(s, deal.club, get, give)
+  const you = sideOf(s, s.userTeam, give, get)
+  const gap = them.value - them.wanted
+  const interest = gap >= 0 ? 'yes' : gap >= -2.5 ? 'close' : 'no'
+  const reason = interest === 'yes' ? 'They would take that.' : interest === 'close' ? 'Close, but they want a bit more.' : 'Not interested: it doesn\'t help them.'
+  return { ok: interest === 'yes', interest, them, you, reason }
+}
+
+/** Why a deal can't be made at all, or null if it can be put to them. */
+function checkDeal(s: Season, deal: Deal): string | null {
+  if (!windowOpen(s)) return 'The window is shut.'
+  if (dealsDone(s) >= DEALS_PER_WINDOW) return `That's ${DEALS_PER_WINDOW} deals this window, the most you can do.`
+  if (deal.club === s.userTeam) return 'Pick another club.'
+  if (!deal.give.length || !deal.get.length) return 'Choose who you want and who you offer.'
+  if (deal.give.length > MAX_PER_SIDE || deal.get.length > MAX_PER_SIDE) return `At most ${MAX_PER_SIDE} players each way.`
+  if ((s.transfers ?? []).some((t) => t.from.includes(deal.club) || t.to.includes(deal.club))) return `You've already done a deal with ${s.teams[deal.club].name} this window.`
   const mine = squadOf(s.teams[s.userTeam])
   const theirs = squadOf(s.teams[deal.club])
   const give = deal.give.map((id) => mine.find((p) => p.id === id))
   const get = deal.get.map((id) => theirs.find((p) => p.id === id))
-  if (give.some((p) => !p) || get.some((p) => !p)) return none('Those players have moved on.')
+  if (give.some((p) => !p) || get.some((p) => !p)) return 'Those players have moved on.'
   const moved = new Set((s.transfers ?? []).flatMap((t) => t.ids))
   const already = [...give, ...get].find((p) => moved.has(p!.id))
-  if (already) return none(`${already.name} has already moved this window.`)
+  if (already) return `${already.name} has already moved this window.`
   const mineAfter = mine.length - give.length + get.length
   const theirsAfter = theirs.length - get.length + give.length
-  if (mineAfter < MIN_SQUAD || theirsAfter < MIN_SQUAD) return none(`Both squads need at least ${MIN_SQUAD} players.`)
-  if (mineAfter > MAX_SQUAD || theirsAfter > MAX_SQUAD) return none(`Squads can't go over ${MAX_SQUAD} players.`)
+  if (mineAfter < MIN_SQUAD || theirsAfter < MIN_SQUAD) return `Both squads need at least ${MIN_SQUAD} players.`
+  if (mineAfter > MAX_SQUAD || theirsAfter > MAX_SQUAD) return `Squads can't go over ${MAX_SQUAD} players.`
   const keepers = (ps: (PlayerDef | undefined)[]): number => ps.filter((p) => p!.role === 'GK').length
-  if (keepers(mine) - keepers(give) + keepers(get) < 1 || keepers(theirs) - keepers(get) + keepers(give) < 1) return none('Both sides need a goalkeeper.')
-
-  // How they see it: what they get, as it would fit in their side, against what they lose, as
-  // it fits in their side now.
-  const now = strength(s, deal.club, theirs)
-  const nextSquad = [...theirs.filter((p) => !deal.get.includes(p.id)), ...(give as PlayerDef[])]
-  const next = strength(s, deal.club, nextSquad)
-  const use = (starters: Set<string>, p: PlayerDef): number => (starters.has(p.id) ? 1 : BENCH_USE)
-  const gain = (give as PlayerDef[]).reduce((a, p) => a + worth(s, p) * use(next.starters, p), 0)
-  const loss = (get as PlayerDef[]).reduce((a, p) => a + worth(s, p) * use(now.starters, p), 0)
-  const ratio = gain / loss
-  const base = { ratio, before: now.rating, after: next.rating }
-  if (next.rating < now.rating - 0.5) return { ...base, ok: false, reason: `It would weaken their side (${now.rating.toFixed(1)} → ${next.rating.toFixed(1)}).` }
-  if (ratio < PREMIUM) return { ...base, ok: false, reason: ratio < 0.7 ? 'Not interested: nowhere near enough.' : 'Close, but they want a bit more.' }
-  return { ...base, ok: true, reason: 'They would take that.' }
+  if (keepers(mine) - keepers(give) + keepers(get) < 1 || keepers(theirs) - keepers(get) + keepers(give) < 1) return 'Both sides need a goalkeeper.'
+  return null
 }
+
+/** A club's weakest places: where its eleven is furthest below its own level. */
+export function needs(s: Season, club: number): { slot: Slot; player: PlayerDef; fitted: number }[] {
+  const e = elevenOf(s, club)
+  const slots = FORMATIONS[s.teams[club].formation]
+  return e.xi
+    .map((player, i) => ({ slot: slots[i], player, fitted: e.fitted[i] }))
+    .filter((x) => x.fitted < e.rating - 3)
+    .sort((a, b) => a.fitted - b.fitted)
+    .slice(0, 3)
+}
+
+// ---------------------------------------------------------------------------
+// Offers from other clubs
+
+/** At most this many offers come in each window matchday. */
+const OFFERS_PER_MATCHDAY = 2
+
+/**
+ * Offers the other clubs make for your players this matchday: each club looks for one of your
+ * players who'd improve its side most, and offers what it can spare that you might want. Only
+ * offers they'd stand by (judged as if you'd proposed it) and that do something for you too.
+ * The same season state always gives the same offers.
+ */
+export function offersFor(s: Season): Deal[] {
+  if (!windowOpen(s) || dealsDone(s) >= DEALS_PER_WINDOW) return []
+  const declined = new Set((s.declined ?? []).map(dealKey))
+  const rng = new Rng(s.seed * 131 + s.matchday)
+  const mine = squadOf(s.teams[s.userTeam])
+  const found: { deal: Deal; score: number }[] = []
+  for (const club of rng.shuffle(s.teams.map((_, i) => i).filter((i) => i !== s.userTeam))) {
+    if (found.length >= 6) break
+    const theirs = squadOf(s.teams[club])
+    const base = elevenOf(s, club)
+    // Who of yours would help them most on his own.
+    const wanted = mine
+      .map((p) => ({ p, gain: elevenOf(s, club, [...theirs, p]).rating - base.rating }))
+      .filter((x) => x.gain > 0.15)
+      .sort((a, b) => b.gain - a.gain)
+      .slice(0, 2)
+    for (const { p } of wanted) {
+      // One club after each of your players at a time.
+      if (found.some((f) => f.deal.give.includes(p.id))) continue
+      // What they'd give for him: someone outside their eleven first, the best one that still works for both.
+      const spare = theirs.filter((q) => q.role === p.role || LINE_OF[q.role] === LINE_OF[p.role] || !base.xi.includes(q))
+      let best: { deal: Deal; score: number } | null = null
+      for (const q of spare) {
+        const deal: Deal = { club, give: [p.id], get: [q.id] }
+        if (declined.has(dealKey(deal))) continue
+        const v = judge(s, deal)
+        if (!v.ok || !v.you) continue
+        // Something for you: your side no worse, or a better player coming in.
+        const forYou = v.you.value + ((q.overall ?? 0) - (p.overall ?? 0)) * 0.3
+        if (forYou < -0.5) continue
+        const score = forYou + v.them!.value * 0.2
+        if (!best || score > best.score) best = { deal, score }
+      }
+      if (best) {
+        found.push(best)
+        break
+      }
+    }
+  }
+  return found.sort((a, b) => b.score - a.score).slice(0, OFFERS_PER_MATCHDAY).map((x) => x.deal)
+}
+
+export const dealKey = (d: Deal): string => `${d.club}:${[...d.give].sort().join(',')}:${[...d.get].sort().join(',')}`
+
+/** Turn an offer down: it doesn't come back this window. */
+export const decline = (s: Season, deal: Deal): Season => ({ ...s, declined: [...(s.declined ?? []), deal] })
 
 /**
  * Make the deal: the players change clubs (their season's numbers, fitness and injuries go with

@@ -1,11 +1,11 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Formation, Kit, TeamDef } from '../engine/index.ts'
 import { ordinal } from './format.ts'
 import { type Season, fixturesOn, isOver, matchdayDate, matchdays, squadOf, table, userFixture } from '../season/season.ts'
 import { Squad } from './Squad.tsx'
 import { Transfers } from './Transfers.tsx'
-import { type Deal, windowOpen } from '../draft/transfers.ts'
+import { type Deal, offersFor, windowOpen } from '../draft/transfers.ts'
 import { SeasonReview, Stats } from './Stats.tsx'
 import { surname } from '../viewer/commentary.ts'
 import { CUP_NAME, CUP_PLACES, ROUND_NAMES, cupLive, cupTeam, cupWinner, isCupDay, userCupFixture } from '../draft/cup.ts'
@@ -26,6 +26,7 @@ export function Hub({
   onLineup,
   onFormation,
   onDeal,
+  onDecline,
 }: {
   season: Season
   busy: boolean
@@ -35,6 +36,7 @@ export function Hub({
   onLineup: (ids: string[] | null) => void
   onFormation: (f: Formation) => void
   onDeal: (deal: Deal) => void
+  onDecline: (deal: Deal) => void
 }) {
   const [tab, setTab] = useState<'review' | 'table' | 'fixtures' | 'squad' | 'stats' | 'transfers' | 'cup'>(
     season.cup ? 'cup' : isOver(season) ? 'review' : 'table',
@@ -52,6 +54,7 @@ export function Hub({
   const shown = paged && paged.at === season.matchday ? paged.md : current
   const setShown = (md: number): void => setPaged({ at: season.matchday, md: Math.max(1, Math.min(matchdays(season), md)) })
   const me = season.teams[season.userTeam]
+  const offers = useMemo(() => offersFor(season), [season])
   const rows = table(season)
   const over = isOver(season)
   const next = over ? undefined : userFixture(season, season.matchday)
@@ -88,7 +91,7 @@ export function Hub({
               </h2>
               {windowOpen(season) && (
                 <p className="meta window-note">
-                  The January window is open: swap players with other clubs in{' '}
+                  The January window is open{offers.length ? `, and ${offers.length === 1 ? 'a club has made an offer' : `${offers.length} clubs have made offers`} for your players` : ''}: see{' '}
                   <button type="button" className="link" onClick={() => setTab('transfers')}>
                     Deals
                   </button>
@@ -189,7 +192,7 @@ export function Hub({
               </button>
             )}
           </div>
-          {tab === 'transfers' && <Transfers season={season} onDeal={onDeal} />}
+          {tab === 'transfers' && <Transfers season={season} onDeal={onDeal} onDecline={onDecline} />}
           {tab === 'cup' && season.cup && <CupBracket season={season} />}
           {tab === 'squad' && <Squad season={season} onLineup={onLineup} onFormation={onFormation} />}
           {tab === 'stats' && <Stats season={season} />}

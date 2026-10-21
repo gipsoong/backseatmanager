@@ -280,6 +280,7 @@ export const sideOf = (slot: Slot): 'L' | 'R' | null => (slot.y > 40 ? 'R' : slo
  * the other one for an inside forward, who cuts in onto his strong foot.
  */
 export function naturalSide(def: PlayerDef): 'L' | 'R' {
+  if (def.side) return def.side
   const footSide = def.foot === 'left' ? 'L' : 'R'
   return def.archetype === 'insideForward' ? (footSide === 'L' ? 'R' : 'L') : footSide
 }

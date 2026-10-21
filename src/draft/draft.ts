@@ -5,7 +5,7 @@
  * once: in your side, or for one opponent.
  */
 import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, fitFor, makeAttributes, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
-import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, TIRELESS, WEAK_FOOT } from './pools.ts'
+import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, SIDE, TIRELESS, WEAK_FOOT } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
 export const DRAFT_SUBS = 9
@@ -86,6 +86,7 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
     archetype,
     foot: LEFT_FOOTED.has(name) ? 'left' : 'right',
     weakFoot: WEAK_FOOT[name] ?? 3,
+    side: SIDE[name],
     attrs: shapedAttributes(rng, role, archetype, quality),
     traits,
     overall,

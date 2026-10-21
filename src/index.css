@@ -1845,30 +1845,67 @@ button.name-link {
   font-weight: 600;
 }
 
-.gauge {
-  position: relative;
-  height: 8px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--ink) 10%, transparent);
+.interest {
+  margin: 0;
+  font-weight: 600;
 }
 
-.gauge span {
-  display: block;
-  height: 100%;
-  border-radius: 4px;
-  background: var(--muted);
+.interest.yes {
+  color: var(--accent);
 }
 
-.verdict.yes .gauge span {
-  background: var(--accent);
+.interest.close {
+  color: #b7791f;
 }
 
-.gauge i {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  background: var(--ink);
+.effect .eyebrow {
+  margin: 0 0 4px;
+}
+
+.effect ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}
+
+.effect .up {
+  color: var(--accent);
+}
+
+.effect .down {
+  color: #c8372d;
+}
+
+.avail-note {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.offers {
+  display: grid;
+  gap: 10px;
+}
+
+.offer-card {
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.offer-card .deal-line {
+  margin: 0;
+  font-weight: 600;
+}
+
+.needs {
+  margin-top: 4px;
 }
 
 .deals {

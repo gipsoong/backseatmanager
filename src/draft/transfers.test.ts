@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createSeason, isOver, squadOf } from '../season/season.ts'
 import { draftLeague, isComplete, newDraft, offer, place } from './draft.ts'
 import { FORMATIONS } from '../engine/index.ts'
-import { DEALS_PER_WINDOW, judge, makeDeal, windowMatchdays, windowOpen } from './transfers.ts'
+import { DEALS_PER_WINDOW, dealKey, decline, judge, makeDeal, offersFor, windowMatchdays, windowOpen } from './transfers.ts'
 import type { Season } from '../season/season.ts'
 
 function draftSeason(seed: number): Season {
@@ -85,5 +85,32 @@ describe('the January window', () => {
       }
     }
     expect(s.transfers).toHaveLength(DEALS_PER_WINDOW)
+  })
+})
+
+describe('offers from other clubs', () => {
+  const base = draftSeason(3)
+  const open: Season = { ...base, matchday: windowMatchdays(base)[0] }
+
+  it('come only in the window, each one a deal the club stands by and one that does something for you', () => {
+    expect(offersFor(base)).toEqual([])
+    const offers = offersFor(open)
+    expect(offers.length).toBeGreaterThan(0)
+    for (const o of offers) {
+      const v = judge(open, o)
+      expect(v.ok).toBe(true)
+      expect(v.you!.reasons.length).toBeGreaterThan(0)
+    }
+    // Different players wanted, and the same state gives the same offers.
+    expect(new Set(offers.map((o) => o.give[0])).size).toBe(offers.length)
+    expect(offersFor(open)).toEqual(offers)
+  })
+
+  it("don't come back once turned down, and can be accepted", () => {
+    const [first] = offersFor(open)
+    const after = decline(open, first)
+    expect(offersFor(after).map(dealKey)).not.toContain(dealKey(first))
+    const done = makeDeal(open, first)
+    expect(done.transfers).toHaveLength(1)
   })
 })

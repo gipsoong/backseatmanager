@@ -125,6 +125,8 @@ export interface PlayerDef {
   foot?: Foot
   /** How good his other foot is, 1-5 stars (3 if not given): 5 is two-footed. */
   weakFoot?: number
+  /** The flank he plays on, where it isn't the one his foot suggests (Messi: the right). */
+  side?: 'L' | 'R'
   /** A real player's overall (draft mode), shown instead of one worked out from his attributes. */
   overall?: number
 }
