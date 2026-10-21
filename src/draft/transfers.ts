@@ -11,221 +11,330 @@
  * - They want to come out better, by more if you're a rival near them in the table, and a lot more
  *   to let their best player go.
  */
-import { FORMATIONS, type PlayerDef, Rng, type Role, type Slot, fitFor } from '../engine/index.ts'
-import { shortName } from '../names.ts'
-import { type Season, autoPick, avgRating, isOver, matchdayDate, matchdays, squadOf, table } from '../season/season.ts'
+import {
+  FORMATIONS,
+  type PlayerDef,
+  Rng,
+  type Role,
+  type Slot,
+  fitFor,
+} from "../engine/index.ts";
+import { shortName } from "../names.ts";
+import {
+  type Season,
+  autoPick,
+  avgRating,
+  isOver,
+  matchdayDate,
+  matchdays,
+  squadOf,
+  table,
+} from "../season/season.ts";
 
 /** Deals the manager can make in one window. */
-export const DEALS_PER_WINDOW = 3
+export const DEALS_PER_WINDOW = 3;
 /** Players each side can put into one deal. */
-export const MAX_PER_SIDE = 2
+export const MAX_PER_SIDE = 2;
 /** Squad sizes a deal can leave a club with. */
-const MIN_SQUAD = 18
-const MAX_SQUAD = 22
+const MIN_SQUAD = 18;
+const MAX_SQUAD = 22;
 
 export interface Deal {
   /** The club you're dealing with. */
-  club: number
+  club: number;
   /** Your players going to them, and theirs coming to you (ids). */
-  give: string[]
-  get: string[]
+  give: string[];
+  get: string[];
 }
 
 /** The matchdays played in January (their dates), or none if it's not a draft season. */
 export function windowMatchdays(s: Season): number[] {
-  if (s.mode !== 'draft') return []
-  return Array.from({ length: matchdays(s) }, (_, i) => i + 1).filter((md) => matchdayDate(s, md).getUTCMonth() === 0)
+  if (s.mode !== "draft") return [];
+  return Array.from({ length: matchdays(s) }, (_, i) => i + 1).filter(
+    (md) => matchdayDate(s, md).getUTCMonth() === 0,
+  );
 }
 
 /** Open while the next match to be played is in January. */
-export const windowOpen = (s: Season): boolean => !isOver(s) && windowMatchdays(s).includes(s.matchday)
+export const windowOpen = (s: Season): boolean =>
+  !isOver(s) && windowMatchdays(s).includes(s.matchday);
 
 /** Deals done in this season's window. */
-export const dealsDone = (s: Season): number => (s.transfers ?? []).filter((t) => t.to.includes(s.userTeam) || t.from.includes(s.userTeam)).length
+export const dealsDone = (s: Season): number =>
+  (s.transfers ?? []).filter(
+    (t) => t.to.includes(s.userTeam) || t.from.includes(s.userTeam),
+  ).length;
 
-const byId = (s: Season, id: string): PlayerDef | undefined => s.teams.flatMap(squadOf).find((p) => p.id === id)
+const byId = (s: Season, id: string): PlayerDef | undefined =>
+  s.teams.flatMap(squadOf).find((p) => p.id === id);
 
 /** A player's worth, for ordering lists: his overall, nudged by his form. */
 export function worth(s: Season, p: PlayerDef): number {
-  const avg = avgRating(s.stats[p.id])
-  const form = avg !== null && (s.stats[p.id]?.apps ?? 0) >= 5 ? (avg - 6.75) * 2 : 0
-  return (p.overall ?? 70) + form
+  const avg = avgRating(s.stats[p.id]);
+  const form =
+    avg !== null && (s.stats[p.id]?.apps ?? 0) >= 5 ? (avg - 6.75) * 2 : 0;
+  return (p.overall ?? 70) + form;
 }
 
 /** A club's best eleven from a squad (the staff's pick, fitness and injuries counted), slot by slot. */
 export interface Eleven {
   /** The players in formation slot order. */
-  xi: PlayerDef[]
+  xi: PlayerDef[];
   /** Each one's overall as he'd play there (out of position or on the wrong flank counts less). */
-  fitted: number[]
-  rating: number
+  fitted: number[];
+  rating: number;
   /** Best cover on the bench for defence, midfield and attack, summed. */
-  depth: number
+  depth: number;
 }
 
-const LINE_OF: Record<Role, number> = { GK: 0, CB: 0, FB: 0, DM: 1, CM: 1, WM: 1, W: 2, ST: 2 }
+const LINE_OF: Record<Role, number> = {
+  GK: 0,
+  CB: 0,
+  FB: 0,
+  DM: 1,
+  CM: 1,
+  WM: 1,
+  W: 2,
+  ST: 2,
+};
 
-export function elevenOf(s: Season, club: number, squad: PlayerDef[] = squadOf(s.teams[club])): Eleven {
-  const probe: Season = { ...s, teams: s.teams.map((t, i) => (i === club ? { ...t, players: squad.slice(0, 11), bench: squad.slice(11) } : t)) }
-  const slots = FORMATIONS[s.teams[club].formation]
-  const xi = autoPick(probe, club).map((id) => squad.find((q) => q.id === id)!)
-  const fitted = xi.map((p, i) => (p.overall ?? 70) * fitFor(p, slots[i]))
-  const bench = squad.filter((p) => !xi.includes(p) && p.role !== 'GK' && s.condition[p.id]?.injuredUntil <= s.matchday)
-  const depth = [0, 1, 2].reduce((n, line) => n + Math.max(60, ...bench.filter((p) => LINE_OF[p.role] === line).map((p) => p.overall ?? 70)), 0)
-  return { xi, fitted, rating: fitted.reduce((a, b) => a + b, 0) / 11, depth }
+export function elevenOf(
+  s: Season,
+  club: number,
+  squad: PlayerDef[] = squadOf(s.teams[club]),
+): Eleven {
+  const probe: Season = {
+    ...s,
+    teams: s.teams.map((t, i) =>
+      i === club
+        ? { ...t, players: squad.slice(0, 11), bench: squad.slice(11) }
+        : t,
+    ),
+  };
+  const slots = FORMATIONS[s.teams[club].formation];
+  const xi = autoPick(probe, club).map((id) => squad.find((q) => q.id === id)!);
+  const fitted = xi.map((p, i) => (p.overall ?? 70) * fitFor(p, slots[i]));
+  const bench = squad.filter(
+    (p) =>
+      !xi.includes(p) &&
+      p.role !== "GK" &&
+      s.condition[p.id]?.injuredUntil <= s.matchday,
+  );
+  const depth = [0, 1, 2].reduce(
+    (n, line) =>
+      n +
+      Math.max(
+        60,
+        ...bench
+          .filter((p) => LINE_OF[p.role] === line)
+          .map((p) => p.overall ?? 70),
+      ),
+    0,
+  );
+  return { xi, fitted, rating: fitted.reduce((a, b) => a + b, 0) / 11, depth };
 }
 
 /** A place's name: "right wing", "centre-back". */
 export function placeName(slot: Slot): string {
-  const side = slot.y > 40 ? 'right ' : slot.y < 28 ? 'left ' : ''
+  const side = slot.y > 40 ? "right " : slot.y < 28 ? "left " : "";
   switch (slot.role) {
-    case 'GK':
-      return 'in goal'
-    case 'CB':
-      return 'centre-back'
-    case 'FB':
-      return slot.attackDepth > 0.5 ? `${side}wing-back` : `${side}back`
-    case 'DM':
-      return 'holding midfield'
-    case 'CM':
-      return slot.depth >= 0.65 ? 'attacking midfield' : 'central midfield'
-    case 'WM':
-      return `${side}midfield`
-    case 'W':
-      return `${side}wing`
-    case 'ST':
-      return 'up front'
+    case "GK":
+      return "in goal";
+    case "CB":
+      return "centre-back";
+    case "FB":
+      return slot.attackDepth > 0.5 ? `${side}wing-back` : `${side}back`;
+    case "DM":
+      return "holding midfield";
+    case "CM":
+      return slot.depth >= 0.65 ? "attacking midfield" : "central midfield";
+    case "WM":
+      return `${side}midfield`;
+    case "W":
+      return `${side}wing`;
+    case "ST":
+      return "up front";
   }
 }
 
 /** What a deal does to one club: its eleven before and after, what it's worth to them, and why. */
 export interface Side {
-  club: number
-  before: Eleven
-  after: Eleven
+  club: number;
+  before: Eleven;
+  after: Eleven;
   /** What the eleven gains, a point near 80 worth about 1 and more higher up, plus a little for depth. */
-  value: number
+  value: number;
   /** What they'd want before saying yes, on the same scale. */
-  wanted: number
+  wanted: number;
   /** The deal in their eyes, a line per player and anything else that weighs. */
-  reasons: string[]
+  reasons: string[];
 }
 
-const surnameOf = (p: PlayerDef): string => shortName(p.name)
+const surnameOf = (p: PlayerDef): string => shortName(p.name);
 
 /** How a deal looks to `club`, which gives up `out` and takes `in`. */
-export function sideOf(s: Season, club: number, out: PlayerDef[], incoming: PlayerDef[]): Side {
-  const squad = squadOf(s.teams[club])
-  const before = elevenOf(s, club, squad)
-  const after = elevenOf(s, club, [...squad.filter((p) => !out.includes(p)), ...incoming])
-  const slots = FORMATIONS[s.teams[club].formation]
-  const reasons: string[] = []
-  const you = club === s.userTeam
+export function sideOf(
+  s: Season,
+  club: number,
+  out: PlayerDef[],
+  incoming: PlayerDef[],
+): Side {
+  const squad = squadOf(s.teams[club]);
+  const before = elevenOf(s, club, squad);
+  const after = elevenOf(s, club, [
+    ...squad.filter((p) => !out.includes(p)),
+    ...incoming,
+  ]);
+  const slots = FORMATIONS[s.teams[club].formation];
+  const reasons: string[] = [];
+  const you = club === s.userTeam;
   for (const p of incoming) {
-    const i = after.xi.indexOf(p)
-    if (i < 0) reasons.push(`${p.name} wouldn't get in ${you ? 'your' : 'their'} side.`)
+    const i = after.xi.indexOf(p);
+    if (i < 0)
+      reasons.push(`${p.name} wouldn't get in ${you ? "your" : "their"} side.`);
     else {
-      const was = before.xi[i]
-      reasons.push(`${p.name} would start ${placeName(slots[i])} (${Math.round(after.fitted[i])}), ahead of ${surnameOf(was)} (${Math.round(before.fitted[i])}).`)
+      const was = before.xi[i];
+      reasons.push(
+        `${p.name} would start ${placeName(slots[i])} (${Math.round(after.fitted[i])}), ahead of ${surnameOf(was)} (${Math.round(before.fitted[i])}).`,
+      );
     }
   }
   for (const p of out) {
-    const i = before.xi.indexOf(p)
-    if (i < 0) reasons.push(`${p.name} is a squad player ${you ? 'for you' : 'there'}.`)
+    const i = before.xi.indexOf(p);
+    if (i < 0)
+      reasons.push(`${p.name} is a squad player ${you ? "for you" : "there"}.`);
     else {
-      const next = after.xi[i]
-      reasons.push(`${p.name} starts ${placeName(slots[i])}; ${surnameOf(next)} would take his place (${Math.round(after.fitted[i])}).`)
+      const next = after.xi[i];
+      reasons.push(
+        `${p.name} starts ${placeName(slots[i])}; ${surnameOf(next)} would take his place (${Math.round(after.fitted[i])}).`,
+      );
     }
   }
   // A point at the top is worth more than one lower down: 88 over 85 matters more than 72 over 69.
-  const curve = (e: Eleven): number => e.fitted.reduce((n, f) => n + 10 * 1.12 ** (f - 80), 0)
-  const value = curve(after) - curve(before) + (after.depth - before.depth) * 0.15
-  let wanted = 1
+  const curve = (e: Eleven): number =>
+    e.fitted.reduce((n, f) => n + 10 * 1.12 ** (f - 80), 0);
+  const value =
+    curve(after) - curve(before) + (after.depth - before.depth) * 0.15;
+  let wanted = 1;
   if (!you) {
-    const rows = table(s)
-    const pos = (c: number): number => rows.findIndex((r) => r.team === c)
+    const rows = table(s);
+    const pos = (c: number): number => rows.findIndex((r) => r.team === c);
     if (Math.abs(pos(club) - pos(s.userTeam)) <= 3 && pos(club) < 6) {
-      wanted += 2
-      reasons.push(`They're close to you in the table: they won't help a rival cheaply.`)
+      wanted += 2;
+      reasons.push(
+        `They're close to you in the table: they won't help a rival cheaply.`,
+      );
     }
-    const best = [...squad].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))[0]
+    const best = [...squad].sort(
+      (a, b) => (b.overall ?? 0) - (a.overall ?? 0),
+    )[0];
     if (out.includes(best)) {
-      wanted += 3
-      reasons.push(`${best.name} is their best player: it would take a lot.`)
+      wanted += 3;
+      reasons.push(`${best.name} is their best player: it would take a lot.`);
     }
   }
-  return { club, before, after, value, wanted, reasons }
+  return { club, before, after, value, wanted, reasons };
 }
 
 export interface Verdict {
-  ok: boolean
+  ok: boolean;
   /** How keen they are: no, close, yes. */
-  interest: 'no' | 'close' | 'yes'
+  interest: "no" | "close" | "yes";
   /** The deal for them, and for you. */
-  them: Side | null
-  you: Side | null
+  them: Side | null;
+  you: Side | null;
   /** Why it can't be done or what they say, in a line. */
-  reason: string
+  reason: string;
 }
 
 /** Whether the deal can be made at all, and whether they'd take it. */
 export function judge(s: Season, deal: Deal): Verdict {
-  const none = (reason: string): Verdict => ({ ok: false, interest: 'no', them: null, you: null, reason })
-  const problem = checkDeal(s, deal)
-  if (problem) return none(problem)
-  const mine = squadOf(s.teams[s.userTeam])
-  const theirs = squadOf(s.teams[deal.club])
-  const give = deal.give.map((id) => mine.find((p) => p.id === id)!)
-  const get = deal.get.map((id) => theirs.find((p) => p.id === id)!)
-  const them = sideOf(s, deal.club, get, give)
-  const you = sideOf(s, s.userTeam, give, get)
-  const gap = them.value - them.wanted
-  const interest = gap >= 0 ? 'yes' : gap >= -2.5 ? 'close' : 'no'
-  const reason = interest === 'yes' ? 'They would take that.' : interest === 'close' ? 'Close, but they want a bit more.' : 'Not interested: it doesn\'t help them.'
-  return { ok: interest === 'yes', interest, them, you, reason }
+  const none = (reason: string): Verdict => ({
+    ok: false,
+    interest: "no",
+    them: null,
+    you: null,
+    reason,
+  });
+  const problem = checkDeal(s, deal);
+  if (problem) return none(problem);
+  const mine = squadOf(s.teams[s.userTeam]);
+  const theirs = squadOf(s.teams[deal.club]);
+  const give = deal.give.map((id) => mine.find((p) => p.id === id)!);
+  const get = deal.get.map((id) => theirs.find((p) => p.id === id)!);
+  const them = sideOf(s, deal.club, get, give);
+  const you = sideOf(s, s.userTeam, give, get);
+  const gap = them.value - them.wanted;
+  const interest = gap >= 0 ? "yes" : gap >= -2.5 ? "close" : "no";
+  const reason =
+    interest === "yes"
+      ? "They would take that."
+      : interest === "close"
+        ? "Close, but they want a bit more."
+        : "Not interested: it doesn't help them.";
+  return { ok: interest === "yes", interest, them, you, reason };
 }
 
 /** Why a deal can't be made at all, or null if it can be put to them. */
 function checkDeal(s: Season, deal: Deal): string | null {
-  if (!windowOpen(s)) return 'The window is shut.'
-  if (dealsDone(s) >= DEALS_PER_WINDOW) return `That's ${DEALS_PER_WINDOW} deals this window, the most you can do.`
-  if (deal.club === s.userTeam) return 'Pick another club.'
-  if (!deal.give.length || !deal.get.length) return 'Choose who you want and who you offer.'
-  if (deal.give.length > MAX_PER_SIDE || deal.get.length > MAX_PER_SIDE) return `At most ${MAX_PER_SIDE} players each way.`
-  if ((s.transfers ?? []).some((t) => t.from.includes(deal.club) || t.to.includes(deal.club))) return `You've already done a deal with ${s.teams[deal.club].name} this window.`
-  const mine = squadOf(s.teams[s.userTeam])
-  const theirs = squadOf(s.teams[deal.club])
-  const give = deal.give.map((id) => mine.find((p) => p.id === id))
-  const get = deal.get.map((id) => theirs.find((p) => p.id === id))
-  if (give.some((p) => !p) || get.some((p) => !p)) return 'Those players have moved on.'
-  const moved = new Set((s.transfers ?? []).flatMap((t) => t.ids))
-  const already = [...give, ...get].find((p) => moved.has(p!.id))
-  if (already) return `${already.name} has already moved this window.`
-  const mineAfter = mine.length - give.length + get.length
-  const theirsAfter = theirs.length - get.length + give.length
-  if (mineAfter < MIN_SQUAD || theirsAfter < MIN_SQUAD) return `Both squads need at least ${MIN_SQUAD} players.`
-  if (mineAfter > MAX_SQUAD || theirsAfter > MAX_SQUAD) return `Squads can't go over ${MAX_SQUAD} players.`
-  const keepers = (ps: (PlayerDef | undefined)[]): number => ps.filter((p) => p!.role === 'GK').length
-  if (keepers(mine) - keepers(give) + keepers(get) < 1 || keepers(theirs) - keepers(get) + keepers(give) < 1) return 'Both sides need a goalkeeper.'
-  return null
+  if (!windowOpen(s)) return "The window is shut.";
+  if (dealsDone(s) >= DEALS_PER_WINDOW)
+    return `That's ${DEALS_PER_WINDOW} deals this window, the most you can do.`;
+  if (deal.club === s.userTeam) return "Pick another club.";
+  if (!deal.give.length || !deal.get.length)
+    return "Choose who you want and who you offer.";
+  if (deal.give.length > MAX_PER_SIDE || deal.get.length > MAX_PER_SIDE)
+    return `At most ${MAX_PER_SIDE} players each way.`;
+  if (
+    (s.transfers ?? []).some(
+      (t) => t.from.includes(deal.club) || t.to.includes(deal.club),
+    )
+  )
+    return `You've already done a deal with ${s.teams[deal.club].name} this window.`;
+  const mine = squadOf(s.teams[s.userTeam]);
+  const theirs = squadOf(s.teams[deal.club]);
+  const give = deal.give.map((id) => mine.find((p) => p.id === id));
+  const get = deal.get.map((id) => theirs.find((p) => p.id === id));
+  if (give.some((p) => !p) || get.some((p) => !p))
+    return "Those players have moved on.";
+  const moved = new Set((s.transfers ?? []).flatMap((t) => t.ids));
+  const already = [...give, ...get].find((p) => moved.has(p!.id));
+  if (already) return `${already.name} has already moved this window.`;
+  const mineAfter = mine.length - give.length + get.length;
+  const theirsAfter = theirs.length - get.length + give.length;
+  if (mineAfter < MIN_SQUAD || theirsAfter < MIN_SQUAD)
+    return `Both squads need at least ${MIN_SQUAD} players.`;
+  if (mineAfter > MAX_SQUAD || theirsAfter > MAX_SQUAD)
+    return `Squads can't go over ${MAX_SQUAD} players.`;
+  const keepers = (ps: (PlayerDef | undefined)[]): number =>
+    ps.filter((p) => p!.role === "GK").length;
+  if (
+    keepers(mine) - keepers(give) + keepers(get) < 1 ||
+    keepers(theirs) - keepers(get) + keepers(give) < 1
+  )
+    return "Both sides need a goalkeeper.";
+  return null;
 }
 
 /** A club's weakest places: where its eleven is furthest below its own level. */
-export function needs(s: Season, club: number): { slot: Slot; player: PlayerDef; fitted: number }[] {
-  const e = elevenOf(s, club)
-  const slots = FORMATIONS[s.teams[club].formation]
+export function needs(
+  s: Season,
+  club: number,
+): { slot: Slot; player: PlayerDef; fitted: number }[] {
+  const e = elevenOf(s, club);
+  const slots = FORMATIONS[s.teams[club].formation];
   return e.xi
     .map((player, i) => ({ slot: slots[i], player, fitted: e.fitted[i] }))
     .filter((x) => x.fitted < e.rating - 3)
     .sort((a, b) => a.fitted - b.fitted)
-    .slice(0, 3)
+    .slice(0, 3);
 }
 
 // ---------------------------------------------------------------------------
 // Offers from other clubs
 
 /** At most this many offers come in each window matchday. */
-const OFFERS_PER_MATCHDAY = 2
+const OFFERS_PER_MATCHDAY = 2;
 
 /**
  * Offers the other clubs make for your players this matchday: each club looks for one of your
@@ -234,51 +343,69 @@ const OFFERS_PER_MATCHDAY = 2
  * The same season state always gives the same offers.
  */
 export function offersFor(s: Season): Deal[] {
-  if (!windowOpen(s) || dealsDone(s) >= DEALS_PER_WINDOW) return []
-  const declined = new Set((s.declined ?? []).map(dealKey))
-  const rng = new Rng(s.seed * 131 + s.matchday)
-  const mine = squadOf(s.teams[s.userTeam])
-  const found: { deal: Deal; score: number }[] = []
-  for (const club of rng.shuffle(s.teams.map((_, i) => i).filter((i) => i !== s.userTeam))) {
-    if (found.length >= 6) break
-    const theirs = squadOf(s.teams[club])
-    const base = elevenOf(s, club)
+  if (!windowOpen(s) || dealsDone(s) >= DEALS_PER_WINDOW) return [];
+  const declined = new Set((s.declined ?? []).map(dealKey));
+  const rng = new Rng(s.seed * 131 + s.matchday);
+  const mine = squadOf(s.teams[s.userTeam]);
+  const found: { deal: Deal; score: number }[] = [];
+  for (const club of rng.shuffle(
+    s.teams.map((_, i) => i).filter((i) => i !== s.userTeam),
+  )) {
+    if (found.length >= 6) break;
+    const theirs = squadOf(s.teams[club]);
+    const base = elevenOf(s, club);
     // Who of yours would help them most on his own.
     const wanted = mine
-      .map((p) => ({ p, gain: elevenOf(s, club, [...theirs, p]).rating - base.rating }))
+      .map((p) => ({
+        p,
+        gain: elevenOf(s, club, [...theirs, p]).rating - base.rating,
+      }))
       .filter((x) => x.gain > 0.15)
       .sort((a, b) => b.gain - a.gain)
-      .slice(0, 2)
+      .slice(0, 2);
     for (const { p } of wanted) {
       // One club after each of your players at a time.
-      if (found.some((f) => f.deal.give.includes(p.id))) continue
+      if (found.some((f) => f.deal.give.includes(p.id))) continue;
       // What they'd give for him: someone outside their eleven first, the best one that still works for both.
-      const spare = theirs.filter((q) => q.role === p.role || LINE_OF[q.role] === LINE_OF[p.role] || !base.xi.includes(q))
-      let best: { deal: Deal; score: number } | null = null
+      const spare = theirs.filter(
+        (q) =>
+          q.role === p.role ||
+          LINE_OF[q.role] === LINE_OF[p.role] ||
+          !base.xi.includes(q),
+      );
+      let best: { deal: Deal; score: number } | null = null;
       for (const q of spare) {
-        const deal: Deal = { club, give: [p.id], get: [q.id] }
-        if (declined.has(dealKey(deal))) continue
-        const v = judge(s, deal)
-        if (!v.ok || !v.you) continue
+        const deal: Deal = { club, give: [p.id], get: [q.id] };
+        if (declined.has(dealKey(deal))) continue;
+        const v = judge(s, deal);
+        if (!v.ok || !v.you) continue;
         // Something for you: your side no worse, or a better player coming in.
-        const forYou = v.you.value + ((q.overall ?? 0) - (p.overall ?? 0)) * 0.3
-        if (forYou < -0.5) continue
-        const score = forYou + v.them!.value * 0.2
-        if (!best || score > best.score) best = { deal, score }
+        const forYou =
+          v.you.value + ((q.overall ?? 0) - (p.overall ?? 0)) * 0.3;
+        if (forYou < -0.5) continue;
+        const score = forYou + v.them!.value * 0.2;
+        if (!best || score > best.score) best = { deal, score };
       }
       if (best) {
-        found.push(best)
-        break
+        found.push(best);
+        break;
       }
     }
   }
-  return found.sort((a, b) => b.score - a.score).slice(0, OFFERS_PER_MATCHDAY).map((x) => x.deal)
+  return found
+    .sort((a, b) => b.score - a.score)
+    .slice(0, OFFERS_PER_MATCHDAY)
+    .map((x) => x.deal);
 }
 
-export const dealKey = (d: Deal): string => `${d.club}:${[...d.give].sort().join(',')}:${[...d.get].sort().join(',')}`
+export const dealKey = (d: Deal): string =>
+  `${d.club}:${[...d.give].sort().join(",")}:${[...d.get].sort().join(",")}`;
 
 /** Turn an offer down: it doesn't come back this window. */
-export const decline = (s: Season, deal: Deal): Season => ({ ...s, declined: [...(s.declined ?? []), deal] })
+export const decline = (s: Season, deal: Deal): Season => ({
+  ...s,
+  declined: [...(s.declined ?? []), deal],
+});
 
 /**
  * Make the deal: the players change clubs (their season's numbers, fitness and injuries go with
@@ -286,31 +413,51 @@ export const decline = (s: Season, deal: Deal): Season => ({ ...s, declined: [..
  * anyone in it who's left.
  */
 export function makeDeal(s: Season, deal: Deal): Season {
-  const v = judge(s, deal)
-  if (!v.ok) throw new Error(v.reason)
-  const ids = [...deal.give, ...deal.get]
-  const from = [...deal.give.map(() => s.userTeam), ...deal.get.map(() => deal.club)]
-  const to = [...deal.give.map(() => deal.club), ...deal.get.map(() => s.userTeam)]
-  const players = ids.map((id) => byId(s, id)!)
+  const v = judge(s, deal);
+  if (!v.ok) throw new Error(v.reason);
+  const ids = [...deal.give, ...deal.get];
+  const from = [
+    ...deal.give.map(() => s.userTeam),
+    ...deal.get.map(() => deal.club),
+  ];
+  const to = [
+    ...deal.give.map(() => deal.club),
+    ...deal.get.map(() => s.userTeam),
+  ];
+  const players = ids.map((id) => byId(s, id)!);
   let teams = s.teams.map((t, club) => {
-    const staying = squadOf(t).filter((p) => !ids.includes(p.id))
-    const arriving = players.filter((_, i) => to[i] === club)
-    if (!arriving.length && staying.length === squadOf(t).length) return t
+    const staying = squadOf(t).filter((p) => !ids.includes(p.id));
+    const arriving = players.filter((_, i) => to[i] === club);
+    if (!arriving.length && staying.length === squadOf(t).length) return t;
     // Newcomers take the lowest free shirt numbers from 12 up.
-    const taken = new Set(staying.map((p) => p.shirt))
-    const shirts: number[] = []
-    for (let n = 12; shirts.length < arriving.length; n++) if (!taken.has(n)) shirts.push(n)
-    const squad = [...staying, ...arriving.map((p, i) => ({ ...p, shirt: shirts[i] }))]
-    return { ...t, players: squad.slice(0, 11), bench: squad.slice(11) }
-  })
-  const moved: Season = { ...s, teams, transfers: [...(s.transfers ?? []), { matchday: s.matchday, ids, from, to }] }
+    const taken = new Set(staying.map((p) => p.shirt));
+    const shirts: number[] = [];
+    for (let n = 12; shirts.length < arriving.length; n++)
+      if (!taken.has(n)) shirts.push(n);
+    const squad = [
+      ...staying,
+      ...arriving.map((p, i) => ({ ...p, shirt: shirts[i] })),
+    ];
+    return { ...t, players: squad.slice(0, 11), bench: squad.slice(11) };
+  });
+  const moved: Season = {
+    ...s,
+    teams,
+    transfers: [
+      ...(s.transfers ?? []),
+      { matchday: s.matchday, ids, from, to },
+    ],
+  };
   // The usual eleven, in slot order, for both clubs: the staff's pick with the new squad.
   teams = moved.teams.map((t, club) => {
-    if (club !== s.userTeam && club !== deal.club) return t
-    const squad = squadOf(t)
-    const xi = autoPick(moved, club).map((id) => squad.find((p) => p.id === id)!)
-    return { ...t, players: xi, bench: squad.filter((p) => !xi.includes(p)) }
-  })
-  const lineup = s.lineup && s.lineup.some((id) => deal.give.includes(id)) ? null : s.lineup
-  return { ...moved, teams, lineup }
+    if (club !== s.userTeam && club !== deal.club) return t;
+    const squad = squadOf(t);
+    const xi = autoPick(moved, club).map(
+      (id) => squad.find((p) => p.id === id)!,
+    );
+    return { ...t, players: xi, bench: squad.filter((p) => !xi.includes(p)) };
+  });
+  const lineup =
+    s.lineup && s.lineup.some((id) => deal.give.includes(id)) ? null : s.lineup;
+  return { ...moved, teams, lineup };
 }

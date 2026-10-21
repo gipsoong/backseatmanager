@@ -156,6 +156,8 @@ export interface Season {
   declined?: { club: number; give: string[]; get: string[] }[]
   /** The European cup after the league, for a draft side that finished in the top four. */
   cup?: Cup
+  /** The manager has moved on from the league's review to the cup's own screen. */
+  cupEntered?: boolean
 }
 
 /**

@@ -9,6 +9,14 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 16): deals, cup screen, flanks
+
+- **Deals** judged by each side's eleven before and after, with reasons; clubs now make offers for
+  your players (Accept / Turn it down); "Where they're short" and squad-player chips.
+- **Cup screen**: the cup starts from the league review and has its own screen; fixed bracket.
+- **Flanks**: `SIDE` table for players known for one flank (Messi right, Ronaldo left, …). Saves
+  drafted before keep the old data.
+
 ## Done (session 15, later): owner's odd things
 
 - **"The wall"** went to forwards: wingers' clearances and loose balls counted as interceptions,

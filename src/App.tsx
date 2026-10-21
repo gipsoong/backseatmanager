@@ -1,158 +1,270 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { randomTeam } from './engine/index.ts'
-import { draftLeague } from './draft/draft.ts'
-import { decline, makeDeal } from './draft/transfers.ts'
-import { Draft } from './screens/Draft.tsx'
-import { Hub } from './screens/Hub.tsx'
-import { Match } from './screens/Match.tsx'
-import { PickTeam } from './screens/PickTeam.tsx'
-import { Start } from './screens/Start.tsx'
-import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, matchTeam, resultOf, userFixture } from './season/season.ts'
-import { simulate, simulateMatches } from './season/simulate.ts'
-import { advanceCup, completeCupMatchday, cupFixturesToday, cupMatches, isCupDay, userCupFixture } from './draft/cup.ts'
-import { loadSeason, saveSeason } from './season/store.ts'
-import { MatchViewer } from './viewer/MatchViewer.tsx'
-import { Timeline } from './viewer/timeline.ts'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { randomTeam } from "./engine/index.ts";
+import { draftLeague } from "./draft/draft.ts";
+import { decline, makeDeal } from "./draft/transfers.ts";
+import { Draft } from "./screens/Draft.tsx";
+import { Hub } from "./screens/Hub.tsx";
+import { CupHub } from "./screens/Cup.tsx";
+import { Match } from "./screens/Match.tsx";
+import { PickTeam } from "./screens/PickTeam.tsx";
+import { Start } from "./screens/Start.tsx";
+import {
+  type Result,
+  type Season,
+  completeMatchday,
+  createSeason,
+  fitnessFor,
+  fixturesOn,
+  matchTeam,
+  resultOf,
+  userFixture,
+} from "./season/season.ts";
+import { simulate, simulateMatches } from "./season/simulate.ts";
+import {
+  advanceCup,
+  completeCupMatchday,
+  cupFixturesToday,
+  cupMatches,
+  isCupDay,
+  userCupFixture,
+} from "./draft/cup.ts";
+import { loadSeason, saveSeason } from "./season/store.ts";
+import { MatchViewer } from "./viewer/MatchViewer.tsx";
+import { Timeline } from "./viewer/timeline.ts";
 
-const randomSeed = (): number => Math.floor(Math.random() * 100_000)
+const randomSeed = (): number => Math.floor(Math.random() * 100_000);
 /** Let the browser paint (a "busy" state) before a blocking bit of work. */
-const nextFrame = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)))
+const nextFrame = (): Promise<void> =>
+  new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 type Screen =
-  | { kind: 'loading' }
-  | { kind: 'start' }
-  | { kind: 'pick'; season: Season }
-  | { kind: 'draft'; seed: number }
-  | { kind: 'hub' }
-  | { kind: 'match'; timeline: Timeline }
-  | { kind: 'friendly' }
+  | { kind: "loading" }
+  | { kind: "start" }
+  | { kind: "pick"; season: Season }
+  | { kind: "draft"; seed: number }
+  | { kind: "hub" }
+  /** The league's screen, while the cup is on. */
+  | { kind: "league" }
+  | { kind: "match"; timeline: Timeline }
+  | { kind: "friendly" };
 
 export default function App() {
-  const [season, setSeason] = useState<Season | null>(null)
-  const [screen, setScreen] = useState<Screen>({ kind: 'loading' })
-  const [busy, setBusy] = useState(false)
+  const [season, setSeason] = useState<Season | null>(null);
+  const [screen, setScreen] = useState<Screen>({ kind: "loading" });
+  const [busy, setBusy] = useState(false);
   // The rest of the matchday, playing in the background while the manager watches his match.
-  const others = useRef<Promise<Map<number, Result>> | null>(null)
+  const others = useRef<Promise<Map<number, Result>> | null>(null);
 
   useEffect(() => {
     loadSeason()
       .then((s) => setSeason(s && advanceCup(s)))
       .catch(() => setSeason(null))
-      .finally(() => setScreen({ kind: 'start' }))
-  }, [])
+      .finally(() => setScreen({ kind: "start" }));
+  }, []);
 
   const commit = async (s: Season): Promise<void> => {
-    setSeason(s)
-    await saveSeason(s).catch(() => undefined) // a private window may refuse storage; play on regardless
-  }
+    setSeason(s);
+    await saveSeason(s).catch(() => undefined); // a private window may refuse storage; play on regardless
+  };
 
   const watch = (s: Season): void => {
     if (isCupDay(s)) {
-      const f = userCupFixture(s)!
-      const [mine] = cupMatches(s, [f])
-      others.current = simulateMatches(cupMatches(s, cupFixturesToday(s).filter((g) => g.id !== f.id)), fitnessFor(s))
-      setScreen({ kind: 'match', timeline: new Timeline(mine.home, mine.away, f.seed, fitnessFor(s), mine.knockout) })
-      return
+      const f = userCupFixture(s)!;
+      const [mine] = cupMatches(s, [f]);
+      others.current = simulateMatches(
+        cupMatches(
+          s,
+          cupFixturesToday(s).filter((g) => g.id !== f.id),
+        ),
+        fitnessFor(s),
+      );
+      setScreen({
+        kind: "match",
+        timeline: new Timeline(
+          mine.home,
+          mine.away,
+          f.seed,
+          fitnessFor(s),
+          mine.knockout,
+        ),
+      });
+      return;
     }
-    const f = userFixture(s, s.matchday)!
-    others.current = simulate(s, fixturesOn(s, s.matchday).filter((g) => g.id !== f.id))
-    setScreen({ kind: 'match', timeline: new Timeline(matchTeam(s, f.home), matchTeam(s, f.away), f.seed, fitnessFor(s)) })
-  }
+    const f = userFixture(s, s.matchday)!;
+    others.current = simulate(
+      s,
+      fixturesOn(s, s.matchday).filter((g) => g.id !== f.id),
+    );
+    setScreen({
+      kind: "match",
+      timeline: new Timeline(
+        matchTeam(s, f.home),
+        matchTeam(s, f.away),
+        f.seed,
+        fitnessFor(s),
+      ),
+    });
+  };
 
-  const finishWatched = async (s: Season, timeline: Timeline): Promise<void> => {
-    setBusy(true)
-    await nextFrame()
-    while (!timeline.done) timeline.advance(5000)
-    const results = await (others.current ?? Promise.resolve(new Map<number, Result>()))
+  const finishWatched = async (
+    s: Season,
+    timeline: Timeline,
+  ): Promise<void> => {
+    setBusy(true);
+    await nextFrame();
+    while (!timeline.done) timeline.advance(5000);
+    const results = await (others.current ??
+      Promise.resolve(new Map<number, Result>()));
     if (isCupDay(s)) {
-      results.set(userCupFixture(s)!.id, resultOf(timeline.state))
-      await commit(completeCupMatchday(s, results))
+      results.set(userCupFixture(s)!.id, resultOf(timeline.state));
+      await commit(completeCupMatchday(s, results));
     } else {
-      results.set(userFixture(s, s.matchday)!.id, resultOf(timeline.state))
-      await commit(advanceCup(completeMatchday(s, results)))
+      results.set(userFixture(s, s.matchday)!.id, resultOf(timeline.state));
+      await commit(advanceCup(completeMatchday(s, results)));
     }
-    others.current = null
-    setBusy(false)
-    setScreen({ kind: 'hub' })
-  }
+    others.current = null;
+    setBusy(false);
+    setScreen({ kind: "hub" });
+  };
 
   const simulateMatchday = async (s: Season): Promise<void> => {
-    setBusy(true)
-    if (isCupDay(s)) await commit(completeCupMatchday(s, await simulateMatches(cupMatches(s, cupFixturesToday(s)), fitnessFor(s))))
-    else await commit(advanceCup(completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday)))))
-    setBusy(false)
-  }
+    setBusy(true);
+    if (isCupDay(s))
+      await commit(
+        completeCupMatchday(
+          s,
+          await simulateMatches(
+            cupMatches(s, cupFixturesToday(s)),
+            fitnessFor(s),
+          ),
+        ),
+      );
+    else
+      await commit(
+        advanceCup(
+          completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday))),
+        ),
+      );
+    setBusy(false);
+  };
 
-  const newSeason = (): void => setScreen({ kind: 'pick', season: createSeason(randomSeed(), 0) })
-  const newDraft = (): void => setScreen({ kind: 'draft', seed: randomSeed() })
+  const newSeason = (): void =>
+    setScreen({ kind: "pick", season: createSeason(randomSeed(), 0) });
+  const newDraft = (): void => setScreen({ kind: "draft", seed: randomSeed() });
 
   return (
     <main>
-      {screen.kind === 'loading' && <p className="meta">Loading…</p>}
-      {screen.kind === 'start' && (
+      {screen.kind === "loading" && <p className="meta">Loading…</p>}
+      {screen.kind === "start" && (
         <Start
           saved={season}
-          onContinue={() => setScreen({ kind: 'hub' })}
+          onContinue={() => setScreen({ kind: "hub" })}
           onNew={newSeason}
           onDraft={newDraft}
-          onFriendly={() => setScreen({ kind: 'friendly' })}
+          onFriendly={() => setScreen({ kind: "friendly" })}
         />
       )}
-      {screen.kind === 'draft' && (
+      {screen.kind === "draft" && (
         <Draft
           seed={screen.seed}
-          onBack={() => setScreen({ kind: 'start' })}
+          onBack={() => setScreen({ kind: "start" })}
           onDone={(d, name) => {
-            void commit({ ...createSeason(screen.seed, 0, new Date(), draftLeague(d, name)), mode: 'draft', league: d.league })
-            setScreen({ kind: 'hub' })
+            void commit({
+              ...createSeason(screen.seed, 0, new Date(), draftLeague(d, name)),
+              mode: "draft",
+              league: d.league,
+            });
+            setScreen({ kind: "hub" });
           }}
         />
       )}
-      {screen.kind === 'pick' && (
+      {screen.kind === "pick" && (
         <PickTeam
           teams={screen.season.teams}
-          onBack={() => setScreen({ kind: 'start' })}
+          onBack={() => setScreen({ kind: "start" })}
           onPick={(i) => {
-            void commit({ ...screen.season, userTeam: i })
-            setScreen({ kind: 'hub' })
+            void commit({ ...screen.season, userTeam: i });
+            setScreen({ kind: "hub" });
           }}
         />
       )}
-      {screen.kind === 'hub' && season && (
-        <Hub
+      {(screen.kind === "hub" || screen.kind === "league") &&
+        season &&
+        (screen.kind === "hub" && season.cup && season.cupEntered ? (
+          <CupHub
+            season={season}
+            busy={busy}
+            onWatch={() => watch(season)}
+            onSimulate={() => void simulateMatchday(season)}
+            onLeague={() => setScreen({ kind: "league" })}
+            onNewSeason={newDraft}
+            onLineup={(lineup) => void commit({ ...season, lineup })}
+            onFormation={(formation) =>
+              void commit({
+                ...season,
+                lineup: null,
+                teams: season.teams.map((t, i) =>
+                  i === season.userTeam ? { ...t, formation } : t,
+                ),
+              })
+            }
+          />
+        ) : (
+          <Hub
+            season={season}
+            busy={busy}
+            onWatch={() => watch(season)}
+            onSimulate={() => void simulateMatchday(season)}
+            onNewSeason={season.mode === "draft" ? newDraft : newSeason}
+            onLineup={(lineup) => void commit({ ...season, lineup })}
+            // A new shape: the staff pick the side for it again.
+            onFormation={(formation) =>
+              void commit({
+                ...season,
+                lineup: null,
+                teams: season.teams.map((t, i) =>
+                  i === season.userTeam ? { ...t, formation } : t,
+                ),
+              })
+            }
+            onDeal={(deal) => void commit(makeDeal(season, deal))}
+            onDecline={(deal) => void commit(decline(season, deal))}
+            onEnterCup={() => {
+              void commit({ ...season, cupEntered: true });
+              setScreen({ kind: "hub" });
+            }}
+          />
+        ))}
+      {screen.kind === "match" && season && (
+        <Match
           season={season}
+          timeline={screen.timeline}
           busy={busy}
-          onWatch={() => watch(season)}
-          onSimulate={() => void simulateMatchday(season)}
-          onNewSeason={season.mode === 'draft' ? newDraft : newSeason}
-          onLineup={(lineup) => void commit({ ...season, lineup })}
-          // A new shape: the staff pick the side for it again.
-          onFormation={(formation) =>
-            void commit({ ...season, lineup: null, teams: season.teams.map((t, i) => (i === season.userTeam ? { ...t, formation } : t)) })
-          }
-          onDeal={(deal) => void commit(makeDeal(season, deal))}
-          onDecline={(deal) => void commit(decline(season, deal))}
+          onDone={() => void finishWatched(season, screen.timeline)}
         />
       )}
-      {screen.kind === 'match' && season && (
-        <Match season={season} timeline={screen.timeline} busy={busy} onDone={() => void finishWatched(season, screen.timeline)} />
+      {screen.kind === "friendly" && (
+        <Friendly onBack={() => setScreen({ kind: "start" })} />
       )}
-      {screen.kind === 'friendly' && <Friendly onBack={() => setScreen({ kind: 'start' })} />}
     </main>
-  )
+  );
 }
 
 /** A one-off match between two random sides, by number, for when there's no season to play. */
 function Friendly({ onBack }: { onBack: () => void }) {
-  const [seed, setSeed] = useState(1)
-  const [draft, setDraft] = useState('1')
-  const timeline = useMemo(() => new Timeline(randomTeam(seed * 2 + 1), randomTeam(seed * 2 + 2), seed), [seed])
-  const [home, away] = timeline.state.teams
+  const [seed, setSeed] = useState(1);
+  const [draft, setDraft] = useState("1");
+  const timeline = useMemo(
+    () =>
+      new Timeline(randomTeam(seed * 2 + 1), randomTeam(seed * 2 + 2), seed),
+    [seed],
+  );
+  const [home, away] = timeline.state.teams;
 
   const load = (s: number): void => {
-    setSeed(s)
-    setDraft(String(s))
-  }
+    setSeed(s);
+    setDraft(String(s));
+  };
 
   return (
     <>
@@ -163,22 +275,28 @@ function Friendly({ onBack }: { onBack: () => void }) {
             {home.name} <span className="v">v</span> {away.name}
           </h1>
           <p className="meta">
-            {home.formation}, {home.block} block · {away.formation}, {away.block} block
+            {home.formation}, {home.block} block · {away.formation},{" "}
+            {away.block} block
           </p>
         </div>
         <form
           className="picker"
           onSubmit={(e) => {
-            e.preventDefault()
-            const n = Number(draft)
-            if (Number.isInteger(n) && n >= 0) load(n)
+            e.preventDefault();
+            const n = Number(draft);
+            if (Number.isInteger(n) && n >= 0) load(n);
           }}
         >
           <button type="button" className="ghost" onClick={onBack}>
             Back
           </button>
           <label htmlFor="seed">Match no.</label>
-          <input id="seed" inputMode="numeric" value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <input
+            id="seed"
+            inputMode="numeric"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
           <button type="submit" className="ghost">
             Load
           </button>
@@ -189,5 +307,5 @@ function Friendly({ onBack }: { onBack: () => void }) {
       </header>
       <MatchViewer key={seed} timeline={timeline} />
     </>
-  )
+  );
 }

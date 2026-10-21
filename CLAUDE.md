@@ -216,6 +216,8 @@ pulling the repo.
   foot from where he strikes it (inside foot shooting from wide, outside foot crossing) and how
   well (a one-footed player on the wrong side: 0.8); it scales shot accuracy, pace and cross
   accuracy, and the AI weighs it. Draft data: `LEFT_FOOTED`, `WEAK_FOOT` in pools.ts.
+  `SIDE` in pools.ts (session 16) pins the flank a player is known for (`PlayerDef.side`, read
+  first by `naturalSide`): Messi is a right-sided player whatever his archetype reads.
 - Balance checks for formations and squads (scratch scripts, not in the repo): the same squad in
   two shapes against itself, and a whole league of every club-decade next to squad ratings. Use
   them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game. Archetype shapes are levelled by
@@ -243,7 +245,10 @@ pulling the repo.
   side plays on with the league's top four and three club-seasons from each other league; last 16,
   quarters, semis over two legs, a one-off final, a round a matchday. `Season.cup` keeps guests,
   entrants (`CupSide`: league index, or GUEST + guest index) and fixtures; cup results don't add to
-  the league's player stats but fitness and injuries carry on (`recover`).
+  the league's player stats but fitness and injuries carry on (`recover`). The last 16 is drawn at
+  random, then the bracket is fixed. The cup has its own screen (`CupHub`: next tie, bracket,
+  results, scorers, squad), reached from the league review's "On to the European Cup"
+  (`Season.cupEntered`); App shows it instead of Hub while entered.
 - `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
   are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Random clubs use all six; check a shape change with
@@ -273,7 +278,11 @@ pulling the repo.
   `scripts/sim-season.ts <seed> <matchdays> <out.json>` plays a draft season headlessly and saves
   it, for checking these against a whole season (~10 min for 38 matchdays).
 - January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
-  `screens/Transfers.tsx` (the Deals tab). Deals are recorded in `Season.transfers`; a player's
+  `screens/Transfers.tsx` (the Deals tab). Session 16: a deal is judged by what it does to each
+  side's best eleven (`elevenOf`, `sideOf`: convex value of fitted ratings, plus a little depth;
+  a rival near you in the table or losing its best player asks more), with plain reasons ("X would
+  start right wing, ahead of Y"). `offersFor` makes up to two AI offers each window matchday,
+  seeded by matchday; turned-down ones are kept in `Season.declined`. Deals are recorded in `Season.transfers`; a player's
   stats stay keyed by his id and go with him (`matchLog` uses the record to know his side).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

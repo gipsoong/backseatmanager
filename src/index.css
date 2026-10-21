@@ -2022,3 +2022,66 @@ button.name-link {
   border-radius: 6px;
   background: var(--surface);
 }
+
+/* The cup's bracket: a column per round, scrolling sideways on a phone. */
+.bracket {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(170px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.bracket-round {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 8px;
+  align-content: space-around;
+}
+
+.bracket-round > .eyebrow {
+  margin: 0;
+}
+
+.bracket-tie {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  align-self: center;
+  background: var(--surface);
+}
+
+.bracket-tie.empty {
+  min-height: 52px;
+  border-style: dashed;
+  background: transparent;
+}
+
+.bracket-tie p {
+  margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.bracket-tie .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-tie .agg {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.bracket-tie p.through {
+  font-weight: 700;
+}
+
+.bracket-tie p.mine .name {
+  color: var(--accent);
+}
