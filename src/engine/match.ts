@@ -183,7 +183,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
       touchReadyAt: 0,
       runUntil: 0,
       runTo: null,
-      runBox: false,
+      runKind: null,
     }
   }
   for (const team of [0, 1] as const) {
@@ -290,7 +290,7 @@ export function step(s: MatchState): MatchEvent[] {
   beginMovement(s)
   const so = s.shootout
   if (s.phase.kind === 'play' && !so) {
-    for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil, ...(p.runBox ? { late: true } : {}) })
+    for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil, ...(p.runKind ? { kind: p.runKind } : {}) })
   }
   const chasers = s.phase.kind === 'play' && !so ? pickChasers(s) : new Map<number, number>()
   const phase = s.phase
@@ -444,7 +444,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
         if (run) {
           p.runUntil = s.tick + s.rng.int(20, 30)
           p.runTo = run
-          p.runBox = false
+          p.runKind = null
           emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
         }
       }
@@ -881,7 +881,7 @@ function takePossession(
   b.ownerIdx = p.idx
   p.runUntil = 0
   p.runTo = null
-  p.runBox = false
+  p.runKind = null
   b.lastTouchIdx = p.idx
   b.touchedSinceKick = true
   s.possessedSince = s.tick
@@ -1251,7 +1251,7 @@ function setRestart(s: MatchState, type: RestartType, team: Side, spot: Vec): vo
   for (const p of s.players) {
     p.runUntil = 0
     p.runTo = null
-    p.runBox = false
+    p.runKind = null
   }
 }
 
@@ -1410,7 +1410,7 @@ function startShootout(s: MatchState, out: MatchEvent[]): void {
     p.tackleReadyAt = 0
     p.runUntil = 0
     p.runTo = null
-    p.runBox = false
+    p.runKind = null
     if (p.onPitch) p.pos = shootoutSpot(s, p)
   }
   nextKick(s, out)

@@ -24,6 +24,9 @@ import {
 import {
   AERIAL_HEIGHT,
   ARRIVAL_FROM,
+  OVERLAP_FROM,
+  OVERLAP_TO,
+  OVERLAP_WIDE,
   BACK_TO_GOAL_SPEED,
   TIGHT_MARK,
   CONTROL_RADIUS,
@@ -218,13 +221,28 @@ export function checkMatch(
     // --- A late run into the box starts only with a teammate on the ball in the final third, from
     // behind the ball and outside the box.
     for (const e of events) {
-      if (e.type !== 'run' || !e.late) continue
+      if (e.type !== 'run' || e.kind !== 'late') continue
       const owner = P.ball.ownerIdx
       const bx = attackX(P.ball.x, team(e.idx), half)
       const rx = attackX(P.players[e.idx].x, team(e.idx), half)
       if (owner === null || team(owner) !== team(e.idx) || owner === e.idx) v('late-run', `late run by ${e.idx} without a teammate on the ball`)
       else if (bx < ARRIVAL_FROM - EPS) v('late-run', `late run by ${e.idx} with the ball ${bx.toFixed(1)}m up`)
       if (rx > bx + 2 + EPS || inBox(P.players[e.idx], oppGoalX(team(e.idx), half))) v('late-run', `late run by ${e.idx} from ${rx.toFixed(1)}m, ball at ${bx.toFixed(1)}m`)
+    }
+
+    // --- An overlap starts only by a full-back, with a teammate on the ball out wide on his side of
+    // the pitch in their half, from behind the ball.
+    for (const e of events) {
+      if (e.type !== 'run' || e.kind !== 'overlap') continue
+      const owner = P.ball.ownerIdx
+      const bx = attackX(P.ball.x, team(e.idx), half)
+      const rx = attackX(P.players[e.idx].x, team(e.idx), half)
+      const wide = P.ball.y - CENTER.y
+      if (s.players[e.idx].slot.role !== 'FB') v('overlap', `overlap by ${e.idx}, a ${s.players[e.idx].slot.role}`)
+      if (owner === null || team(owner) !== team(e.idx) || owner === e.idx) v('overlap', `overlap by ${e.idx} without a teammate on the ball`)
+      else if (bx < OVERLAP_FROM - EPS || bx > OVERLAP_TO + EPS || Math.abs(wide) < OVERLAP_WIDE - EPS) v('overlap', `overlap by ${e.idx} with the ball at ${fmt(P.ball)}`)
+      else if (Math.sign(P.players[e.idx].y - CENTER.y) !== Math.sign(wide) && Math.abs(P.players[e.idx].y - CENTER.y) > 3) v('overlap', `overlap by ${e.idx} from the far side`)
+      if (rx > bx + 2 + EPS) v('overlap', `overlap by ${e.idx} from ${rx.toFixed(1)}m, ball at ${bx.toFixed(1)}m`)
     }
 
     // --- An opponent's pass won: taken off the receiver (he was at the ball), blocked right by the

@@ -88,6 +88,10 @@ export const BLOCK_NEAR = 5
 export const OVERRUN = 2
 /** Ball this far up the pitch (m from his own goal line) with a teammate on it: midfielders start arriving late in the box. */
 export const ARRIVAL_FROM = 70
+/** A full-back overlaps a teammate on the ball this far out on his flank (m from the centre line of the pitch), between these depths. */
+export const OVERLAP_WIDE = 12
+export const OVERLAP_FROM = 50
+export const OVERLAP_TO = 92
 /** A carrier going away from goal faster than this (m/s) with a man within TIGHT_MARK (m) goal-side of him can't shoot until he turns. */
 export const BACK_TO_GOAL_SPEED = 1
 export const TIGHT_MARK = 2.5

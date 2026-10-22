@@ -9,6 +9,40 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 17, later): full-back overlaps, per-position audit
+
+Owner: "players should be dynamic regardless of their position". Audited how each position
+plays in and out of possession over 40 draft matches (per 90, starters; receptions, not FBref
+touches, so box and final-third "touches" read low across the board).
+
+| Per 90 (real) | CB | FB | DM | CM | WM | W | ST |
+|---|---|---|---|---|---|---|---|
+| Shots | 0.77 (0.4-0.7) | 0.16 (0.3-0.6) | 0.58 (0.5-1) | 1.73 (0.8-1.6) | 0.40 (1.2-2) | 2.35 (2-3) | 3.95 (2.5-3.5) |
+| Key passes | 0.10 (0.1-0.3) | 0.82 (0.6-1.2) | 0.44 (0.5-1) | 1.82 (1-2) | 1.65 (1.2-2) | 1.77 (1.5-2.5) | 1.04 (0.8-1.5) |
+| Progressive passes | 0.69 (3-6) | 4.91 (3.5-6) | 1.23 (5-8) | 4.27 (4.5-8) | 5.85 (2.5-4.5) | 3.30 (2-4) | 1.03 (1-2) |
+| Progressive carries | 1.48 (0.8-2) | 5.42 (1.5-3) | 1.27 (1-2.5) | 2.86 (1.5-3) | 10.45 (2.5-5) | 6.24 (3-6) | 2.36 (1.5-3) |
+| Passes | 54 | 48 | 30 | 35 | 61 | 37 | 18 |
+
+- **Fixed: full-backs never went past the man on the ball** (ahead of their wide man 1% of the
+  time). Overlaps: with a teammate on the ball wide on his flank in their half, the full-back on
+  that side, behind the ball, goes past him: outside (overlapping, wing-backs most), inside into
+  the channel (inverted, the underlap), rarely (defensive). ~16 a team a match, shown with the run
+  indicator; he gets past the ball on 57% and receives it on 45%. Full-backs' receptions in the
+  final third 13.8 to 15.1 a match (inverted ones 0.1 to 1.1). Harness: `overlap` (a full-back,
+  teammate on the ball wide in their half, from behind it and on its side), with a test that it
+  catches a faked one. Also: a late or overlapping runner whose spot lapses no longer falls through
+  to a run in behind.
+- **Left, measured:** the build-up from the back (next up, 3): the keeper's long-ball loop starves
+  centre-backs and holding midfielders of the ball. Wide midfielders carry a lot and shoot little;
+  strikers still shoot a little above range; full-backs rarely shoot.
+
+Draft matches, seeds 9000-9099: goal share DEF / MID / FWD 11 / 20 / 69 (stage 1: 9 / 17 / 73),
+goals 3.11 a match (2.87), lone striker npxG share 31% (stronger side 26%). Seasons (La Liga,
+Ronaldo 94, seeds 1, 2, 5, 6): Ronaldo 28, 37, 31, 13 (mean 27, as before this session); our side
+81-108 goals, 93-99 points; top scorers elsewhere Villa 40, Lewandowski 27; main striker npxG share
+median 21%, top decile 32%, max 44%. calibrate 80 1 / 80 201: 31/31, 30/31; fresh 80 401: 30/31
+(original 29/31). Harness zero violations; vitest and `tsc -b` pass.
+
 ## Done (session 17, later): box arrivals and defensive stats
 
 Owner: a lone striker in a dominant side took too large a share of its shots ("you are making it
@@ -540,9 +574,18 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 1. **Draft mode polish**: more club-seasons; saving a draft in progress; a season summary (the record, 38-0 or not) at the end.
 2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
    (milestone 5). End of season: player ageing, a new season with the same clubs.
-3. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;
+3. **Build-up from the back** (the biggest gap left, see the audit below): a centre-back pressed
+   20-30 m out passes back to the keeper ~40 times a team a match (real ~10-15) and the keeper
+   clears it long ~45 times (real ~5 in open play); short passes from him ~5. So holding
+   midfielders pass ~30 times per 90 (real 60-70) and centre-backs and DMs barely progress the
+   ball (0.7 and 1.2 progressive passes per 90; real 3-6 and 5-8). Deep down, a pass is valued on
+   interception risk against a loss cost ~50x the gain, so the safest ball always wins. Tried and
+   reverted: a build-up shape (centre-backs split, DM drops) gave a keeper-to-centre-back loop
+   (~170 a match); a back-pass cost halved the keeper's clearances but doubled centre-back to
+   centre-back passes. Needs the pass valuation deep in our half reworked, then a full re-balance.
+4. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;
    through balls high (~11, shown not scored).
-4. Optional: a friendlier results screen after each matchday (other scores coming in).
+5. Optional: a friendlier results screen after each matchday (other scores coming in).
 
 ## Open questions / decisions deferred
 

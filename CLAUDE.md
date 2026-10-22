@@ -293,10 +293,12 @@ pulling the repo.
   (`OVERRUN`) a recovery, otherwise cut out on its way, an interception (Opta's definitions). Poor
   readers set off later for a ball (`delayFor`), poor tacklers go in less (`willing`). Late runs:
   with the ball past `ARRIVAL_FROM`, midfielders (by `ARRIVAL` eagerness) and full-backs arrive in
-  the box from behind the ball (`runBox`, `lateRunSpot`); markers lose them unless close.
+  the box from behind the ball (`runKind` 'late', `lateRunSpot`); markers lose them unless close.
+  Overlaps: with a teammate on the ball wide on his flank in their half (`OVERLAP_*`), a full-back
+  goes past him, outside, or inside for an inverted one (`runKind` 'overlap', `overlapSpot`).
   Corners go only to the men the corner plan sent up; a defender in his own box has an aerial edge
   (`AERIAL_DEFENDER_EDGE`). No shot on the spin with a man tight goal-side (`backToGoal`). Harness:
-  `pass-won`, `late-run`, `shot-on-the-spin`.
+  `pass-won`, `late-run`, `overlap`, `shot-on-the-spin`. Run events carry `kind`.
 - January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
   `screens/Transfers.tsx` (the Deals tab). Session 16: a deal is judged by what it does to each
   side's best eleven (`elevenOf`, `sideOf`: convex value of fitted ratings, plus a little depth;

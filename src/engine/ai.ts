@@ -39,6 +39,9 @@ import {
   CORNER_READY_DISTANCE,
   OFFSIDE_READ_LAG,
   ARRIVAL_FROM,
+  OVERLAP_FROM,
+  OVERLAP_TO,
+  OVERLAP_WIDE,
   BACK_TO_GOAL_SPEED,
   TIGHT_MARK,
   CONTROL_RADIUS,
@@ -996,9 +999,9 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   // A one-two: straight to the space he's going for.
   if (inPossession && p.runUntil > s.tick && p.runTo) return p.runTo
   // Arriving late from deep: to the box, or its edge.
-  if (inPossession && p.runUntil > s.tick && p.runBox) {
-    const late = lateRunSpot(s, p, b)
-    if (late) return wf(s, team, late)
+  if (inPossession && p.runUntil > s.tick && p.runKind) {
+    const spot = p.runKind === 'late' ? lateRunSpot(s, p, b) : overlapSpot(s, p, b)
+    if (spot) return wf(s, team, spot)
   }
   const run = inPossession ? boxRun(s, p, b) : null
   if (run) return wf(s, team, run)
@@ -1018,7 +1021,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     const line = offsideLine(s, team, s.ball.pos)
     const role = p.slot.role
     const forward = role === 'ST' || role === 'W' || role === 'WM'
-    if (p.runUntil > s.tick) {
+    if (p.runUntil > s.tick && !p.runKind) {
       // In behind, angled into the channel: between centre-back and full-back.
       const side = Math.sign(p.slot.y - CENTER.y) || Math.sign(target.y - CENTER.y) || 1
       const channel = CENTER.y + side * (role === 'ST' ? 7 : 13)
@@ -1177,7 +1180,7 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
       if (o.slot.role === 'GK' || o.idx === s.ball.ownerIdx || dist(o.pos, zone) > 10) continue
       // A man arriving late from deep is easy to lose, watching the ball: he's picked up only once
       // he's close, sooner by a good marker.
-      if (o.runBox && o.runUntil > s.tick && dist(o.pos, p.pos) > 3 + p.attrs.marking * 0.25) continue
+      if (o.runKind === 'late' && o.runUntil > s.tick && dist(o.pos, p.pos) > 3 + p.attrs.marking * 0.25) continue
       if (!mark || dist(o.pos, zone) < dist(mark.pos, zone)) mark = o
     }
     if (mark) {
@@ -1286,9 +1289,10 @@ export function pickChasers(s: MatchState): Map<number, number> {
 }
 
 /**
- * Maybe start a run in behind for forwards when a teammate has the ball in midfield. Runners go
- * when the man on the ball has time to pick them out, and more often when they're tightly marked
- * (spinning off the defender). Returns who set off.
+ * Maybe start runs: in behind for forwards when a teammate has the ball in midfield (more often when
+ * the man on the ball has time to pick them out, and when they're tightly marked: spinning off the
+ * defender); late into the box from deep once it's in the final third; a full-back's overlap with
+ * the ball wide on his flank. Returns who set off.
  */
 export function maybeStartRuns(s: MatchState): PlayerState[] {
   const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
@@ -1298,6 +1302,7 @@ export function maybeStartRuns(s: MatchState): PlayerState[] {
   if (a.x >= 35 && a.x <= 88) runsInBehind(s, owner, started)
   const ballA = af(s, owner.team, s.ball.pos)
   if (ballA.x >= ARRIVAL_FROM) lateRuns(s, owner, ballA, started)
+  if (ballA.x >= OVERLAP_FROM && ballA.x <= OVERLAP_TO && Math.abs(ballA.y - CENTER.y) >= OVERLAP_WIDE) overlaps(s, owner, ballA, started)
   return started
 }
 
@@ -1316,7 +1321,7 @@ function runsInBehind(s: MatchState, owner: PlayerState, started: PlayerState[])
     if (s.rng.chance(chance)) {
       p.runUntil = s.tick + s.rng.int(20, 35)
       p.runTo = null
-      p.runBox = false
+      p.runKind = null
       started.push(p)
     }
   }
@@ -1347,7 +1352,7 @@ const arrivalEagerness = (p: PlayerState): number =>
  */
 function lateRuns(s: MatchState, owner: PlayerState, a: Vec, started: PlayerState[]): void {
   const mates = teammatesOf(s, owner.team)
-  let arriving = mates.filter((q) => q.runBox && q.runUntil > s.tick).length
+  let arriving = mates.filter((q) => q.runKind === 'late' && q.runUntil > s.tick).length
   const wide = Math.abs(a.y - CENTER.y) > 12
   for (const p of mates) {
     if (arriving >= 2) return
@@ -1361,7 +1366,7 @@ function lateRuns(s: MatchState, owner: PlayerState, a: Vec, started: PlayerStat
     if (s.rng.chance(chance)) {
       p.runUntil = s.tick + s.rng.int(40, 60)
       p.runTo = null
-      p.runBox = true
+      p.runKind = 'late'
       started.push(p)
       arriving++
     }
@@ -1385,6 +1390,50 @@ function lateRunSpot(s: MatchState, p: PlayerState, b: Vec): Vec | null {
   const inside = p.archetype === 'boxToBox' || p.archetype === 'playmaker'
   if (wide && b.x > 80) return inside ? spot(PITCH_LENGTH - 11, CENTER.y - side * 1.5) : spot(PITCH_LENGTH - 16, CENTER.y + side * 2)
   return p.archetype === 'boxToBox' ? spot(PITCH_LENGTH - 13, CENTER.y - side * 4) : spot(PITCH_LENGTH - 18, CENTER.y - side * 6)
+}
+
+/**
+ * How readily each kind of full-back goes past the man on the ball on his flank: an overlapping one
+ * most (outside him), an inverted one inside him (the underlap), a defensive one hardly ever.
+ * Wing-backs, with no winger in front of them to cover, go more.
+ */
+const OVERLAP: Partial<Record<Archetype, number>> = { overlapping: 1, inverted: 0.7, defensiveFullBack: 0.15 }
+
+/**
+ * Overlaps: with a teammate on the ball wide in their half (a). The full-back on that flank, behind
+ * the ball and near enough to get past it, sets off beyond him (overlapSpot).
+ */
+function overlaps(s: MatchState, owner: PlayerState, a: Vec, started: PlayerState[]): void {
+  const side = Math.sign(a.y - CENTER.y)
+  for (const p of teammatesOf(s, owner.team)) {
+    if (p.idx === owner.idx || p.slot.role !== 'FB' || p.runUntil > s.tick) continue
+    if (Math.sign(p.slot.y - CENTER.y) !== side) continue
+    const pa = af(s, p.team, p.pos)
+    // From behind the ball, near enough to get past it, and on that side of the pitch now.
+    if (pa.x > a.x + 2 || pa.x < a.x - 20 || (pa.y - CENTER.y) * side < 0) continue
+    const eager = (OVERLAP[p.archetype] ?? 0.3) * (p.slot.attackDepth > 0.6 ? 1.3 : 1)
+    if (s.rng.chance(0.012 * eager * (0.5 + p.def.traits.workRate))) {
+      p.runUntil = s.tick + s.rng.int(50, 70)
+      p.runTo = null
+      p.runKind = 'overlap'
+      started.push(p)
+    }
+  }
+}
+
+/**
+ * Where an overlapping full-back is going, in the attacking frame, given the ball (b): 8 m past it,
+ * outside it towards the touchline, or (an inverted full-back) inside it into the channel. Never
+ * beyond the offside line. Null once the ball has left his flank or gone back.
+ */
+function overlapSpot(s: MatchState, p: PlayerState, b: Vec): Vec | null {
+  const side = Math.sign(p.slot.y - CENTER.y) || 1
+  const out = (b.y - CENTER.y) * side
+  if (out < OVERLAP_WIDE - 4 || b.x < OVERLAP_FROM - 5) return null
+  const line = offsideLine(s, p.team, s.ball.pos) - 0.5
+  const inside = p.archetype === 'inverted'
+  const x = Math.min(b.x + 8, PITCH_LENGTH - (inside ? 10 : 6), line)
+  return vec(x, CENTER.y + side * (inside ? Math.max(8, out - 9) : Math.min(PITCH_WIDTH / 2 - 2, out + 5)))
 }
 
 /**

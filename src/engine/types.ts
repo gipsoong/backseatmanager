@@ -183,8 +183,12 @@ export interface PlayerState {
   runUntil: number
   /** Where a run is going, if it's to a fixed spot (a one-two); null means in behind the line. */
   runTo: Vec | null
-  /** The run is a late one into the box from midfield (or a full-back's to its edge), aimed where the ball is. */
-  runBox: boolean
+  /**
+   * A run aimed where the ball is: 'late', into the box from midfield (or a full-back's to its edge);
+   * 'overlap', a full-back past the man on the ball on his flank (outside him, or inside for an
+   * inverted one). Null: in behind the line, or to runTo.
+   */
+  runKind: RunKind | null
   /** Top speed when fresh; `maxSpeed` falls below it as he tires. */
   baseSpeed: number
   /** How much he has left, 0-1: drains as he runs, faster for low stamina. */
@@ -194,6 +198,7 @@ export interface PlayerState {
 }
 
 /** How an opponent's pass was won: see the possession event. */
+export type RunKind = 'late' | 'overlap'
 export type PassWon = 'cut' | 'duel' | 'block' | 'loose'
 
 export type KickKind = 'pass' | 'shot' | 'clearance'
@@ -337,7 +342,7 @@ export type MatchEvent = EventBase &
         beaten?: DribbleMove
       }
     /** A player sets off on a run (in behind, a one-two, or arriving late in the box), until `until`. */
-    | { type: 'run'; idx: number; until: number; late?: boolean }
+    | { type: 'run'; idx: number; until: number; kind?: RunKind }
     /** `aerial`: a push or pull as they both go for a ball in the air, not a challenge on a carrier. */
     | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle; aerial?: boolean }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
