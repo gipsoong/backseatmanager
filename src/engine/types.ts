@@ -183,6 +183,8 @@ export interface PlayerState {
   runUntil: number
   /** Where a run is going, if it's to a fixed spot (a one-two); null means in behind the line. */
   runTo: Vec | null
+  /** The run is a late one into the box from midfield (or a full-back's to its edge), aimed where the ball is. */
+  runBox: boolean
   /** Top speed when fresh; `maxSpeed` falls below it as he tires. */
   baseSpeed: number
   /** How much he has left, 0-1: drains as he runs, faster for low stamina. */
@@ -190,6 +192,9 @@ export interface PlayerState {
   /** Hurt: comes off at the next stoppage if there's a substitution left. */
   injured: boolean
 }
+
+/** How an opponent's pass was won: see the possession event. */
+export type PassWon = 'cut' | 'duel' | 'block' | 'loose'
 
 export type KickKind = 'pass' | 'shot' | 'clearance'
 export type RestartType = 'kickoff' | 'throwIn' | 'goalKick' | 'corner' | 'freeKick' | 'penalty'
@@ -303,6 +308,13 @@ export type MatchEvent = EventBase &
         contact: Vec
         height: number
         via: 'control' | 'interception' | 'save' | 'restart'
+        /**
+         * An opponent's pass won, by where it happened: taken off the man it was meant for as it
+         * reached him (a duel), stopped by a man already close to the passer (a blocked pass), picked
+         * up after it had run on past where it was aimed (a loose ball), or cut out on its way (an
+         * interception).
+         */
+        won?: PassWon
         /** Saves only: the keeper had to dive, the ball was beyond his body. */
         dive?: boolean
       }
@@ -324,8 +336,8 @@ export type MatchEvent = EventBase &
         /** When the dribbler got away: how. */
         beaten?: DribbleMove
       }
-    /** A forward sets off on a run in behind, until `until`. */
-    | { type: 'run'; idx: number; until: number }
+    /** A player sets off on a run (in behind, a one-two, or arriving late in the box), until `until`. */
+    | { type: 'run'; idx: number; until: number; late?: boolean }
     /** `aerial`: a push or pull as they both go for a ball in the air, not a challenge on a carrier. */
     | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle; aerial?: boolean }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }

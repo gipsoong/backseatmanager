@@ -85,6 +85,22 @@ describe('the harness catches inconsistencies', () => {
     expect(violations.some((v) => v.rule === 'ball-owner')).toBe(true)
   })
 
+  it('flags an intercepted pass logged as the wrong kind of ball won', () => {
+    const [h, a] = teams(1)
+    let done = false
+    const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 4 }, {
+      tamper: (s) => {
+        const e = s.events.at(-1)
+        if (!done && e?.type === 'possession' && e.tick === s.tick && e.won === 'cut') {
+          e.won = 'loose'
+          done = true
+        }
+      },
+    })
+    expect(done).toBe(true)
+    expect(violations.some((v) => v.rule === 'pass-won')).toBe(true)
+  })
+
   it('flags a ball that leaves the pitch without going out of play', () => {
     const [h, a] = teams(1)
     const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 2 }, {

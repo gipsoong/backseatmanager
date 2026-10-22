@@ -64,6 +64,9 @@ import {
   TACKLE_RANGE,
   TICKS_PER_MINUTE,
   TICKS_PER_SECOND,
+  DUEL_REACH,
+  BLOCK_NEAR,
+  OVERRUN,
 } from './constants.ts'
 import { advanceBall, loft, loftTime, shotVz } from './physics.ts'
 import {
@@ -89,6 +92,7 @@ import {
   shootoutIntent,
   shootoutSpot,
   strikingFoot,
+  cornerPlan,
   cornerSetUp,
   defensiveLine,
   takerSpot,
@@ -115,6 +119,7 @@ import type {
   Slot,
   Frame,
   Kick,
+  PassWon,
   MatchConfig,
   MatchEvent,
   MatchState,
@@ -131,6 +136,8 @@ import type {
 } from './types.ts'
 
 const XG_CALIBRATION = 1.3
+/** How much less often an attacker wins a contested header in the opponents' box. */
+const AERIAL_DEFENDER_EDGE = 0.17
 const PENALTY_XG = 0.78
 
 type EventBody = MatchEvent extends infer E ? (E extends MatchEvent ? Omit<E, 'tick' | 'clock'> : never) : never
@@ -176,6 +183,7 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
       touchReadyAt: 0,
       runUntil: 0,
       runTo: null,
+      runBox: false,
     }
   }
   for (const team of [0, 1] as const) {
@@ -282,7 +290,7 @@ export function step(s: MatchState): MatchEvent[] {
   beginMovement(s)
   const so = s.shootout
   if (s.phase.kind === 'play' && !so) {
-    for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
+    for (const p of maybeStartRuns(s)) emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil, ...(p.runBox ? { late: true } : {}) })
   }
   const chasers = s.phase.kind === 'play' && !so ? pickChasers(s) : new Map<number, number>()
   const phase = s.phase
@@ -436,6 +444,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
         if (run) {
           p.runUntil = s.tick + s.rng.int(20, 30)
           p.runTo = run
+          p.runBox = false
           emit(s, out, { type: 'run', idx: p.idx, until: p.runUntil })
         }
       }
@@ -798,7 +807,7 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   if (rival && b.kick) {
     const [fouler, fouled] = rng.chance(0.5) ? [rival, p] : [p, rival]
     const inOwnBox = inPenaltyArea(fouled.pos, ownGoalX(fouler.team, s.half))
-    if (rng.chance(AERIAL_FOUL_CHANCE * (0.5 + fouler.def.traits.aggression) * (inOwnBox ? 0.3 : 1))) {
+    if (rng.chance(AERIAL_FOUL_CHANCE * (0.5 + fouler.def.traits.aggression) * (inOwnBox ? 0.22 : 1))) {
       const style: TackleStyle = dist(fouler.pos, fouled.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
       commitFoul(s, fouler, fouled, style, 0.05 + fouler.def.traits.temper * 0.1, true, out)
       return true
@@ -806,7 +815,9 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   }
   // Two going up: the better in the air (jumping, strength) wins more of them. Alone, it's timing.
   const opponent = rival ?? s.players.find((o) => o.onPitch && o.team !== p.team && o.slot.role !== 'GK' && dist(o.pos, contact) < 1.5)
-  const pWin = opponent ? 0.6 + (aerialPower(p) - aerialPower(opponent)) * 0.015 : 0.8 + (p.attrs.heading - 12) * 0.01
+  // A defender in his own box, facing the ball with his man in front of him, has the edge.
+  const attacking = inPenaltyArea(contact, oppGoalX(p.team, s.half))
+  const pWin = opponent ? 0.6 - (attacking ? AERIAL_DEFENDER_EDGE : 0) + (aerialPower(p) - aerialPower(opponent)) * 0.015 : 0.8 + (p.attrs.heading - 12) * 0.01
   if (!rng.chance(clamp(pWin, 0.25, 0.95))) {
     // Mistimed: it goes over or past him. He can have another go once it's past his head.
     p.touchReadyAt = s.tick + HEADER_RECOVERY_TICKS
@@ -832,11 +843,11 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
 
   if (cross) {
     const attrs = p.attrs
-    const sigma = finishingError(attrs.heading) * (1.5 + toGoal * 0.2) * (challenged ? 1.9 : 1.3)
+    const sigma = finishingError(attrs.heading) * (1.5 + toGoal * 0.2) * (challenged ? 2.4 : 1.4)
     const aimY = CENTER.y + rng.range(-3, 3) + rng.gauss() * sigma
     const target = wf(s, p.team, vec(PITCH_LENGTH, aimY))
     const aimH = Math.max(0.05, rng.range(0.1, 1.6) + rng.gauss() * sigma * 0.4)
-    shoot(s, p, target, 12 + (attrs.heading / 20) * 5, aimH, xgFrom(a) * (challenged ? 0.3 : 0.5), null, true, out)
+    shoot(s, p, target, 12 + (attrs.heading / 20) * 5, aimH, xgFrom(a) * (challenged ? 0.2 : 0.4), null, true, out)
     return true
   }
   // A good header of the ball sends it further and where he means it to go.
@@ -865,10 +876,12 @@ function takePossession(
   if (k && !b.touchedSinceKick && k.kind === 'pass' && k.team === p.team) {
     s.stats[p.team].passesCompleted++
   }
+  const won = via === 'interception' && k && !b.touchedSinceKick && k.kind === 'pass' && k.team !== p.team ? passWon(s, k, contact) : undefined
   b.receivedFromIdx = k && !b.touchedSinceKick && k.kind === 'pass' && k.team === p.team && k.byIdx !== p.idx ? k.byIdx : null
   b.ownerIdx = p.idx
   p.runUntil = 0
   p.runTo = null
+  p.runBox = false
   b.lastTouchIdx = p.idx
   b.touchedSinceKick = true
   s.possessedSince = s.tick
@@ -885,7 +898,22 @@ function takePossession(
   // A moment to settle: nobody can tackle in the same instant the ball arrives.
   for (const o of s.players) if (o.team !== p.team) o.tackleReadyAt = Math.max(o.tackleReadyAt, s.tick + 6)
   const dive = via === 'save' ? dist(p.pos, contact) > KEEPER_BODY_REACH : undefined
-  emit(s, out, { type: 'possession', idx: p.idx, contact: { ...contact }, height, via, dive })
+  emit(s, out, { type: 'possession', idx: p.idx, contact: { ...contact }, height, via, dive, ...(won ? { won } : {}) })
+}
+
+/**
+ * Where an opponent's pass was won: with the man it was meant for at the ball (within DUEL_REACH),
+ * it was taken off him; within BLOCK_NEAR of where it was struck, it was blocked by a man already
+ * on the passer; run on more than OVERRUN past where it was aimed, it was a loose ball; otherwise
+ * it was cut out on its way.
+ */
+function passWon(s: MatchState, k: Kick, contact: Vec): PassWon {
+  const receiver = k.targetIdx === null ? null : s.players[k.targetIdx]
+  if (receiver?.onPitch && dist(receiver.pos, contact) <= DUEL_REACH) return 'duel'
+  if (dist(k.from, contact) <= BLOCK_NEAR) return 'block'
+  const length = dist(k.from, k.target)
+  if (length > 0 && projectT(k.from, k.target, contact) * length > length + OVERRUN) return 'loose'
+  return 'cut'
 }
 
 /** Segment parameter where the ball first leaves the field of play, if it does. */
@@ -1028,7 +1056,9 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   // Most of the time a defender jockeys, shows him away and waits; an aggressive one goes in sooner.
   // Up the pitch, forwards counter-press the ball they've just lost.
   const finalThird = af(s, o.team, c.pos).x > 70
-  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : 1))) return
+  // A poor tackler jockeys rather than dives in: a forward goes in about half as often as a centre-back.
+  const willing = clamp(0.4 + (o.attrs.standingTackle - 6) * 0.1, 0.4, 1.4)
+  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : 1) * willing)) return
 
   const oa = o.attrs
   const ca = c.attrs
@@ -1221,6 +1251,7 @@ function setRestart(s: MatchState, type: RestartType, team: Side, spot: Vec): vo
   for (const p of s.players) {
     p.runUntil = 0
     p.runTo = null
+    p.runBox = false
   }
 }
 
@@ -1253,14 +1284,16 @@ function tryTakeRestart(s: MatchState, out: MatchEvent[]): void {
 
   let action: Action
   if (r.type === 'corner') {
-    // Whipped into the box, towards whoever has the most space there.
+    // Whipped into the box, towards whichever of the men sent up for it (the plan already picks the
+    // big men) has the most space there.
+    const plan = cornerPlan(s, r)
     const inBox = s.players.filter((q) => {
-      if (!q.onPitch || q.team !== r.team || q.idx === taker.idx) return false
+      if (!q.onPitch || q.team !== r.team || q.idx === taker.idx || !plan.has(q.idx)) return false
       const a = af(s, r.team, q.pos)
       return a.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(a.y - CENTER.y) < BOX_HALF_WIDTH
     })
     const space = (q: PlayerState): number =>
-      Math.min(...s.players.filter((o) => o.onPitch && o.team !== r.team).map((o) => dist(o.pos, q.pos)))
+      Math.min(3, ...s.players.filter((o) => o.onPitch && o.team !== r.team).map((o) => dist(o.pos, q.pos)))
     const target = inBox.length ? inBox.reduce((x, y) => (space(y) > space(x) ? y : x)) : null
     action = target
       ? { kind: 'pass', toIdx: target.idx, target: { ...target.pos }, lofted: true }
@@ -1377,6 +1410,7 @@ function startShootout(s: MatchState, out: MatchEvent[]): void {
     p.tackleReadyAt = 0
     p.runUntil = 0
     p.runTo = null
+    p.runBox = false
     if (p.onPitch) p.pos = shootoutSpot(s, p)
   }
   nextKick(s, out)

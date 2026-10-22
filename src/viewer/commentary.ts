@@ -82,7 +82,7 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
         const t = teamOf(e.idx)
         const ax = attackX(t, e.contact.x)
         const kicked = lastKick && e.tick - lastKick.tick <= 40 ? lastKick : null
-        if (e.via === 'interception' && kicked) {
+        if (e.won === 'cut' && kicked) {
           const by = name(kicked.byIdx)
           if (ax > 70) {
             // Won high up the pitch: the start of a chance, as often as not.

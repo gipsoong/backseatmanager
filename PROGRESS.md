@@ -9,6 +9,51 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 17, later): box arrivals and defensive stats
+
+Owner: a lone striker in a dominant side took too large a share of its shots ("you are making it
+sound like the game is not fluid at all"), and forwards made far too many tackles and
+interceptions (Ronaldo 100+ in a season).
+
+- **Causes (defending).** Any opponent's pass a player picked up counted as an interception: a
+  ball won off the man receiving it (~30% of wingers'), a pass blocked from 2 m by a presser, a
+  ball run on loose. And nothing made forwards worse at reading or tackling: every outfielder set
+  off for a pass as early and went into tackles as often.
+- **Causes (attacks).** Nobody arrived from deep: midfielders held their shape 30 m out, so the
+  striker was the only target; corners went to the free man, often a winger at the byline,
+  rather than the big men sent up.
+- **Fixes.** A pass won is classed by position (`passWon`: duel at the receiver, block by the
+  passer, recovery beyond the target, otherwise interception) and the stats follow it. Reading
+  delay by interceptions/reactions up to 5 ticks; tackle willingness by standing tackle (a forward
+  goes in about half as often). Late runs into the box by archetype (box-to-box most, anchors never;
+  full-backs to the far edge), a cut-back option, the side stretching up behind an attack, the
+  holding man to the edge of the D; markers lose late runners unless close. Corners only to the
+  corner plan's men, a zonal defender, a defender's aerial edge in his own box (0.17). No shot on
+  the spin with a man tight goal-side. Harness: `pass-won`, `late-run`, `shot-on-the-spin`.
+
+| Draft matches, fresh seeds 9000-9099 | before | after |
+|---|---|---|
+| Interceptions per team per match (real 9-12) | 18.3 | 7.2 |
+| Tackles / interceptions per 90: CB (real 1.0/1.4) | 0.62 / 1.34 | 1.16 / 0.69 |
+| FB (1.3/1.2) | 1.23 / 1.98 | 1.40 / 0.57 |
+| DM (1.7/1.3) | 0.97 / 2.31 | 1.81 / 1.42 |
+| CM (1.3/0.9) | 1.45 / 2.00 | 1.63 / 0.85 |
+| WM (1.0/0.7) | 1.39 / 3.07 | 1.46 / 0.66 |
+| W (0.7/0.4) | 1.16 / 2.25 | 1.20 / 0.58 |
+| ST (0.4/0.2) | 0.63 / 0.95 | 0.68 / 0.38 |
+| Goal share DEF / MID / FWD (real ~12 / 28 / 55) | 4 / 13 / 83 | 9 / 17 / 73 |
+| npxG share DEF / MID / FWD | 7 / 16 / 77 | 13 / 23 / 64 |
+| Lone striker npxG share (stronger side by 3+) | 38% (32%) | 32% (30%) |
+| Goals per match | 2.90 | 2.87 |
+
+Seasons (La Liga, Ronaldo 94 forced, seeds 1, 2, 5, 6): Ronaldo 11, 30, 29, 18 before, 35, 37,
+32, 24 after (1.25 goals/90); our side 93-111 goals, 92-102 points; Lewandowski 30 the other top
+scorer; main striker npxG share median 22%, top decile 29%, max 37% (was ~55% in the top decile);
+team top scorer's share of its goals median 32%. Forwards' tackles and interceptions per season
+are now about a third of a centre-back's or holding midfielder's. calibrate 80 1 / 80 201:
+31/31, 29/31 (before 29/31, 30/31; the misses are shots outside the box 48.3% and throw-ins 14.9).
+Harness zero violations; vitest and `tsc -b` pass. `scripts/diag-defending.ts` reports all of this.
+
 ## Done (session 17): UI pass
 
 Owner: "matchday feels quite basic and boring … the mobile experience is quite bad when drafting

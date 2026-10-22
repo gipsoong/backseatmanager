@@ -23,10 +23,15 @@ import {
 } from './geometry.ts'
 import {
   AERIAL_HEIGHT,
+  ARRIVAL_FROM,
+  BACK_TO_GOAL_SPEED,
+  TIGHT_MARK,
   CONTROL_RADIUS,
   CROSSBAR_HEIGHT,
   DRIBBLE_OFFSET,
   DT,
+  BLOCK_NEAR,
+  DUEL_REACH,
   GK_EXTRA_REACH,
   GK_HAND_REACH,
   HEADER_REACH,
@@ -35,6 +40,7 @@ import {
   MAX_BALL_SPEED,
   MAX_FREE_KICK_SHOT_DISTANCE,
   MAX_SHOT_DISTANCE,
+  OVERRUN,
   SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
 } from './constants.ts'
@@ -92,7 +98,11 @@ export function checkMatch(
   const frames: Frame[] = []
   let forcedRestarts = 0
   let prev: Frame | null = null
+  // The frame before prev: how everyone was moving going into the tick being checked.
+  let prev2: Frame | null = null
   let pending: PendingKick | null = null
+  // The last pass still untouched: how an opponent won it is judged against it.
+  let livePass: Extract<MatchEvent, { type: 'pass' }> | null = null
   // A keeper's release from his hands (kicked from inside his own box): no opponent may play it at source.
   let release: { tick: number; team: Side } | null = null
   let stillBallTicks = 0
@@ -121,6 +131,7 @@ export function checkMatch(
       }
       checkTick(s, prev, cur, events, v)
     }
+    prev2 = prev
     prev = cur
     topSpeed = s.players.map((p) => p.maxSpeed)
   })
@@ -204,6 +215,42 @@ export function checkMatch(
       if (e.dive !== undefined && e.dive !== d > KEEPER_BODY_REACH) v('save-style', `dive=${e.dive} for a save ${d.toFixed(2)}m from the keeper`)
     }
 
+    // --- A late run into the box starts only with a teammate on the ball in the final third, from
+    // behind the ball and outside the box.
+    for (const e of events) {
+      if (e.type !== 'run' || !e.late) continue
+      const owner = P.ball.ownerIdx
+      const bx = attackX(P.ball.x, team(e.idx), half)
+      const rx = attackX(P.players[e.idx].x, team(e.idx), half)
+      if (owner === null || team(owner) !== team(e.idx) || owner === e.idx) v('late-run', `late run by ${e.idx} without a teammate on the ball`)
+      else if (bx < ARRIVAL_FROM - EPS) v('late-run', `late run by ${e.idx} with the ball ${bx.toFixed(1)}m up`)
+      if (rx > bx + 2 + EPS || inBox(P.players[e.idx], oppGoalX(team(e.idx), half))) v('late-run', `late run by ${e.idx} from ${rx.toFixed(1)}m, ball at ${bx.toFixed(1)}m`)
+    }
+
+    // --- An opponent's pass won: taken off the receiver (he was at the ball), blocked right by the
+    // passer, picked up after running on past where it was aimed, or cut out on its way.
+    for (const e of events) {
+      if (e.type === 'pass') livePass = e
+      else if (e.type === 'possession' && livePass && team(e.idx) !== team(livePass.byIdx) && e.via === 'interception') {
+        const pass = livePass
+        const along = (e.contact.x - pass.from.x) * (pass.target.x - pass.from.x) + (e.contact.y - pass.from.y) * (pass.target.y - pass.from.y)
+        const length = dist(pass.from, pass.target)
+        const expect =
+          dist(C.players[pass.toIdx], e.contact) <= DUEL_REACH + EPS
+            ? 'duel'
+            : dist(pass.from, e.contact) <= BLOCK_NEAR + EPS
+              ? 'block'
+              : length > 0 && along / length > length + OVERRUN
+                ? 'loose'
+                : 'cut'
+        if (e.won !== expect) v('pass-won', `pass to ${pass.toIdx} won by ${e.idx} as '${e.won}', positions say '${expect}'`)
+        livePass = null
+      } else if (e.type === 'possession' || e.type === 'deflection' || e.type === 'offside' || e.type === 'clearance' || e.type === 'shot' || e.type === 'tackle' || e.type === 'out' || e.type === 'goal' || e.type === 'foul') {
+        if (e.type === 'possession' && e.won) v('pass-won', `${e.idx} 'won' a pass that wasn't an opponent's live pass`)
+        livePass = null
+      }
+    }
+
     // --- Kicks and touches, in the order they happened (a header is a touch and then a kick).
     // Offside is called if and only if the first player to touch a kick was offside when it was played.
     for (const e of events) {
@@ -252,6 +299,21 @@ export function checkMatch(
         if ((between && e.height < UNDER_BAR) !== e.onTarget) {
           v('shot-on-target', `onTarget=${e.onTarget} but it crosses at y=${yAtLine.toFixed(2)}, height ${e.height.toFixed(2)}`)
         }
+      }
+      // Nobody shoots on the spin: going away from goal with a man tight goal-side of him, he has to turn first.
+      if (e.type === 'shot' && !e.header && !byRestart && prev2) {
+        const PP = prev2 as Frame
+        const vx = (P.players[e.byIdx].x - PP.players[e.byIdx].x) / DT
+        const vy = (P.players[e.byIdx].y - PP.players[e.byIdx].y) / DT
+        const speed = Math.hypot(vx, vy)
+        const goal = { x: oppGoalX(team(e.byIdx), half), y: CENTER.y }
+        const gd = dist(P.players[e.byIdx], goal)
+        const away = speed > BACK_TO_GOAL_SPEED + 0.01 && (vx * (goal.x - P.players[e.byIdx].x) + vy * (goal.y - P.players[e.byIdx].y)) / (speed * gd) < -0.18
+        const mx = attackX(P.players[e.byIdx].x, team(e.byIdx), half)
+        const tight = s.players.some(
+          (o, i) => o.team !== team(e.byIdx) && o.slot.role !== 'GK' && P.players[i].onPitch && dist(P.players[i], P.players[e.byIdx]) < TIGHT_MARK - 0.01 && attackX(P.players[i].x, team(e.byIdx), half) > mx + 0.01,
+        )
+        if (away && tight) v('shot-on-the-spin', `${e.byIdx} shot going away from goal at ${speed.toFixed(1)}m/s with a man on his back`)
       }
       if (e.type === 'pass') {
         if (team(e.toIdx) !== team(e.byIdx) || !C.players[e.toIdx].onPitch) v('pass-receiver', `pass to ${e.toIdx}`)

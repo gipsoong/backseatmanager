@@ -136,6 +136,15 @@ for (let seed = first; seed < first + n; seed++) {
       if (own < 35) add('tackles own third', 1)
       if (own > 70) add('tackles final third', 1)
     }
+    // A pass taken off the man it was meant for as it reached him is a duel won: a tackle.
+    if (e.type === 'possession' && e.won === 'duel') {
+      const t = state.players[e.idx].team
+      const own = attacksHigh(t) ? e.contact.x : 105 - e.contact.x
+      add('tackles', 1)
+      add('tackles won', 1)
+      if (own < 35) add('tackles own third', 1)
+      if (own > 70) add('tackles final third', 1)
+    }
     if (e.type === 'goal' && !e.ownGoal) add('goals from shots', 1)
     if (e.type === 'pass' && e.lofted && !corner) {
       // A cross: in the air into the opponents' box from wide, in open play.

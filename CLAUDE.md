@@ -146,7 +146,8 @@ pulling the repo.
   80 matches, and confirm on a second seed set (single sets of 20–40 are too noisy).
 - `scripts/diag-attacks.ts`, `scripts/diag-crosses.ts`, `scripts/diag-goals.ts`,
   `scripts/diag-corners.ts` — how final-third attacks end; what happens to crosses; where goals
-  come from; what put each corner behind.
+  come from; what put each corner behind. `scripts/diag-defending.ts` — tackles, interceptions,
+  recoveries and blocks per 90 by role, and how opponents' passes are won.
 - `scripts/sim.ts` — headless CLI runner (`npm run sim -- <seed> [--events]`), runs on Node's
   built-in TypeScript stripping (hence `.ts` import extensions throughout).
 - `src/viewer/` — the match viewer (session 2). `timeline.ts` simulates ahead of playback and
@@ -283,9 +284,19 @@ pulling the repo.
   him forced, 4+ seeds: one season is noisy, ±10 goals) and by a mirror (the drafted side against
   the league with him swapped for an 85, 76+ matches each, full fitness). Real ranges: elite
   strikers 0.8-1.2 goals/90 (Messi's 11/12 peak ~1.4), Pichichi 25-35 (Messi/Ronaldo era 40-50),
-  best side 110-121 goals and ~100 points, the best finishers beat npxG by 15-20%. Known
-  structural lean: a lone striker takes ~55% of his side's npxG per 90 in the top decile (real
-  ~45% at most); full-backs almost never shoot and centre-backs rarely score from set pieces.
+  best side 110-121 goals and ~100 points, the best finishers beat npxG by 15-20%. Since the box
+  arrivals (session 17, later) a lone striker takes ~30-38% of his side's npxG in the top decile
+  (was ~55%; real ~45% at most) and defenders score ~10% of goals; full-backs still rarely shoot.
+- Defensive stats and box arrivals (session 17, later). An opponent's pass won is classed by
+  position (`passWon`, match.ts; `won` on the possession event): at the receiver (within
+  `DUEL_REACH`) a tackle, right by the passer (`BLOCK_NEAR`) a block, beyond where it was aimed
+  (`OVERRUN`) a recovery, otherwise cut out on its way, an interception (Opta's definitions). Poor
+  readers set off later for a ball (`delayFor`), poor tacklers go in less (`willing`). Late runs:
+  with the ball past `ARRIVAL_FROM`, midfielders (by `ARRIVAL` eagerness) and full-backs arrive in
+  the box from behind the ball (`runBox`, `lateRunSpot`); markers lose them unless close.
+  Corners go only to the men the corner plan sent up; a defender in his own box has an aerial edge
+  (`AERIAL_DEFENDER_EDGE`). No shot on the spin with a man tight goal-side (`backToGoal`). Harness:
+  `pass-won`, `late-run`, `shot-on-the-spin`.
 - January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
   `screens/Transfers.tsx` (the Deals tab). Session 16: a deal is judged by what it does to each
   side's best eleven (`elevenOf`, `sideOf`: convex value of fitted ratings, plus a little depth;

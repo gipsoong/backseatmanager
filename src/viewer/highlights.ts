@@ -210,7 +210,7 @@ export function runsAt(events: MatchEvent[], upTo: number, playhead: number): { 
   const out: { idx: number; start: number; until: number }[] = []
   for (let i = upTo - 1; i >= 0; i--) {
     const e = events[i]
-    if (playhead - e.tick > 45) break
+    if (playhead - e.tick > 60) break
     if (e.type !== 'run' || playhead > e.until) continue
     let over = false
     for (let j = i + 1; j < upTo && !over; j++) {
@@ -256,7 +256,7 @@ export function captionFor(e: MatchEvent, attacksHigh: (team: 0 | 1, tick: numbe
       return null
     }
     case 'possession':
-      return e.via === 'interception' ? { idx: e.idx, text: 'Interception' } : null
+      return e.won === 'cut' ? { idx: e.idx, text: 'Interception' } : null
     case 'tackle':
       if (e.won) return { idx: e.byIdx, text: e.style === 'slide' ? 'Sliding tackle' : 'Tackle' }
       return e.beaten ? { idx: e.onIdx, text: MOVES[e.beaten] } : null

@@ -147,9 +147,14 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
           lines[pending.by].passesCompleted++
           receivedFrom = { by: pending.by, to: e.idx }
         } else receivedFrom = null
-        // Cutting out an opponent's pass is an interception; collecting a clearance, a hoofed ball or
-        // a loose one is a recovery.
-        if (e.via === 'interception' && pending && teamOf(pending.by) !== team) lines[e.idx].interceptions++
+        // Cutting out an opponent's pass on its way is an interception; taking it off the man it was
+        // meant for as it reaches him is a duel won (a tackle); stopping it right by the passer is a
+        // blocked pass; collecting one that ran on past him, a clearance, a hoofed ball or a loose one
+        // is a recovery.
+        if (e.won === 'cut') lines[e.idx].interceptions++
+        else if (e.won === 'duel') lines[e.idx].tackles++
+        else if (e.won === 'block') lines[e.idx].blocks++
+        else if (e.won === 'loose') lines[e.idx].recoveries++
         else if ((e.via === 'control' || e.via === 'interception') && !pending && lastTeam !== null && lastTeam !== team) lines[e.idx].recoveries++
         if (e.via === 'save' && shot) {
           lines[e.idx].saves++

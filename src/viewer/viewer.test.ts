@@ -134,7 +134,7 @@ describe('captions', () => {
   const teamOf = (idx: number) => full.state.players[idx].team
   const attacksHigh = (team: 0 | 1, tick: number) => ownGoalX(team, full.halfTimeTick !== null && tick > full.halfTimeTick ? 2 : 1) === 0
   it('names an interception above the player who made it, for a moment', () => {
-    const e = events.find((x) => x.type === 'possession' && x.via === 'interception')
+    const e = events.find((x) => x.type === 'possession' && x.won === 'cut')
     if (!e || e.type !== 'possession') throw new Error('no interceptions')
     const at = (ph: number) => captionsAt(events, full.indexAfter(ph), ph, attacksHigh, teamOf)
     expect(at(e.tick).some((c) => c.idx === e.idx && c.text === 'Interception')).toBe(true)

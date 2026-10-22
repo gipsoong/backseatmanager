@@ -79,3 +79,15 @@ export const OFFSIDE_READ_LAG = 0.3
 export const CORNER_READY_DISTANCE = 1.5
 /** A one-footed player striking from the wrong side: on his weak foot, or shaping onto his strong one at an awkward angle. */
 export const AWKWARD_FOOT = 0.8
+
+/** An opponent's pass won with the man it was meant for this close to the ball (m) was taken off him: a duel. */
+export const DUEL_REACH = 2
+/** One won this close (m) to where it was struck was blocked by a man already on the passer. */
+export const BLOCK_NEAR = 5
+/** One won this far (m) beyond where it was aimed had run on loose. */
+export const OVERRUN = 2
+/** Ball this far up the pitch (m from his own goal line) with a teammate on it: midfielders start arriving late in the box. */
+export const ARRIVAL_FROM = 70
+/** A carrier going away from goal faster than this (m/s) with a man within TIGHT_MARK (m) goal-side of him can't shoot until he turns. */
+export const BACK_TO_GOAL_SPEED = 1
+export const TIGHT_MARK = 2.5
