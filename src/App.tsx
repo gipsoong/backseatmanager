@@ -152,8 +152,20 @@ export default function App() {
     setScreen({ kind: "pick", season: createSeason(randomSeed(), 0) });
   const newDraft = (): void => setScreen({ kind: "draft", seed: randomSeed() });
 
+  // Each screen fades up as it arrives (keyed, so a new screen is a new element); the cup and the
+  // league are different screens though both are "hub".
+  const screenKey =
+    screen.kind === "hub" && season?.cup && season.cupEntered
+      ? "cup"
+      : screen.kind;
+  // A new screen starts at the top, not wherever the last one was scrolled to.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [screenKey]);
+
   return (
     <main>
+      <div className="screen" key={screenKey}>
       {screen.kind === "loading" && <p className="meta">Loading…</p>}
       {screen.kind === "start" && (
         <Start
@@ -246,6 +258,7 @@ export default function App() {
       {screen.kind === "friendly" && (
         <Friendly onBack={() => setScreen({ kind: "start" })} />
       )}
+      </div>
     </main>
   );
 }

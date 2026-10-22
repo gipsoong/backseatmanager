@@ -2,11 +2,12 @@
  * The draft: pick a shape, then twenty rounds. Each offers one club-season's squad; choose one
  * and put him in an open place, a starter or one of nine substitutes. Then name the side.
  */
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
 import { DRAFT_ROUNDS, DRAFT_SUBS, LEAGUES, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
 import type { League } from '../draft/pools.ts'
 import { Swatch } from './Hub.tsx'
+import { stagger } from './motion.ts'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { positionsLabel, shortName as surname, styleLabel } from '../names.ts'
 
@@ -15,6 +16,11 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
   const [chosen, setChosen] = useState<PlayerDef | null>(null)
   const [name, setName] = useState('Backseat XI')
   const [league, setLeague] = useState<League>('Premier League')
+  // The place filled last, so it can settle in; and the phone's sheet held open to show it.
+  const [placed, setPlaced] = useState<string | null>(null)
+  const [peek, setPeek] = useState(false)
+  const closing = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(closing.current), [])
 
   if (!draft) return <PickShape league={league} onLeague={setLeague} onPick={(f) => setDraft(newDraft(seed, f, league))} onBack={onBack} />
   const where = draft.league ?? 'Premier League'
@@ -22,29 +28,46 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
   const slots = FORMATIONS[draft.formation]
   const done = isComplete(draft)
   const round = roundOf(draft)
+  const starters = draft.xi.filter(Boolean).length
+  const subs = draft.bench.filter(Boolean).length
   const put = (at: Place): void => {
     if (!chosen) return
     setDraft(place(draft, chosen, at))
     setChosen(null)
+    setPlaced('xi' in at ? `xi-${at.xi}` : `bench-${at.bench}`)
+    // On a phone, leave the sheet up a moment to see him arrive, then show the next club.
+    setPeek(true)
+    window.clearTimeout(closing.current)
+    closing.current = window.setTimeout(() => setPeek(false), 650)
   }
+  const sheetUp = !!chosen || peek
 
   return (
     <div className="draft">
-      <header className="top">
+      <header className="draft-head">
         <div className="fixture">
           <p className="eyebrow">Draft · {where} 2010–now</p>
-          <h1>{done ? 'Your side is picked' : `Round ${round + 1} of ${DRAFT_ROUNDS}`}</h1>
-          <p className="meta">
-            {draft.formation} · starters {draft.xi.filter(Boolean).length}/11 · subs {draft.bench.filter(Boolean).length}/{draft.bench.length}
-          </p>
+          <h1>
+            {done ? (
+              'Your side is picked'
+            ) : (
+              <>
+                Round {round + 1} <span className="of">of {DRAFT_ROUNDS}</span>
+              </>
+            )}
+          </h1>
         </div>
-        <div className="actions">
-          <span className="rating big" title="Team rating: the starters' overalls, less for anyone out of position">
+        <div className="draft-head-side">
+          <span className="rating big team-rating" title="Team rating: the starters' overalls, less for anyone out of position">
+            <small>Rating</small>
             {draftRating(draft) || '–'}
           </span>
           <button type="button" className="btn ghost" onClick={onBack}>
             Quit
           </button>
+        </div>
+        <div className="draft-progress" role="progressbar" aria-label="Players drafted" aria-valuemin={0} aria-valuemax={DRAFT_ROUNDS} aria-valuenow={starters + subs}>
+          <span style={{ width: `${(100 * (starters + subs)) / DRAFT_ROUNDS}%` }} />
         </div>
       </header>
 
@@ -52,7 +75,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
         <section className="card draft-offer">
           {done ? (
             <form
-              className="draft-name"
+              className="draft-name rise"
               onSubmit={(e) => {
                 e.preventDefault()
                 onDone(draft, name.trim() || 'Backseat XI')
@@ -66,50 +89,70 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
               </button>
             </form>
           ) : (
-            <Offer
-              draft={draft}
-              chosen={chosen}
-              onChoose={(p) => {
-                setChosen(p)
-                // On a phone the pitch is below the list: bring it up to put him in place.
-                document.querySelector('.draft-side')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-              }}
-            />
+            <Offer key={round} draft={draft} chosen={chosen} onChoose={(p) => setChosen(chosen?.id === p.id ? null : p)} />
           )}
         </section>
 
-        <section className="card draft-side">
-          <div className="mini-pitch">
-            {slots.map((slot, i) => {
-              const p = draft.xi[i]
-              const fit = chosen && !p ? fitFor(chosen, slot) : null
-              return (
+        <section className={`card draft-side${sheetUp ? ' up' : ''}`} aria-label="Your side">
+          <button type="button" className="sheet-handle" aria-expanded={sheetUp} onClick={() => (chosen ? setChosen(null) : setPeek(!peek))}>
+            <span className="grip" aria-hidden="true" />
+            <span className="sheet-title">{chosen ? `Place ${surname(chosen.name)}` : 'Your side'}</span>
+            <span className="sheet-count">
+              {starters}/11 · {subs}/{draft.bench.length} subs
+            </span>
+            <span className="chev" aria-hidden="true" />
+          </button>
+          <div className="sheet-body">
+            <div className="mini-pitch">
+              {slots.map((slot, i) => {
+                const p = draft.xi[i]
+                const fit = chosen && !p ? fitFor(chosen, slot) : null
+                return (
+                  <button
+                    key={`${i}-${p?.id ?? ''}`}
+                    type="button"
+                    className={`slot${p ? ' filled' : ''}${fit ? ' open' : ''}${fit !== null && fit < 1 ? ' off' : ''}${placed === `xi-${i}` && p ? ' placed' : ''}`}
+                    style={slotStyle(slot)}
+                    disabled={!fit}
+                    onClick={() => put({ xi: i })}
+                    title={p ? `${p.name} (${p.overall})` : fit ? `${Math.round(fit * 100)}% fit` : undefined}
+                  >
+                    <span className="pos">{p ? p.overall : slotLabel(slot)}</span>
+                    <span className="who">{p ? surname(p.name) : fit ? `${Math.round(fit * 100)}%` : ''}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div className="draft-bench">
+              <span className="eyebrow">Subs</span>
+              {draft.bench.map((p, i) => (
                 <button
-                  key={i}
+                  key={`${i}-${p?.id ?? ''}`}
                   type="button"
-                  className={`slot${p ? ' filled' : ''}${fit ? ' open' : ''}${fit !== null && fit < 1 ? ' off' : ''}`}
-                  style={slotStyle(slot)}
-                  disabled={!fit}
-                  onClick={() => put({ xi: i })}
-                  title={p ? `${p.name} (${p.overall})` : fit ? `${Math.round(fit * 100)}% fit` : undefined}
+                  className={`slot${p ? ' filled' : ''}${chosen && !p ? ' open' : ''}${placed === `bench-${i}` && p ? ' placed' : ''}`}
+                  disabled={!chosen || !!p}
+                  onClick={() => put({ bench: i })}
                 >
-                  <span className="pos">{p ? p.overall : slotLabel(slot)}</span>
-                  <span className="who">{p ? surname(p.name) : fit ? `${Math.round(fit * 100)}%` : ''}</span>
+                  <span className="pos">{p ? p.overall : 'SUB'}</span>
+                  <span className="who">{p ? surname(p.name) : ''}</span>
                 </button>
-              )
-            })}
+              ))}
+            </div>
+            {chosen ? (
+              <div className="draft-hint">
+                <p className="meta">
+                  Put <strong>{chosen.name}</strong> in a lit place, on the pitch or on the bench. Out of position, it shows how well he fits.
+                </p>
+                <button type="button" className="btn ghost slim" onClick={() => setChosen(null)}>
+                  Choose someone else
+                </button>
+              </div>
+            ) : (
+              !done && <p className="meta draft-hint">Choose a player from {poolName(offer(draft).pool)}, then a place for him.</p>
+            )}
           </div>
-          <div className="draft-bench">
-            <span className="eyebrow">Subs</span>
-            {draft.bench.map((p, i) => (
-              <button key={i} type="button" className={`slot${p ? ' filled' : ''}${chosen && !p ? ' open' : ''}`} disabled={!chosen || !!p} onClick={() => put({ bench: i })}>
-                <span className="pos">{p ? p.overall : 'SUB'}</span>
-                <span className="who">{p ? surname(p.name) : ''}</span>
-              </button>
-            ))}
-          </div>
-          {chosen && <p className="meta draft-hint">Put {chosen.name} in an open place: on the pitch or on the bench.</p>}
         </section>
+        {sheetUp && <div className="sheet-scrim" onClick={() => (chosen ? setChosen(null) : setPeek(false))} aria-hidden="true" />}
       </div>
     </div>
   )
@@ -127,7 +170,7 @@ export const FORMATION_BLURB: Record<Formation, string> = {
 
 function PickShape({ league, onLeague, onPick, onBack }: { league: League; onLeague: (l: League) => void; onPick: (f: Formation) => void; onBack: () => void }) {
   return (
-    <div className="start">
+    <div className="start draft-start">
       <p className="eyebrow">Draft · {league} 2010–now</p>
       <h1>Draft a side. Try to go unbeaten.</h1>
       {LEAGUES.length > 1 && (
@@ -143,17 +186,23 @@ function PickShape({ league, onLeague, onPick, onBack }: { league: League; onLea
         {DRAFT_ROUNDS} rounds. Each one shows a club's squad from one season: pick one of its players and put him in your side, as one of eleven starters
         or {DRAFT_SUBS} substitutes. A player out of position counts for less. You can change the shape later.
       </p>
-      <div className="start-actions">
-        {FORMATION_NAMES.map((f) => (
-          <button key={f} type="button" className="btn big" onClick={() => onPick(f)}>
-            <span>{f}</span>
+      <p className="eyebrow step">Choose a shape to start</p>
+      <div className="shape-grid">
+        {FORMATION_NAMES.map((f, i) => (
+          <button key={f} type="button" className="shape-card rise" style={stagger(i)} onClick={() => onPick(f)}>
+            <span className="shape-pitch" aria-hidden="true">
+              {FORMATIONS[f].map((slot, k) => (
+                <span key={k} className="dot" style={slotStyle(slot)} />
+              ))}
+            </span>
+            <span className="shape-name">{f}</span>
             <span className="sub">{FORMATION_BLURB[f]}</span>
           </button>
         ))}
-        <button type="button" className="btn big ghost" onClick={onBack}>
-          <span>Back</span>
-        </button>
       </div>
+      <button type="button" className="btn ghost back-btn" onClick={onBack}>
+        Back
+      </button>
     </div>
   )
 }
@@ -165,12 +214,12 @@ function Offer({ draft, chosen, onChoose }: { draft: DraftState; chosen: PlayerD
   const sorted = [...players].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (b.overall ?? 0) - (a.overall ?? 0))
   return (
     <>
-      <h2 className="offer-club">
+      <h2 className="offer-club deal-in">
         <Swatch kit={pool.kit} /> {poolName(pool)}
       </h2>
       <ul className="offer-list">
-        {sorted.map((p) => (
-          <li key={p.id}>
+        {sorted.map((p, i) => (
+          <li key={p.id} className="deal-in" style={stagger(i)}>
             <button type="button" className={`offer${chosen?.id === p.id ? ' chosen' : ''}`} aria-pressed={chosen?.id === p.id} onClick={() => onChoose(p)}>
               <span className="role">{positionsLabel(p)}</span>
               <span className="name">

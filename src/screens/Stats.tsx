@@ -10,6 +10,8 @@ import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { PlayerTable } from './PlayerTable.tsx'
 import { ordinal } from './format.ts'
 import { Swatch } from './Hub.tsx'
+import { stagger } from './motion.ts'
+import { CountUp } from './CountUp.tsx'
 
 export function Stats({ season }: { season: Season }) {
   const [view, setView] = useState<'leaders' | 'players' | 'clubs'>('leaders')
@@ -28,9 +30,11 @@ export function Stats({ season }: { season: Season }) {
           Clubs
         </button>
       </div>
-      {view === 'leaders' && <Leaders season={season} onPlayer={setViewing} />}
-      {view === 'players' && <PlayerTable season={season} onPlayer={setViewing} />}
-      {view === 'clubs' && <Clubs season={season} records={clubRecords(season)} />}
+      <div className="tab-panel" key={view} role="tabpanel">
+        {view === 'leaders' && <Leaders season={season} onPlayer={setViewing} />}
+        {view === 'players' && <PlayerTable season={season} onPlayer={setViewing} />}
+        {view === 'clubs' && <Clubs season={season} records={clubRecords(season)} />}
+      </div>
     </div>
   )
 }
@@ -40,8 +44,8 @@ function Leaders({ season, onPlayer }: { season: Season; onPlayer: (id: string) 
   if (season.matchday === 1) return <p className="meta pad">No matches played yet.</p>
   return (
     <div className="boards">
-      {boards.map((b) => (
-        <section key={b.title} className="board">
+      {boards.map((b, i) => (
+        <section key={b.title} className="board rise" style={stagger(i)}>
           <h3>{b.title}</h3>
           {b.rows.length ? (
             <ol>
@@ -83,8 +87,8 @@ function Clubs({ season, records }: { season: Season; records: ClubRecord[] }) {
         </tr>
       </thead>
       <tbody>
-        {order.map((c) => (
-          <tr key={c.team} className={c.team === season.userTeam ? 'mine' : undefined}>
+        {order.map((c, i) => (
+          <tr key={c.team} className={`row-in${c.team === season.userTeam ? ' mine' : ''}`} style={stagger(i)}>
             <td className="team">
               <Swatch kit={season.teams[c.team].kit} /> {season.teams[c.team].name}
             </td>
@@ -135,9 +139,39 @@ export function SeasonReview({ season }: { season: Season }) {
     <div className="review">
       <section className="review-mine">
         <p className="eyebrow">Your season</p>
-        <h3>
-          {ordinal(place)} · W{mine.won} D{mine.drawn} L{mine.lost} · {rows[place - 1].points} pts
-        </h3>
+        <h3 className="review-headline">{ordinal(place)}</h3>
+        <dl className="review-counts">
+          <div>
+            <dt>Won</dt>
+            <dd>
+              <CountUp value={mine.won} />
+            </dd>
+          </div>
+          <div>
+            <dt>Drawn</dt>
+            <dd>
+              <CountUp value={mine.drawn} />
+            </dd>
+          </div>
+          <div>
+            <dt>Lost</dt>
+            <dd>
+              <CountUp value={mine.lost} />
+            </dd>
+          </div>
+          <div>
+            <dt>Goals</dt>
+            <dd>
+              <CountUp value={mine.goalsFor} />–<CountUp value={mine.goalsAgainst} />
+            </dd>
+          </div>
+          <div className="pts">
+            <dt>Points</dt>
+            <dd>
+              <CountUp value={rows[place - 1].points} ms={1200} />
+            </dd>
+          </div>
+        </dl>
         <p className="meta">
           {perfect
             ? `${mine.won}-0. Every match won.`
@@ -154,7 +188,7 @@ export function SeasonReview({ season }: { season: Season }) {
       </section>
 
       {r.playerOfSeason && (
-        <section className="review-block potm">
+        <section className="review-block potm rise" style={stagger(2)}>
           <h4>Player of the season</h4>
           <p className="standout-name">{who(r.playerOfSeason)}</p>
           <p className="meta">{r.playerOfSeason.line}</p>
@@ -162,7 +196,7 @@ export function SeasonReview({ season }: { season: Season }) {
       )}
 
       {r.yours.length > 0 && (
-        <section className="review-block">
+        <section className="review-block rise" style={stagger(3)}>
           <h4>{season.teams[season.userTeam].name}</h4>
           <ul className="standouts">
             {r.yours.map(({ title, who: x }) => (
@@ -177,7 +211,7 @@ export function SeasonReview({ season }: { season: Season }) {
       )}
 
       {r.teamOfSeason.length === 11 && (
-        <section className="review-block">
+        <section className="review-block rise" style={stagger(4)}>
           <h4>Team of the season</h4>
           <div className="mini-pitch tots">
             {r.teamOfSeason.map((x, i) => (
@@ -195,7 +229,7 @@ export function SeasonReview({ season }: { season: Season }) {
       )}
 
       {r.singledOut.length > 0 && (
-        <section className="review-block">
+        <section className="review-block rise" style={stagger(5)}>
           <h4>Singled out</h4>
           <ul className="standouts">
             {r.singledOut.map(({ title, who: x }) => (
@@ -210,7 +244,7 @@ export function SeasonReview({ season }: { season: Season }) {
       )}
 
       {r.games.length > 0 && (
-        <section className="review-block">
+        <section className="review-block rise" style={stagger(6)}>
           <h4>Matches to remember</h4>
           <ul className="notable">
             {r.games.map(({ fixture: f, why }) => (
@@ -244,7 +278,7 @@ export function SeasonReview({ season }: { season: Season }) {
           {rows.map((r, i) => {
             const c = records[r.team]
             return (
-              <tr key={r.team} className={r.team === season.userTeam ? 'mine' : undefined}>
+              <tr key={r.team} className={`row-in${r.team === season.userTeam ? ' mine' : ''}`} style={stagger(i)}>
                 <td className="pos">{i + 1}</td>
                 <td className="team">
                   <Swatch kit={season.teams[r.team].kit} /> {name(r.team)}

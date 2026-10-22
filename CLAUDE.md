@@ -285,4 +285,18 @@ pulling the repo.
   seeded by matchday; turned-down ones are kept in `Season.declined`. Deals are recorded in `Season.transfers`; a player's
   stats stay keyed by his id and go with him (`matchLog` uses the record to know his side).
 
+- UI conventions (session 17): motion tokens on `:root` in `index.css` (`--ease-out`, `--dur-press`
+  110ms, `--dur-fast` 180, `--dur-base` 280, `--dur-slow` 420, `--stagger` 28ms). Enter animations
+  only animate *from* (fill-mode `backwards`), so nothing keeps a transform once settled (a transform
+  would trap the draft's fixed sheet). Classes: `.screen` (App wraps each screen, keyed, fades up),
+  `.tab-panel` (key it by tab), `.rise` / `.row-in` / `.deal-in` with `style={stagger(i)}`
+  (`screens/motion.ts`), `.slot.placed`; `CountUp` for the review's numbers. One reduced-motion
+  rule at the end of `index.css` flattens everything. Tabs: `TabBar` (`screens/Tabs.tsx`), scrolls
+  sideways and keeps the chosen tab in view, optional badge. Breakpoints: 560px (tables drop `.wide`
+  columns, tabs tighten), 720px (squad pitch beside the list), 900px (hub and draft two-column;
+  below it the draft's side is a bottom sheet that rises when a player is chosen). Grid children
+  need `minmax(0, 1fr)` / `min-width: 0` or a long name pushes the page sideways. Touch targets
+  ≥ 40px. Check with a Playwright pass at 390x844 and 1280x800: no horizontal scroll, no console
+  errors.
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

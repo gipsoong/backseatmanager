@@ -2,6 +2,7 @@
 import type { TeamDef } from '../engine/index.ts'
 import { squadRating } from '../season/season.ts'
 import { Swatch } from './Hub.tsx'
+import { stagger } from './motion.ts'
 
 export function PickTeam({ teams, onPick, onBack }: { teams: TeamDef[]; onPick: (i: number) => void; onBack: () => void }) {
   const order = teams.map((t, i) => ({ t, i, rating: squadRating(t) })).sort((a, b) => b.rating - a.rating)
@@ -23,8 +24,8 @@ export function PickTeam({ teams, onPick, onBack }: { teams: TeamDef[]; onPick: 
         </div>
       </header>
       <ul className="clubs">
-        {order.map(({ t, i, rating }) => (
-          <li key={t.name}>
+        {order.map(({ t, i, rating }, k) => (
+          <li key={t.name} className="rise" style={stagger(k)}>
             <button type="button" className="club" onClick={() => onPick(i)}>
               <Swatch kit={t.kit} />
               <span className="club-name">{t.name}</span>

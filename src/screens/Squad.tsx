@@ -9,6 +9,7 @@ import { type Season, type SeasonStats, avgRating, isAvailable, lineupFor, playe
 import { FORMATION_BLURB } from './Draft.tsx'
 import { PlayerCard } from './PlayerCard.tsx'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
+import { stagger } from './motion.ts'
 
 type SortKey = 'name' | 'pos' | 'style' | 'rtg' | 'fit' | 'apps' | 'goals' | 'assists' | 'avg'
 
@@ -141,7 +142,7 @@ export function Squad({
             const fit = fitFor(p, slot)
             return (
               <button
-                key={i}
+                key={`${i}-${p.id}`}
                 type="button"
                 className={`slot filled${heldSlot === i ? ' held' : ''}${!isAvailable(season, p) ? ' hurt' : ''}`}
                 style={slotStyle(slot)}
@@ -162,10 +163,10 @@ export function Squad({
         <div className="subs">
           <p className="meta">{moving ? `Moving ${moving.name}: tap who he swaps with.` : 'Tap a player, then another or a substitute, to swap them.'}</p>
           <ul>
-            {others.map((p) => {
+            {others.map((p, i) => {
               const out = season.condition[p.id].injuredUntil - season.matchday
               return (
-                <li key={p.id}>
+                <li key={p.id} className="row-in" style={stagger(i)}>
                   <button type="button" className={`offer${heldId === p.id ? ' chosen' : ''}`} disabled={out > 0} onClick={() => tapOther(p.id)}>
                     <span className="role">{positionsLabel(p)}</span>
                     <span className="name">
@@ -184,6 +185,7 @@ export function Squad({
           </ul>
         </div>
       </div>
+      <div className="table-scroll">
       <table className="league squad-table">
         <thead>
           <tr>
@@ -234,6 +236,7 @@ export function Squad({
           })}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

@@ -28,6 +28,7 @@ import {
   windowOpen,
 } from "../draft/transfers.ts";
 import { Swatch } from "./Hub.tsx";
+import { stagger } from "./motion.ts";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
@@ -90,12 +91,13 @@ export function Transfers({
       {open && offers.length > 0 && (
         <section className="pad offers">
           <h4 className="eyebrow">Offers for your players</h4>
-          {offers.map((o) => {
+          {offers.map((o, i) => {
             const v = judge(season, o);
             return (
               <article
                 key={`${o.club}-${o.give.join()}`}
-                className="offer-card"
+                className="offer-card rise"
+                style={stagger(i)}
               >
                 <p className="deal-line">
                   <Swatch kit={season.teams[o.club].kit} />{" "}

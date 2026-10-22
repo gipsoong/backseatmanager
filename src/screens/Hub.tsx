@@ -16,6 +16,8 @@ import { Squad } from "./Squad.tsx";
 import { Transfers } from "./Transfers.tsx";
 import { type Deal, offersFor, windowOpen } from "../draft/transfers.ts";
 import { SeasonReview, Stats } from "./Stats.tsx";
+import { TabBar, type TabDef } from "./Tabs.tsx";
+import { stagger } from "./motion.ts";
 import { surname } from "../viewer/commentary.ts";
 import {
   CUP_NAME,
@@ -31,6 +33,8 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
   month: "short",
   timeZone: "UTC",
 });
+
+type Tab = "review" | "table" | "fixtures" | "squad" | "stats" | "transfers";
 
 export function Swatch({ kit }: { kit: Kit }) {
   return <span className="swatch" style={{ background: kit.shirt }} />;
@@ -59,9 +63,7 @@ export function Hub({
   onDecline: (deal: Deal) => void;
   onEnterCup: () => void;
 }) {
-  const [tab, setTab] = useState<
-    "review" | "table" | "fixtures" | "squad" | "stats" | "transfers"
-  >(isOver(season) ? "review" : "table");
+  const [tab, setTab] = useState<Tab>(isOver(season) ? "review" : "table");
   // The last matchday played: open the review.
   const [wasOver, setWasOver] = useState(isOver(season));
   if (isOver(season) !== wasOver) {
@@ -107,6 +109,20 @@ export function Hub({
               ? "League over"
               : `Matchday ${season.matchday} of ${matchdays(season)}`}
           </p>
+          <div
+            className="season-progress"
+            role="progressbar"
+            aria-label="Season played"
+            aria-valuemin={0}
+            aria-valuemax={matchdays(season)}
+            aria-valuenow={season.matchday - 1}
+          >
+            <span
+              style={{
+                width: `${(100 * Math.min(season.matchday - 1, matchdays(season))) / matchdays(season)}%`,
+              }}
+            />
+          </div>
         </div>
       </header>
 
@@ -124,21 +140,21 @@ export function Hub({
                 <TeamName team={season.teams[next.away]} />
               </h2>
               {windowOpen(season) && (
-                <p className="meta window-note">
-                  The January window is open
-                  {offers.length
-                    ? `, and ${offers.length === 1 ? "a club has made an offer" : `${offers.length} clubs have made offers`} for your players`
-                    : ""}
-                  : see{" "}
+                <div className="window-note">
+                  <p className="meta">
+                    The January window is open
+                    {offers.length
+                      ? `, and ${offers.length === 1 ? "a club has made an offer" : `${offers.length} clubs have made offers`} for your players.`
+                      : "."}
+                  </p>
                   <button
                     type="button"
-                    className="link"
+                    className="btn ghost slim"
                     onClick={() => setTab("transfers")}
                   >
-                    Deals
+                    {offers.length ? "See the offers" : "Make a deal"}
                   </button>
-                  .
-                </p>
+                </div>
               )}
               <div className="actions">
                 <button
@@ -207,71 +223,44 @@ export function Hub({
           )}
           {last?.result && (
             <p className="last">
-              Last time: {season.teams[last.home].shortName}{" "}
-              {last.result.score[0]}–{last.result.score[1]}{" "}
-              {season.teams[last.away].shortName}
+              <span className="eyebrow">Last time</span>
+              <span className="last-score">
+                {season.teams[last.home].name}{" "}
+                <strong>
+                  {last.result.score[0]}–{last.result.score[1]}
+                </strong>{" "}
+                {season.teams[last.away].name}
+              </span>
               {potm(season, last.result) && (
-                <> · Player of the match: {potm(season, last.result)}</>
+                <span>Player of the match: {potm(season, last.result)}</span>
               )}
             </p>
           )}
         </section>
 
         <section className="card">
-          <div className="tabs" role="tablist">
-            {over && (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === "review"}
-                onClick={() => setTab("review")}
-              >
-                Review
-              </button>
-            )}
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "table"}
-              onClick={() => setTab("table")}
-            >
-              Table
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "fixtures"}
-              onClick={() => setTab("fixtures")}
-            >
-              Fixtures
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "squad"}
-              onClick={() => setTab("squad")}
-            >
-              Squad
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "stats"}
-              onClick={() => setTab("stats")}
-            >
-              Stats
-            </button>
-            {season.mode === "draft" && (
-              <button
-                type="button"
-                role="tab"
-                aria-selected={tab === "transfers"}
-                onClick={() => setTab("transfers")}
-              >
-                Deals
-              </button>
-            )}
-          </div>
+          <TabBar
+            label="Season"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              ...(over ? [{ id: "review", label: "Review" } as const] : []),
+              { id: "table", label: "Table" },
+              { id: "fixtures", label: "Fixtures" },
+              { id: "squad", label: "Squad" },
+              { id: "stats", label: "Stats" },
+              ...(season.mode === "draft"
+                ? [
+                    {
+                      id: "transfers",
+                      label: "Deals",
+                      badge: windowOpen(season) ? offers.length : 0,
+                    } as const,
+                  ]
+                : []),
+            ] satisfies TabDef<Tab>[]}
+          />
+          <div className="tab-panel" key={tab} role="tabpanel">
           {tab === "transfers" && (
             <Transfers season={season} onDeal={onDeal} onDecline={onDecline} />
           )}
@@ -306,9 +295,8 @@ export function Hub({
                   return (
                     <tr
                       key={r.team}
-                      className={
-                        r.team === season.userTeam ? "mine" : undefined
-                      }
+                      className={`row-in${r.team === season.userTeam ? " mine" : ""}`}
+                      style={stagger(i)}
                     >
                       <td className="pos">{i + 1}</td>
                       <td className="team">
@@ -372,15 +360,16 @@ export function Hub({
                   ›
                 </button>
               </div>
-              <ul>
-                {fixturesOn(season, shown).map((f) => (
+              <ul key={shown}>
+                {fixturesOn(season, shown).map((f, i) => (
                   <li
                     key={f.id}
-                    className={
+                    style={stagger(i)}
+                    className={`row-in${
                       f.home === season.userTeam || f.away === season.userTeam
-                        ? "mine"
-                        : undefined
-                    }
+                        ? " mine"
+                        : ""
+                    }`}
                   >
                     <span className="home">{season.teams[f.home].name}</span>
                     <span className="score">
@@ -404,6 +393,7 @@ export function Hub({
               </ul>
             </div>
           )}
+          </div>
         </section>
       </div>
     </div>

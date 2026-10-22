@@ -9,6 +9,23 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 17): UI pass
+
+Owner: "matchday feels quite basic and boring … the mobile experience is quite bad when drafting
+and season menus". Audited every screen at 390x844 and 1280x800 with Playwright, then:
+- **Draft on a phone**: the side is a bottom sheet ("Your side · 3/11 · 1/9 subs"); choosing a
+  player raises it with the lit places, placing him settles him in and lowers it. Before, the pitch
+  sat under a 20-row list. Round "N of 20" with a progress bar, a labelled team rating; shapes are
+  picked from cards with a small formation diagram.
+- **Overflow fixed**: the cup bracket (758px wide on a phone), the review and squad tabs (the shape
+  select and tables pushed the page sideways). Hub and cup tabs scroll sideways cleanly (`TabBar`),
+  Deals has an offers badge; the window note is a real button; sort headers are 40px.
+- **Motion** (CSS only, tokens in index.css, honours reduced motion): screens fade up, tab panels
+  fade, table and fixture rows settle in, draft offers deal in, a placed player settles into his
+  place, lit places breathe, swaps re-settle in the squad, bars fill, the season review's
+  numbers count up, buttons press.
+- Hub: season progress bar, "Last time" with full names.
+
 ## Done (session 16): deals, cup screen, flanks
 
 - **Deals** judged by each side's eleven before and after, with reasons; clubs now make offers for

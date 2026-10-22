@@ -21,6 +21,8 @@ import { matchdayDate } from "../season/season.ts";
 import { surname } from "../viewer/commentary.ts";
 import { Swatch } from "./Hub.tsx";
 import { Squad } from "./Squad.tsx";
+import { TabBar } from "./Tabs.tsx";
+import { stagger } from "./motion.ts";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -160,25 +162,18 @@ export function CupHub({
         </section>
 
         <section className="card">
-          <div className="tabs" role="tablist">
-            {(["bracket", "results", "scorers", "squad"] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="tab"
-                aria-selected={tab === t}
-                onClick={() => setTab(t)}
-              >
-                {t === "bracket"
-                  ? "Bracket"
-                  : t === "results"
-                    ? "Results"
-                    : t === "scorers"
-                      ? "Scorers"
-                      : "Squad"}
-              </button>
-            ))}
-          </div>
+          <TabBar
+            label="Cup"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { id: "bracket", label: "Bracket" },
+              { id: "results", label: "Results" },
+              { id: "scorers", label: "Scorers" },
+              { id: "squad", label: "Squad" },
+            ]}
+          />
+          <div className="tab-panel" key={tab} role="tabpanel">
           {tab === "bracket" && <Bracket season={season} />}
           {tab === "results" && <CupResults season={season} />}
           {tab === "scorers" && <Scorers season={season} />}
@@ -189,6 +184,7 @@ export function CupHub({
               onFormation={onFormation}
             />
           )}
+          </div>
         </section>
       </div>
     </div>
@@ -222,6 +218,7 @@ function firstLegLine(season: Season, f: CupFixture): string {
 function Bracket({ season }: { season: Season }) {
   const cup = season.cup!;
   return (
+    <div className="bracket-scroll">
     <div className="bracket" role="list">
       {ROUND_TITLES.map((title, r) => {
         const ties = [
@@ -233,6 +230,7 @@ function Bracket({ season }: { season: Season }) {
         return (
           <div key={title} className="bracket-round" role="listitem">
             <p className="eyebrow">{title}</p>
+            <div className="bracket-ties">
             {Array.from({ length: slots }, (_, i) => {
               if (!ties.includes(i))
                 return <div key={i} className="bracket-tie empty" />;
@@ -256,7 +254,7 @@ function Bracket({ season }: { season: Season }) {
               const decider = legs.find((f) => f.leg !== 1);
               const pens = decider?.result?.pens;
               return (
-                <div key={i} className="bracket-tie">
+                <div key={i} className="bracket-tie row-in" style={stagger(r * 4 + i)}>
                   {[a, b].map((side) => (
                     <p
                       key={side}
@@ -278,9 +276,11 @@ function Bracket({ season }: { season: Season }) {
                 </div>
               );
             })}
+            </div>
           </div>
         );
       })}
+    </div>
     </div>
   );
 }
