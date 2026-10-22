@@ -199,7 +199,8 @@ pulling the repo.
   profile (`expandAttributes`: profile, then position and archetype tweaks, then a little noise);
   `broad()` gives the old nine back (archetype reading), `upgradeAttributes` converts old saves
   (store.ts), `groupRatings` the six card ratings (PAC SHO PAS DRI DEF PHY; keepers DIV HAN KIC REF
-  SPD POS). Draft level = 13.5 + (overall - 80) / 4; `toRating` is its inverse. Where each acts:
+  SPD POS). Draft level (`levelOf`, draft.ts) = 13.5 + (overall - 80) / 4 up to 86, then 6 overall
+  a point (session 17: a 94 is 16.3, not 17); `toRating` is its inverse. Where each acts:
   ai.ts helpers `accelOf`, `turnOf` (agility, braking/turning), `jumpReach`, `slideReach`,
   `readDelay` (interceptions for an opponent's pass, reactions for other loose balls), `sees`
   (vision gates long and through balls), `crossSkill` (crossing + curve), shot skill (finishing in
@@ -275,8 +276,16 @@ pulling the repo.
   Season counters are `COUNTERS` in season.ts (line counters added straight up).
   `season/review.ts` picks the season's standouts and notable games; `screens/PlayerCard.tsx`
   is a player's season with a match log; `screens/PlayerTable.tsx` the league's player table.
-  `scripts/sim-season.ts <seed> <matchdays> <out.json>` plays a draft season headlessly and saves
-  it, for checking these against a whole season (~10 min for 38 matchdays).
+  `scripts/sim-season.ts <seed> <matchdays> <out.json> [league] ["Name:overall"]` plays a draft
+  season headlessly (a greedy 4-3-3 draft, optionally with one player put in first) and saves it,
+  for checking these against a whole season (~10-18 min for 38 matchdays; run seeds in parallel).
+- Player balance (session 17): judge a star by a season of him in a drafted side (sim-season with
+  him forced, 4+ seeds: one season is noisy, ±10 goals) and by a mirror (the drafted side against
+  the league with him swapped for an 85, 76+ matches each, full fitness). Real ranges: elite
+  strikers 0.8-1.2 goals/90 (Messi's 11/12 peak ~1.4), Pichichi 25-35 (Messi/Ronaldo era 40-50),
+  best side 110-121 goals and ~100 points, the best finishers beat npxG by 15-20%. Known
+  structural lean: a lone striker takes ~55% of his side's npxG per 90 in the top decile (real
+  ~45% at most); full-backs almost never shoot and centre-backs rarely score from set pieces.
 - January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
   `screens/Transfers.tsx` (the Deals tab). Session 16: a deal is judged by what it does to each
   side's best eleven (`elevenOf`, `sideOf`: convex value of fitted ratings, plus a little depth;

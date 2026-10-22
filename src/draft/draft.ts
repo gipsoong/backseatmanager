@@ -62,17 +62,25 @@ function draftTraits(rng: Rng, name: string, archetype: Archetype): Traits {
 }
 
 /**
- * A pool player as the engine sees him: attributes to match his overall, shaped by his
- * archetype (a poacher finishes, a playmaker passes), so players of the same overall and type are
- * about as good as each other. An overall of 80 is a level of 13.5, and 4 overall points are one
- * attribute point (FIFA's 1-99 against our 1-20): an 88 is better than an 80, not another sport.
+ * An overall as a level (1-20): 80 is 13.5, and 4 overall points are one attribute point (FIFA's
+ * 1-99 against our 1-20), so an 88 is better than an 80, not another sport. Above 86 it's 6 a
+ * point: a 94 was a level of 17, and with his archetype's strengths on top (finishing, pace and
+ * reactions at 19-20) a 94 striker in a drafted side scored 60 a season, half again what an 85
+ * did in the same side. Real stars are a quarter or so better than very good players, not half.
+ */
+export const levelOf = (overall: number): number => 13.5 + (Math.min(overall, 86) - 80) / 4 + Math.max(0, overall - 86) / 6
+
+/**
+ * A pool player as the engine sees him: attributes to match his overall (`levelOf`), shaped by
+ * his archetype (a poacher finishes, a playmaker passes), so players of the same overall and type
+ * are about as good as each other.
  */
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
   const [name, positions, overall] = pool.players[i]
   const [role, ...others] = positions.split('/') as Role[]
   const rng = new Rng(hash(name))
-  const quality = 13.5 + (overall - 80) / 4
+  const quality = levelOf(overall)
   // Players without a curated archetype get one read off a random profile for his position.
   const known = ARCHETYPE[name]
   const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)

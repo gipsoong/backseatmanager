@@ -645,10 +645,11 @@ const judgedLooseness = (passing: number): number => passLooseness(14 + (passing
 
 /**
  * How far off a finisher's aim goes (a multiplier on the spread), by his finishing. A poor finisher
- * sprays it (steep below 14); better ones are more accurate, but only so much: the best put under
- * half their shots on target and beat their xG by a quarter or so over a season, not half again.
+ * sprays it (steep below 14); better ones are more accurate, but only so much: the best beat their
+ * xG by 15-20% over a season, not half again. (At 0.025 a point above 14, finishers of 19-20 scored
+ * 1.4 times their non-penalty xG.)
  */
-export const finishingError = (finishing: number): number => Math.max(0.35, 0.56 - (finishing - 14) * (finishing > 14 ? 0.025 : 0.055))
+export const finishingError = (finishing: number): number => Math.max(0.35, 0.56 - (finishing - 14) * (finishing > 14 ? 0.012 : 0.055))
 
 /**
  * From the spot: picks a side and places it, low or high, well inside the post. Nobody's closing

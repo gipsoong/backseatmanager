@@ -151,8 +151,8 @@ export const GROUPS: Record<'outfield' | 'keeper', { key: string; label: string;
   ],
 }
 
-/** 1-20 onto the 1-99 scale overalls use: the inverse of a draft player's level (80 is 13.5, 4 a point). */
-export const toRating = (v: number): number => Math.round(Math.max(1, Math.min(99, 80 + (v - 13.5) * 4)))
+/** 1-20 onto the 1-99 scale overalls use: the inverse of a draft player's level (80 is 13.5, 4 a point, 6 a point above 86). */
+export const toRating = (v: number): number => Math.round(Math.max(1, Math.min(99, v <= 15 ? 80 + (v - 13.5) * 4 : 86 + (v - 15) * 6)))
 
 export function groupRatings(a: Attributes, role: Role): { key: string; label: string; value: number }[] {
   return GROUPS[role === 'GK' ? 'keeper' : 'outfield'].map((g) => ({ key: g.key, label: g.label, value: toRating(avg(...g.subs.map((k) => a[k]))) }))

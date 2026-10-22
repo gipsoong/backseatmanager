@@ -26,6 +26,47 @@ and season menus". Audited every screen at 390x844 and 1280x800 with Playwright,
   numbers count up, buttons press.
 - Hub: season progress bar, "Last time" with full names.
 
+## Done (session 17): balance
+
+The owner saw the 94 Cristiano Ronaldo score 60+ in a La Liga draft season. Measured with greedy
+4-3-3 La Liga drafts with him forced in (`sim-season.ts <seed> 38 <out> 'La Liga' 'Cristiano
+Ronaldo:94'`, seeds 1-4, then fresh 5-6), a mirror (that side against the league, 2 x 76 matches at
+full fitness, Ronaldo against Higuaín 85 and Morata 82 in his place) and Premier League seasons.
+
+- **Causes.** (1) The top of the overall scale: a 94 was a level of 17, and his archetype's
+  strengths took finishing, acceleration and reactions to 19-20. In the same side at full fitness
+  he scored 60 per 38 (xG 50, 10 shots/90) against Higuaín's 39 and Morata's 31: half again an 85,
+  where real stars are a quarter or so. (2) Finishing at 19-20 converted 1.3-1.4x npxG (the code
+  meant ~1.25x at most; real best 1.15-1.2). Not causes: penalties (he took 6-9 a season, the main
+  taker takes ~68% of a side's, as in real sides), free kicks (direct shots are rare and spread),
+  the poacher's shooting bonus (removing it changed nothing), rotation (he starts ~30 of 38).
+- **Separate, expected:** the drafted side beats what its eleven's rating predicts by ~20 points
+  a season, mostly depth: the greedy draft's bench (top seven ~85) is as good as its eleven (~82),
+  where AI benches are ~75. **Structural, left as it is:** a lone striker takes ~55% of his side's
+  npxG per 90 in the top decile (real ~45% at most), whoever he is (a 74 target man at Athletic
+  too); full-backs almost never shoot, centre-backs rarely score from set pieces. That is why an AI
+  side's striker can still have a 40-goal season (Lewandowski 91 at Barcelona 22/23: 46, both before
+  and after). Next balance step if wanted: midfielders arriving in the box and set-piece headers.
+- **Fixes.** `levelOf` (draft.ts): 4 overall a point up to 86, 6 a point above (94: 16.3, was 17;
+  88: 15.3, was 15.5); `toRating` is its inverse. `finishingError`: 0.012 a point above 14 (was
+  0.025), so 20 finishing is about what 17 was.
+
+| La Liga, Ronaldo 94 forced (6 seasons) | before | after |
+|---|---|---|
+| Ronaldo goals a season (seeds 1-4; fresh 5-6) | 26, 53, 45, 32; 34, 31 | 11, 30, 36, 30; 29, 18 |
+| Ronaldo goals/90 (all six) | 1.34 | 1.01 |
+| Mirror, Ronaldo per 38 at full fitness (xG) | 64, 57 (51, 50) | 42, 45 (41, 41) |
+| Your side's goals (mean; max) | 101; 137 | 85; 116 |
+| Your side's points (mean) | 94 | 86 |
+| League top scorer (mean; max) | 39.7; 53 | 36.5; 46 |
+| Strikers 88+, goals/90 (1500+ min) | 1.24 | 1.11 |
+| Forwards 90+, npG/npxG | 1.30 | 1.14 |
+| Premier League (2 seasons, no forcing): top scorer | 35, 39 | 38, 29 |
+| calibrate 80 1 / 80 201 realism | 29/31, 29/31 | 29/31, 30/31 |
+
+Harness: zero violations (calibrate both sets, 19 draft-league matches with the stars); vitest and
+`tsc -b` pass. Old saves keep the attributes they were made with.
+
 ## Done (session 16): deals, cup screen, flanks
 
 - **Deals** judged by each side's eleven before and after, with reasons; clubs now make offers for

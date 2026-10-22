@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { ARCHETYPES, FORMATIONS, archetypeOf, fitFor, playingAttributes, runMatch } from '../engine/index.ts'
 import { strikingFoot } from '../engine/ai.ts'
 import { autoPick, createSeason, matchdays, squadOf } from '../season/season.ts'
-import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
+import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
 import { POOLS } from './pools.ts'
 
 /** Draft greedily: each round, the best player who fits an open starting place, else a sub. */
@@ -45,7 +45,7 @@ describe('draft pools', () => {
     const sums = POOLS.flatMap((pool, pi) =>
       pool.players.flatMap((_, i) => {
         const p = poolPlayer(pi, i)
-        const level = 13.5 + ((p.overall ?? 0) - 80) / 4
+        const level = levelOf(p.overall ?? 0)
         return p.archetype === 'poacher' && (p.overall ?? 0) >= 88 ? [p.attrs.finishing + p.attrs.composure + p.attrs.positioning - 3 * level] : []
       }),
     )
