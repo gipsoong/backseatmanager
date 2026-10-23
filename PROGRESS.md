@@ -9,6 +9,65 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 18, round 2): build-up shape, who has the ball, territory
+
+Causes: wide midfielders were the hub because the flanks were always open and the side was
+stretched long in possession (centre-backs 30+ m behind, nobody near them); the ball never
+stayed in the final third because losing it there cost the same as anywhere, so a cross or a
+hopeful shot always beat keeping it; possession ignored strength because both sides were equally
+direct.
+
+- `buildUpSpot` (ai.ts): unpressed with the ball in our first 40 m, centre-backs split toward the
+  box edges, the holding midfielder drops between or beside them, full-backs push on. Centre-backs
+  wider in possession (1.6), the out-of-possession block shifts more to the ball (0.6), the
+  in-possession side shorter (42 m, more as the ball goes up).
+- Recycling: back passes are free at first and cost more as a spell drags on (`backMultFor`,
+  `RECYCLE_FREE` 12 s, `RECYCLE_OVER` 30 s); a pass hugging the touchline is worth less.
+- Territory: possession is worth more the further up it is (`ATTACKING_KEEP`, from 55 m), and a
+  shot or cross forgoes part of that (`KEEP_FORGONE`, `CROSS_KEEP`), so sides recycle at the
+  box edge instead of crossing or shooting from anywhere.
+- Strength: `edgeOf` (mean outfield attribute gap) makes the favourite less direct
+  (`keenness`, floor `FAVOURITE_KEENNESS` 0.5); a side two up eases off (`LEAD_EASING`,
+  `LEAD_SHOTS`), which also curbs blowouts.
+- First touch under pressure (`FIRST_TOUCH_PRESSURE`, match.ts), through balls less exact
+  (`THROUGH_BALL_ERROR`), shooting `EAGER` 0.65 with midfielders 1.1x from distance.
+- Ping-pong: `giveBack` grows with how many times the pair has swapped it and forbids a fifth
+  swap (`MAX_SWAPS`); harness `ping-pong` (more than 6 straight passes between two men, outside
+  restarts) with a test that it catches one.
+
+Draft matches, per team per match (round 1 end -> round 2; 20-40 matches):
+
+| | round 1 | round 2 | real |
+|---|---|---|---|
+| Passes | 547 | 564 | 400-550 |
+| Ball time own / middle / final third | 14 / 76 / 10% | 31 / 49 / 20% | ~30 / 45 / 25% |
+| Centre-back to keeper | 0.6 | 3.1 | ~10-15 |
+| Keeper long balls, all | 7.5 | 7.8 | 10-15 |
+| Longest own-third chain | 14 | 12 | |
+| Possession of the stronger side (3+ overall) | ~51% | 53.7% | 55-60% |
+
+Per 90, starters:
+
+| (real) | CB | FB | DM | CM | WM | W | ST |
+|---|---|---|---|---|---|---|---|
+| Passes (50-70, 45-65, 60-70, 50-65, 35-45, 30-45, 20-35) | 17 / 42 | 74 / 46 | 36 / 74 | 60 / 68 | 119 / 54 | 68 / 44 | 31 / 35 |
+| Prog. passes (3-6, 3.5-6, 5-8, 4.5-8, 2.5-4.5, 2-4, 1-2) | 0.33 / 1.47 | 10.1 / 5.4 | 2.1 / 4.5 | 7.3 / 10.0 | 10.6 / 8.0 | 4.7 / 5.1 | 1.8 / 2.6 |
+| Shots (0.4-0.7, 0.3-0.6, 0.5-1, 0.8-1.6, 1.2-2, 2-3, 2.5-3.5) | 0.61 / 0.52 | 0.07 / 0.06 | 0.28 / 0.32 | 1.42 / 1.78 | 0.30 / 0.30 | 1.41 / 1.75 | 2.76 / 3.23 |
+
+calibrate 80 1 / 201 / 401: round 1 29 / 28 / 29, now 30 / 30 / 30 of 31 (misses: headed shots
+25.6% on 1, woodwork 0.9 on 201, own-third tackles 52.1% on 401; won by 4+ now 6-7.5%). Zero
+violations; vitest (70) and `tsc -b` pass. Strength test (a side against a copy 1.25 attribute
+points weaker): 53.4% possession; `FAVOURITE_KEENNESS` 0.4 with `EDGE_SCALE` 3 gives 55.6% but
+29 on seed 1, so not taken.
+Seasons (La Liga, Ronaldo 94, seeds 1, 2, 5, 6): Ronaldo 22, 26, 30, 11 (mean 22; round 1 mean 23);
+our side 68-78 goals, 83-96 points; league 1.9-2.1 goals a match; goal share DEF / MID / FWD
+6 / 24 / 70; main striker npxG share median 20%, top decile 31%.
+
+- **Still off:** centre-backs 42 passes (50-70) and wide midfielders 54 (35-45); final third 20%
+  (25%); stronger side 53-54% (55-60%); full-backs, wide midfielders and holding midfielders
+  shoot too little and central midfielders too much; forwards take 70% of goals (real ~55-60%);
+  own-third tackles at the top of the range; our side's goals (68-78) below the best real sides.
+
 ## Done (session 18): build-up from the back
 
 Cause: a ground pass's interception risk treated every opponent as an instant full-speed
@@ -633,12 +692,9 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 1. **Draft mode polish**: more club-seasons; saving a draft in progress; a season summary (the record, 38-0 or not) at the end.
 2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
    (milestone 5). End of season: player ageing, a new season with the same clubs.
-3. **Who has the ball** (after session 18's build-up rework): centre-backs are bypassed (17
-   passes per 90, real 50-70) and holding midfielders get ~36 (60-70); full-backs and wide
-   midfielders are the hubs. Cheaper back passes over-circulate; probably wants centre-backs
-   splitting wide and stepping in when unpressed, so a pass to them is also forward. Then:
-   possession by side strength, keeper's long share by opposing press, more time in the final
-   third (10%, real ~25%).
+3. **Who has the ball** (after session 18, round 2): centre-backs 42 passes per 90 (real 50-70),
+   wide midfielders 54 (35-45); ball in the final third 20% (25%); the stronger side ~54% (55-60%);
+   full-backs and wide midfielders rarely shoot, forwards take 70% of goals.
 4. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;
    through balls high (~11, shown not scored).
 5. Optional: a friendlier results screen after each matchday (other scores coming in).

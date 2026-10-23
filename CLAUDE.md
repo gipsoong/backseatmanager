@@ -237,6 +237,10 @@ pulling the repo.
   threat, `PROGRESS` values moving the ball upfield, `giveBack` taxes returning it to the passer,
   `holdOption` lets an unpressed carrier wait (harness `hold-on`: never 5 s standing on the ball).
   A first presser in a mid/low block holds his zone (`BLOCK_ENGAGE`).
+  Round 2: unpressed in our first 40 m the side takes a build-up shape (`buildUpSpot`); back
+  passes cost more as a spell drags on (`backMultFor`); possession is worth more further up
+  (`ATTACKING_KEEP`; shots and crosses forgo part of it); a stronger side (`edgeOf`) is less direct
+  and a side two up eases off (`keenness`). `giveBack` escalates per swap, harness `ping-pong`.
 - Leagues (session 16): `squads.ts` is the Premier League; `squads-laliga.ts`, `-bundesliga.ts`,
   `-seriea.ts`, `-ligue1.ts` hold ~40 club-seasons each (`Pool.league`), with their own
   LEFT_FOOTED / WEAK_FOOT / ARCHETYPE tables merged in pools.ts. POOLS keeps the Premier League
