@@ -788,7 +788,11 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
 
 /** How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone else is to try it from distance. */
 const EAGER = 0.65
-const MIDFIELD_LONG_SHOTS = 1.1
+/**
+ * How readily each position shoots when it has a chance: wide men and holding midfielders have a
+ * go, central midfielders more often look for the pass.
+ */
+const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.4, DM: 1.3, CM: 0.9, WM: 1.4, W: 1.25, ST: 1 }
 const LEAD_SHOTS = 0.4
 const KEEP_FORGONE = 0.7
 
@@ -809,7 +813,7 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const freeKick = (opts.maxShotDistance ?? 0) > MAX_SHOT_DISTANCE
   const inBox = a.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(a.y - CENTER.y) < BOX_HALF_WIDTH
   const skill = freeKick ? attrs.freeKicks : inBox ? attrs.finishing : attrs.longShots
-  const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (inBox || freeKick || p.slot.role === 'ST' || p.slot.role === 'W' ? 1 : MIDFIELD_LONG_SHOTS)
+  const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (freeKick ? 1 : SHOOTING[p.slot.role])
   // Patience in their third is for choosing passes, not for passing up a shot.
   // Two or more up, he takes fewer chances on (LEAD_SHOTS less keen at four up). The premium on
   // keeping the ball in their third (ATTACKING_KEEP) is for choosing passes: a shot only partly gives it up.
@@ -1107,6 +1111,10 @@ const SHAPE_FROM = 65
 /** How far from its own goal each block holds its line out of possession (m): lowest, highest. */
 const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
 
+/** With the ball past here (m), the holding midfielder steps up to DM_EDGE from goal (an anchor 30). */
+const DM_STEP_UP = 76
+const DM_EDGE = 25
+
 /** In possession, how far behind the ball the back line holds (m). */
 const IN_BEHIND = 30
 
@@ -1176,7 +1184,8 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   // A winger with the ball central in the final third comes inside off his touchline, into the
   // channel between full-back and centre-back, level with the edge of the box: where he can
   // shoot or slip the striker in.
-  if (inPossession && arch === 'insideForward' && b.x > 65 && Math.abs(b.y - CENTER.y) < 16) {
+  const offFlank = (b.y - CENTER.y) * Math.sign(p.slot.y - CENTER.y) < 8
+  if (inPossession && arch === 'insideForward' && b.x > 65 && offFlank) {
     const side = Math.sign(p.slot.y - CENTER.y)
     const line = offsideLine(s, team, s.ball.pos) - 0.5
     target = vec(Math.min(Math.max(x, PITCH_LENGTH - BOX_DEPTH + 2), line), CENTER.y + side * 9)
@@ -1197,8 +1206,8 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   // With the ball deep in their half, the holding midfielder steps up behind the attack, to the
   // edge of the D: there for the ball cleared out of the box, and to shoot from it. An anchor stays
   // a little deeper.
-  if (inPossession && p.slot.role === 'DM' && b.x > 80) {
-    const edge = PITCH_LENGTH - (arch === 'anchor' ? 32 : 27)
+  if (inPossession && p.slot.role === 'DM' && b.x > DM_STEP_UP) {
+    const edge = PITCH_LENGTH - (arch === 'anchor' ? 30 : DM_EDGE)
     if (target.x < edge) target = vec(edge, target.y + (CENTER.y - target.y) * 0.5)
   }
   // A one-two: straight to the space he's going for.
@@ -1577,12 +1586,14 @@ const ARRIVAL: Partial<Record<Archetype, number>> = {
   ballWinner: 0.3,
   deepPlaymaker: 0.1,
   anchor: 0,
-  overlapping: 0.3,
-  inverted: 0.35,
-  defensiveFullBack: 0.08,
+  overlapping: 0.5,
+  inverted: 0.5,
+  defensiveFullBack: 0.1,
 }
+/** A wide midfielder gets into the box from deep, at the back post or the edge of it. */
+const WIDE_ARRIVAL = 0.6
 const arrivalEagerness = (p: PlayerState): number =>
-  p.slot.role === 'CM' || p.slot.role === 'DM' || p.slot.role === 'FB' ? (ARRIVAL[p.archetype] ?? 0) * (p.slot.role === 'DM' && p.archetype === 'ballWinner' ? 0.5 : 1) : 0
+  p.slot.role === 'WM' ? WIDE_ARRIVAL : p.slot.role === 'CM' || p.slot.role === 'DM' || p.slot.role === 'FB' ? (ARRIVAL[p.archetype] ?? 0) * (p.slot.role === 'DM' && p.archetype === 'ballWinner' ? 0.5 : 1) : 0
 
 /**
  * Late runs from deep: with the ball in the final third, a midfielder behind it sets off for the
@@ -1626,6 +1637,8 @@ function lateRunSpot(s: MatchState, p: PlayerState, b: Vec): Vec | null {
   const line = offsideLine(s, p.team, s.ball.pos) - 0.5
   const spot = (x: number, y: number): Vec => vec(Math.min(x, line), y)
   if (p.slot.role === 'FB') return spot(PITCH_LENGTH - 18, CENTER.y - side * 11)
+  // A wide midfielder: the back post from the far side, the edge of the box from the near one.
+  if (p.slot.role === 'WM') return Math.sign(p.slot.y - CENTER.y) === -side ? spot(PITCH_LENGTH - 7, CENTER.y - side * 5) : spot(PITCH_LENGTH - 15, CENTER.y + side * 9)
   const inside = p.archetype === 'boxToBox' || p.archetype === 'playmaker'
   if (wide && b.x > 80) return inside ? spot(PITCH_LENGTH - 11, CENTER.y - side * 1.5) : spot(PITCH_LENGTH - 16, CENTER.y + side * 2)
   return p.archetype === 'boxToBox' ? spot(PITCH_LENGTH - 13, CENTER.y - side * 4) : spot(PITCH_LENGTH - 18, CENTER.y - side * 6)
