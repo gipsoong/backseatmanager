@@ -660,11 +660,11 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
  * forward or not: two men passing it up the touchline to each other is still a loop.
  */
 function giveBack(d: Decision, q: PlayerState, ta: Vec): number {
-  if (q.runTo && q.runUntil > d.s.tick) return 0
   // The last pass was q's to him (however he then took it), and how many they swapped before that.
   const swaps = exchanges(d.s, d.p.idx, q.idx) - 1
   if (swaps < 0) return 0
   if (swaps >= MAX_SWAPS) return Infinity
+  if (q.runTo && q.runUntil > d.s.tick) return 0
   if (ta.x > d.a.x + 5 && swaps < 2) return 0
   return GIVE_BACK * (1 + swaps * swaps)
 }
