@@ -1039,7 +1039,7 @@ function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; sp
 // Challenges
 
 /** Chance a challenge is a foul, before the tackler's temper and aggression and how well he tackles. */
-const FOUL_BASE = 0.08
+const FOUL_BASE = 0.13
 
 function challenges(s: MatchState, out: MatchEvent[]): void {
   const c = s.players[s.ball.ownerIdx!]

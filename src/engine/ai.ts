@@ -310,7 +310,7 @@ function cutBackValue(a: Vec): number {
 }
 
 /** Value of simply keeping the ball, on top of where it is: a shot gives this up. */
-const POSSESSION_VALUE = 0.02
+const POSSESSION_VALUE = 0.016
 /** Extra worth of winning the ball in the box beyond the chance itself: knock-downs, second balls. */
 const SECOND_BALLS = 1.2
 /** Cost of losing the ball at a: the value of keeping it, plus what the opponent could do from there. */
@@ -368,7 +368,7 @@ function groundPassLost(s: MatchState, opps: PlayerState[], from: Vec, target: V
  * Chance the receiver loses a race to the ball, from how much sooner (s) he gets there than the
  * first opponent. Level is a 50/50 (a contested header); a few tenths either way mostly decides it.
  */
-const raceLost = (margin: number): number => 1 / (1 + Math.exp(margin * 8))
+const raceLost = (margin: number): number => 0.93 / (1 + Math.exp(margin * 8))
 
 /**
  * How much a passer is being hurried, 0 (nobody near) to 1 (an opponent on him): passes played
@@ -687,8 +687,8 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
 }
 
 /** How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone else is to try it from distance. */
-const EAGER = 1
-const MIDFIELD_LONG_SHOTS = 1
+const EAGER = 1.1
+const MIDFIELD_LONG_SHOTS = 1.25
 
 /** A shot, if the chance is worth more than the best alternative: aimed, with his error, from where he is. */
 function shotIfWorthIt(d: Decision, bestU: number): Action | null {
@@ -859,7 +859,7 @@ function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, ma
       if (!race) continue
       const misplace = judgedLooseness(lofted || d > LONG_PASS ? attrs.longPassing : attrs.shortPassing) * (d / 40) * (lofted ? 0.4 : 0.3) * (1 + pressureOn(s, p))
       // Weighting a ball into space is harder than playing it to feet.
-      const risk = clamp(race.lost + misplace + (lofted ? 0.08 : 0) + 0.18, 0, 1)
+      const risk = clamp(race.lost + misplace + (lofted ? 0.07 : 0) + 0.36, 0, 1)
       // Onto the ball in space: worth more the further clear of the defence he is.
       const space = clamp(0.7 + (1 - race.lost) * 0.4, 0.5, 1.3)
       const value = threat(af(s, p.team, race.point)) * space + POSSESSION_VALUE
@@ -899,7 +899,7 @@ function raceFor(
     first = Math.min(first, arrivalOf(o, path, reachOf(s, o), reachHeightOf(s, o)).ticks)
   }
   // Taking it in the air (head or chest) is harder than at his feet.
-  const inAir = mine.point.z > AERIAL_HEIGHT ? 0.2 : 0
+  const inAir = mine.point.z > AERIAL_HEIGHT ? 0.17 : 0
   const lost = 1 - (1 - chargedDown) * (1 - raceLost((first - mine.ticks) * DT))
   return { lost: clamp(lost + inAir, 0, 1), chargedDown, point: mine.point }
 }
@@ -995,7 +995,7 @@ const SHAPE_FROM = 65
 const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
 
 /** In possession, how far behind the ball the back line holds (m). */
-const IN_BEHIND = 32
+const IN_BEHIND = 30
 
 /** Where a player stands in the team's shape, given the ball and who has it. */
 export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean): Vec {
