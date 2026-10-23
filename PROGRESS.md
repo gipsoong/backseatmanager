@@ -9,6 +9,65 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 18): build-up from the back
+
+Cause: a ground pass's interception risk treated every opponent as an instant full-speed
+sprinter, so a pass into midfield looked 3-10x riskier than it was (predicted 14%, lost 2%), and
+the safe ball back to the keeper always won; he then went long. Fixed by measuring, not guessing:
+a debug copy chose a random pass 15% of the time and compared predicted risk with what happened.
+
+- `groundPassLost` (ai.ts): opponents behind the pass ignored (unless close enough to charge it
+  down), each waits his reaction delay (interceptions) before moving, sampled along the lane;
+  `interceptChance` flatter. Now calibrated (predicted 51% -> lost 51%, 74% -> 64%). The race model
+  (lofted, through, crosses) was trimmed the same way (cap 0.93).
+- Misplacing grows with the square of the pass's length.
+- `PROGRESS`: moving the ball 25 m upfield is worth something on top of threat (the threat
+  gradient is flat in our half, so with honest risk alone sides passed it about for ever,
+  800-1100 passes). `giveBack`: a small cost for going straight back to the passer (no ping-pong).
+- `holdOption`: an unpressed carrier can wait for a run, 3 s at most. Harness `hold-on`: an owner
+  standing still on the ball 5 s is a violation (with a test that it catches one).
+- Carries valued where they end, by the room in front. A first presser in a mid or low block
+  holds his zone (`BLOCK_ENGAGE`, `SHAPE_FROM`) instead of chasing the ball out of it.
+- Re-balance: pass value 0.016, through balls a 0.36 base risk, shooting `EAGER` 1.1 with
+  midfielders 1.25x keener from distance, `FOUL_BASE` 0.13, in-possession line 30 m behind the ball.
+
+Build-up (40 draft matches, per team per match):
+
+| | before | after | real |
+|---|---|---|---|
+| Passes | 435 | 547 | 400-550 |
+| Centre-back to keeper | 47.5 | 0.6 | ~10-15 |
+| Keeper to centre-back | 8.8 | 3.7 | |
+| Keeper clears long, open play | 52.4 | 3.7 | ~5 |
+| Keeper long balls, all (per match) | 105 | 7.5 | 10-15 |
+| Centre-back to centre-back | 38 | 3.4 | |
+| Longest own-third chain | 37 | 14 | |
+| Ball time own / middle / final third | 34 / 52 / 14% | 14 / 76 / 10% | ~30 / 45 / 25% |
+
+Per 90, starters (40 draft matches):
+
+| (real) | CB | FB | DM | CM | WM | W | ST |
+|---|---|---|---|---|---|---|---|
+| Passes before / after | 54 / 17 | 48 / 74 | 30 / 36 | 35 / 60 | 61 / 119 | 37 / 68 | 18 / 31 |
+| Prog. passes (3-6, 3.5-6, 5-8, 4.5-8, 2.5-4.5, 2-4, 1-2) | 0.69 / 0.33 | 4.9 / 10.1 | 1.2 / 2.1 | 4.3 / 7.3 | 5.9 / 10.6 | 3.3 / 4.7 | 1.0 / 1.8 |
+| Prog. carries (0.8-2, 1.5-3, 1-2.5, 1.5-3, 2.5-5, 3-6, 1.5-3) | 1.5 / 0.6 | 5.4 / 3.6 | 1.3 / 1.7 | 2.9 / 2.1 | 10.5 / 5.7 | 6.2 / 2.3 | 2.4 / 0.3 |
+| Shots (0.4-0.7, 0.3-0.6, 0.5-1, 0.8-1.6, 1.2-2, 2-3, 2.5-3.5) | 0.77 / 0.61 | 0.16 / 0.07 | 0.58 / 0.28 | 1.73 / 1.42 | 0.40 / 0.30 | 2.35 / 1.41 | 3.95 / 2.76 |
+
+calibrate 80 1 / 201 / 401: before 31 / 30 / 30 of 31, after 29 / 28 / 29 (passes 554, 79%
+completed; misses: tackles in own third ~25% (30-52) everywhere, won by 4+ 11-14%, woodwork 0.8,
+through-ball success 60%). Zero violations; vitest and `tsc -b` pass.
+Seasons (La Liga, Ronaldo 94, seeds 1, 2, 5, 6): Ronaldo 14, 29, 31, 17 (mean 23; before 28,
+37, 31, 13); our side 74-99 goals, 88-103 points (before 81-108, 93-99); league 1.9-2.1 goals a match;
+goal share DEF / MID / FWD 8 / 20 / 72; main striker npxG share median 22%, top decile 31%.
+
+- **Still off:** centre-backs are bypassed (17 passes per 90, real 50-70) and full-backs and wide
+  midfielders are the hubs; holding midfielders ~36 (60-70). Making backward passes cheaper
+  (lean x0.4 or x0) brought CBs to 24-50 but sent passes to 620-720 and shots to 8-10: the side
+  circulates instead of attacking. Possession doesn't follow strength (stronger side ~51%), and
+  how often a keeper goes long barely depends on the opposing press (all blocks read mid in these
+  matches). The ball spends too little time in the final third (10%), hence few own-third tackles.
+  Wide midfielders, full-backs and DMs still shoot too little.
+
 ## Done (session 17, later): full-back overlaps, per-position audit
 
 Owner: "players should be dynamic regardless of their position". Audited how each position
@@ -574,15 +633,12 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 1. **Draft mode polish**: more club-seasons; saving a draft in progress; a season summary (the record, 38-0 or not) at the end.
 2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
    (milestone 5). End of season: player ageing, a new season with the same clubs.
-3. **Build-up from the back** (the biggest gap left, see the audit below): a centre-back pressed
-   20-30 m out passes back to the keeper ~40 times a team a match (real ~10-15) and the keeper
-   clears it long ~45 times (real ~5 in open play); short passes from him ~5. So holding
-   midfielders pass ~30 times per 90 (real 60-70) and centre-backs and DMs barely progress the
-   ball (0.7 and 1.2 progressive passes per 90; real 3-6 and 5-8). Deep down, a pass is valued on
-   interception risk against a loss cost ~50x the gain, so the safest ball always wins. Tried and
-   reverted: a build-up shape (centre-backs split, DM drops) gave a keeper-to-centre-back loop
-   (~170 a match); a back-pass cost halved the keeper's clearances but doubled centre-back to
-   centre-back passes. Needs the pass valuation deep in our half reworked, then a full re-balance.
+3. **Who has the ball** (after session 18's build-up rework): centre-backs are bypassed (17
+   passes per 90, real 50-70) and holding midfielders get ~36 (60-70); full-backs and wide
+   midfielders are the hubs. Cheaper back passes over-circulate; probably wants centre-backs
+   splitting wide and stepping in when unpressed, so a pass to them is also forward. Then:
+   possession by side strength, keeper's long share by opposing press, more time in the final
+   third (10%, real ~25%).
 4. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;
    through balls high (~11, shown not scored).
 5. Optional: a friendlier results screen after each matchday (other scores coming in).

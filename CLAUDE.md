@@ -231,6 +231,12 @@ pulling the repo.
   dispatches to `offsideCall`, `chargeDown`, `keeperClaim`, `keeperSave`, `glancedBehind`,
   `header`. Keep the order of RNG draws when touching either: a refactor should leave matches
   byte-identical (fingerprint a few seeds' events before and after).
+- Pass risk (session 18): `groundPassLost` and `raceLost` are calibrated against what actually
+  happens (a debug copy picking a random pass 15% of the time, predicted vs lost); re-check that
+  way after changing them, as an over-cautious risk sends everything back to the keeper. On top of
+  threat, `PROGRESS` values moving the ball upfield, `giveBack` taxes returning it to the passer,
+  `holdOption` lets an unpressed carrier wait (harness `hold-on`: never 5 s standing on the ball).
+  A first presser in a mid/low block holds his zone (`BLOCK_ENGAGE`).
 - Leagues (session 16): `squads.ts` is the Premier League; `squads-laliga.ts`, `-bundesliga.ts`,
   `-seriea.ts`, `-ligue1.ts` hold ~40 club-seasons each (`Pool.league`), with their own
   LEFT_FOOTED / WEAK_FOOT / ARCHETYPE tables merged in pools.ts. POOLS keeps the Premier League
