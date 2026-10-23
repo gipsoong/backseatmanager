@@ -794,7 +794,7 @@ const EAGER = 0.65
  * How readily each position shoots when it has a chance: wide men and holding midfielders have a
  * go, central midfielders more often look for the pass.
  */
-const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.7, DM: 1.4, CM: 1.05, WM: 1.5, W: 1.25, ST: 0.9 }
+const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.7, DM: 1.4, CM: 1.05, WM: 1.5, W: 1.25, ST: 0.85 }
 const LEAD_SHOTS = 0.4
 const KEEP_FORGONE = 0.7
 

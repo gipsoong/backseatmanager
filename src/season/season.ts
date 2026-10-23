@@ -434,15 +434,20 @@ export function recover(s: Season, results: Result[]): Record<string, Condition>
   for (const r of results) {
     // (A cup guest's condition starts with his first match.)
     const was = (id: string): Condition => condition[id] ?? { fitness: 1, injuredUntil: 0 }
-    for (const a of r.appearances) condition[a.id] = { ...was(a.id), fitness: Math.min(1, a.energy + MATCH_RECOVERY) }
+    for (const a of r.appearances) condition[a.id] = { ...was(a.id), fitness: Math.min(1, a.energy + (1 - a.energy) * MATCH_RECOVERY) }
     for (const inj of r.injuries) condition[inj.id] = { ...was(inj.id), injuredUntil: s.matchday + 1 + inj.weeks }
   }
   return condition
 }
 
-/** Fitness regained in a week by a player who didn't play, and on top of what's left after a match. */
+/** Fitness regained in a week by a player who didn't play. */
 const REST_RECOVERY = 0.3
-const MATCH_RECOVERY = 0.25
+/**
+ * Of what a match took out of him, the share he gets back by the next matchday: ~0.9 after a full
+ * ninety from fresh. (A flat 0.25 on top of what was left let fitness spiral down over a season:
+ * regulars started matches at ~0.55 and the whole league played at a walk, ~2.2 goals a match.)
+ */
+const MATCH_RECOVERY = 0.75
 
 export interface TableRow {
   team: number
