@@ -70,6 +70,8 @@ const fmt = (v: Vec): string => `(${v.x.toFixed(2)}, ${v.y.toFixed(2)})`
 /** Slower than this (m/s) a man on the ball is standing on it; for this long (ticks) is too long. */
 const HOLD_STILL = 0.5
 const HOLD_LIMIT_TICKS = 50
+/** Passes straight back and forth between the same two men, in a row, that make a loop (the old keeper-centre-back one). */
+const PING_PONG_LIMIT = 6
 
 /** Independent penalty-area test: is p inside the box in front of goal line goalX? */
 function inBox(p: Vec, goalX: number): boolean {
@@ -114,6 +116,9 @@ export function checkMatch(
   let stillBallTicks = 0
   let heldTicks = 0
   let standingTicks = 0
+  // The last pass's two men, and how many passes in a row have gone back and forth between them.
+  let lastPair: { by: number; to: number } | null = null
+  let pingPong = 0
   // Penalties: each kick's taker (from its restart) and every kick, in order.
   let shootoutTaker: { idx: number; team: Side } | null = null
   let shootoutKicks: { team: Side; scored: boolean }[] | null = null
@@ -338,6 +343,9 @@ export function checkMatch(
         if (away && tight) v('shot-on-the-spin', `${e.byIdx} shot going away from goal at ${speed.toFixed(1)}m/s with a man on his back`)
       }
       if (e.type === 'pass') {
+        pingPong = lastPair && lastPair.by === e.toIdx && lastPair.to === e.byIdx ? pingPong + 1 : 1
+        lastPair = { by: e.byIdx, to: e.toIdx }
+        if (pingPong === PING_PONG_LIMIT) v('ping-pong', `${PING_PONG_LIMIT} passes in a row between ${e.byIdx} and ${e.toIdx}`)
         if (team(e.toIdx) !== team(e.byIdx) || !C.players[e.toIdx].onPitch) v('pass-receiver', `pass to ${e.toIdx}`)
         if (dist(e.from, e.target) > 65) v('pass-length', `pass of ${dist(e.from, e.target).toFixed(1)}m`)
       }

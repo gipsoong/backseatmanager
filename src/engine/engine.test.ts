@@ -136,6 +136,27 @@ describe('the harness catches inconsistencies', () => {
     expect(violations.some((v) => v.rule === 'hold-on')).toBe(true)
   })
 
+  it('flags two men passing it back and forth', () => {
+    const [h, a] = teams(1)
+    // Rewrite a run of the match's passes as a loop between two teammates.
+    let pair: [number, number] | null = null
+    let n = 0
+    const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 10 }, {
+      tamper: (s) => {
+        const e = s.events.at(-1)
+        if (e?.type !== 'pass' || e.tick !== s.tick || n >= 8) return
+        const mate = s.players.find((q) => q.team === s.players[e.byIdx].team && q.idx !== e.byIdx && q.onPitch && q.slot.role !== 'GK')!
+        pair ??= [e.byIdx, mate.idx]
+        const [x, y] = n % 2 === 0 ? pair : [pair[1], pair[0]]
+        e.byIdx = x
+        e.toIdx = y
+        n++
+      },
+    })
+    expect(n).toBe(8)
+    expect(violations.some((v) => v.rule === 'ping-pong')).toBe(true)
+  })
+
   it('flags a ball that leaves the pitch without going out of play', () => {
     const [h, a] = teams(1)
     const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 2 }, {

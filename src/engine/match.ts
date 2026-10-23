@@ -414,7 +414,7 @@ function execute(s: MatchState, p: PlayerState, action: Action, restart: Restart
       const loose = passLooseness(skill) * (1 + pressureOn(s, p))
       // Now and then one gets away from him altogether: a poor passer, hurried, far more often.
       const astray = s.rng.chance(loose * 0.1) ? 4 : 1
-      const sigma = loose * d * (action.lofted ? 0.07 : 0.045) * (1 + (1 - footQ) * 2.5) * astray
+      const sigma = loose * d * (action.lofted ? 0.07 : 0.045) * (1 + (1 - footQ) * 2.5) * astray * (action.through ? THROUGH_BALL_ERROR : 1)
       const err = vec(clamp(s.rng.gauss() * sigma, -d * 0.3, d * 0.3), clamp(s.rng.gauss() * sigma, -d * 0.3, d * 0.3))
       // Nobody kicks it further than about 60 m, however it comes off his foot.
       const wild = add(action.target, err)
@@ -639,7 +639,8 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   if (fromOpponent && k?.lofted && p.slot.role !== 'GK' && glancedBehind(t)) return true
   if (height > AERIAL_HEIGHT) return header(s, p, contact, height, out)
   // A pass arriving at normal pace is almost always controlled; a hard ball less so.
-  const pControl = clamp(0.985 + (p.attrs.ballControl - 10) * 0.003 - Math.max(0, speed - 8) * 0.02, 0.5, 0.995)
+  // With a man on him, a poor first touch gets away from him; a good one (ballControl) keeps it.
+  const pControl = clamp(0.985 + (p.attrs.ballControl - 10) * 0.003 - Math.max(0, speed - 8) * 0.02 - FIRST_TOUCH_PRESSURE * pressureOn(s, p) * clamp(1.6 - p.attrs.ballControl / 12.5, 0.1, 1.2), 0.5, 0.995)
   if (s.rng.chance(pControl)) {
     takePossession(s, p, contact, height, fromOpponent ? 'interception' : 'control', out)
     return true
@@ -1040,6 +1041,13 @@ function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; sp
 
 /** Chance a challenge is a foul, before the tackler's temper and aggression and how well he tackles. */
 const FOUL_BASE = 0.13
+/**
+ * A through ball's error, times an ordinary pass's: weighting one into the space behind a line is
+ * hard (real ones find their man ~40-55% of the time; without this, ~65%).
+ */
+const THROUGH_BALL_ERROR = 5
+/** How much a man closing him down (pressureOn 1) takes off a poor first touch's chance of keeping it. */
+const FIRST_TOUCH_PRESSURE = 0.3
 
 function challenges(s: MatchState, out: MatchEvent[]): void {
   const c = s.players[s.ball.ownerIdx!]

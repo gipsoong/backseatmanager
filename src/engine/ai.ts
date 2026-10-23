@@ -68,6 +68,29 @@ import type { Foot, MatchState, PlayerState, Restart, Role, Side } from './types
 export const af = (s: MatchState, team: Side, p: Vec): Vec => toAttackFrame(p, team, s.half)
 /** Attacking-frame position back to world coordinates. */
 export const wf = (s: MatchState, team: Side, p: Vec): Vec => toWorld(p, team, s.half)
+/**
+ * How much better this side is than the other, -1 (far worse) to 1 (far better), from its outfield
+ * players' attributes at kick-off (EDGE_SCALE attribute points apart is 1, about sixteen overall).
+ * The better side is in less of a hurry to go forward (see `keenness`), so it has more of the ball.
+ */
+const EDGE_SCALE = 4
+const edges = new WeakMap<MatchState, [number, number]>()
+export function edgeOf(s: MatchState, team: Side): number {
+  let e = edges.get(s)
+  if (!e) {
+    const mean = (t: Side): number => {
+      const ps = s.players.filter((p) => p.onPitch && p.team === t && p.slot.role !== 'GK')
+      let sum = 0
+      let n = 0
+      for (const p of ps) for (const v of Object.values(p.def.attrs)) if (typeof v === 'number') (sum += v), n++
+      return n ? sum / n : 0
+    }
+    const d = clamp((mean(0) - mean(1)) / EDGE_SCALE, -1, 1)
+    e = [d, -d]
+    edges.set(s, e)
+  }
+  return e[team]
+}
 
 export const onPitch = (s: MatchState): PlayerState[] => s.players.filter((p) => p.onPitch)
 /**
@@ -314,7 +337,16 @@ const POSSESSION_VALUE = 0.016
 /** Extra worth of winning the ball in the box beyond the chance itself: knock-downs, second balls. */
 const SECOND_BALLS = 1.2
 /** Cost of losing the ball at a: the value of keeping it, plus what the opponent could do from there. */
-const lossCost = (a: Vec): number => POSSESSION_VALUE + threat(vec(PITCH_LENGTH - a.x, PITCH_WIDTH - a.y))
+/**
+ * Keeping the ball in their third is worth more on top (ATTACKING_KEEP at 85 m, rising from
+ * KEEP_FROM): a side camped there works it round the box for an opening rather than forcing a ball
+ * it will probably lose. Without it attacks there ended at the first chance to lose it (10% of the
+ * time on the ball in the final third; real ~25%).
+ */
+const ATTACKING_KEEP = 0.09
+const KEEP_FROM = 55
+const pv = (a: Vec): number => POSSESSION_VALUE + ATTACKING_KEEP * clamp((a.x - KEEP_FROM) / 30, 0, 1)
+const lossCost = (a: Vec): number => pv(a) + threat(vec(PITCH_LENGTH - a.x, PITCH_WIDTH - a.y))
 
 /**
  * Chance the man going for a pass cuts it out, from how much later than the ball (s) he can reach
@@ -467,6 +499,10 @@ interface Decision {
   hurried: number
   /** He spots through balls and long passes this time (vision). */
   sees: boolean
+  /** How far a backward pass counts against it: little early in a move, fully once it's gone on a while. */
+  backMult: number
+  /** How keen his side is to go forward (the underdog more). */
+  dir: number
 }
 
 /** A candidate action and what it's worth to the side. */
@@ -525,8 +561,48 @@ function decisionFor(s: MatchState, p: PlayerState, opts: ChooseOpts): Decision 
   )
   return { s, p, opts, rng, ball, a, opps: opponentsOf(s, p.team), attrs, loss: lossCost(a), offside, hurried: pressureOn(s, p),
     // Whether he sees the ambitious ball this time: a through ball, a long pass.
-    sees: rng.chance(clamp(0.2 + attrs.vision * 0.045, 0, 1)) }
+    sees: rng.chance(clamp(0.2 + attrs.vision * 0.045, 0, 1)), backMult: backMultFor(s, p), dir: keenness(s, p.team) }
 }
+
+/**
+ * How keen his side is to move the ball forward (scales the progress lean): the better side less
+ * so (it can afford to keep the ball and wait), down to FAVOURITE_KEENNESS; and a side two or more
+ * goals up eases off (by up to LEAD_EASING at four up), keeping the ball rather than chasing a rout.
+ */
+function keenness(s: MatchState, team: Side): number {
+  return Math.max(FAVOURITE_KEENNESS, 1 - Math.max(0, edgeOf(s, team))) * (1 - LEAD_EASING * clamp(leadOf(s, team) - 1, 0, 2) / 2)
+}
+const FAVOURITE_KEENNESS = 0.5
+const LEAD_EASING = 0.6
+
+/** Goals his side is ahead by. */
+const leadOf = (s: MatchState, team: Side): number => s.score[team] - s.score[1 - team]
+
+/** Seconds since his side won the ball (up to a minute). */
+function spellSeconds(s: MatchState, p: PlayerState): number {
+  const limit = s.tick - 60 / DT
+  for (let i = s.events.length - 1; i >= 0; i--) {
+    const e = s.events[i]
+    if (e.tick < limit) break
+    if ((e.type === 'possession' && s.players[e.idx].team !== p.team) || e.type === 'goal') return (s.tick - e.tick) * DT
+  }
+  return 60
+}
+
+/**
+ * How much a pass backwards counts against him: not at all early in a move (recycling it to the
+ * centre-backs and the holding midfielder is how a side keeps the ball and moves the opponent),
+ * fully once his side has had it RECYCLE_FREE + RECYCLE_OVER seconds without getting anywhere.
+ */
+function backMultFor(s: MatchState, p: PlayerState): number {
+  return clamp((spellSeconds(s, p) - RECYCLE_FREE) / RECYCLE_OVER, 0, 1)
+}
+const RECYCLE_FREE = 12
+const RECYCLE_OVER = 30
+
+/** A pass to a man on the touchline is worth this much less (fraction), easing off over TOUCHLINE_ROOM m. */
+const TOUCHLINE_DISCOUNT = 0.5
+const TOUCHLINE_ROOM = 8
 
 /** Passes to teammates, to feet along the ground and (for longer ones) in the air. */
 function passOptions(d: Decision, consider: (o: Option) => void): void {
@@ -543,7 +619,9 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
     if (d.offside.has(q.idx)) continue
     const ta = af(s, p.team, target)
     const space = clamp(nearestDist(opps, target) / 6, 0.5, 1.1)
-    const value = threat(ta) * space + POSSESSION_VALUE
+    // Out on the touchline he has half the options (the line is an extra defender): worth less.
+    const toLine = Math.min(ta.y, PITCH_WIDTH - ta.y)
+    const value = (threat(ta) * space + pv(ta)) * (1 - TOUCHLINE_DISCOUNT * clamp((TOUCHLINE_ROOM - toLine) / TOUCHLINE_ROOM, 0, 1))
     // A long ball is only on if he sees it.
     if (len > LONG_PASS && !d.sees) continue
     const misplace = judgedLooseness(len > LONG_PASS ? attrs.longPassing : attrs.shortPassing) * (len / 40) ** 2 * 0.1 * (1 + d.hurried)
@@ -552,7 +630,7 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
     const risk = clamp(groundPassLost(s, opps, ball, target, len) + misplace, 0, 1)
     consider({
       action: { kind: 'pass', toIdx: q.idx, target, lofted: false },
-      u: (1 - risk) * value - risk * loss + forwardLean(p, a, ta) - giveBack(d, q, ta) + rng.gauss() * 0.002,
+      u: (1 - risk) * value - risk * loss + forwardLean(p, a, ta, d.backMult, d.dir) - giveBack(d, q, ta) + rng.gauss() * 0.002,
     })
 
     // In the air: a race on the ball's actual flight between him and the first opponent who can get
@@ -568,7 +646,7 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
         const intoBox = ta.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(ta.y - CENTER.y) < BOX_HALF_WIDTH
         consider({
           action: { kind: 'pass', toIdx: q.idx, target, lofted: true },
-          u: (1 - riskAir) * value * (intoBox ? SECOND_BALLS : 1) - riskAir * loss + forwardLean(p, a, ta) + rng.gauss() * 0.002,
+          u: (1 - riskAir) * value * (intoBox ? SECOND_BALLS : 1) - riskAir * loss + forwardLean(p, a, ta, d.backMult, d.dir) + rng.gauss() * 0.002,
         })
       }
     }
@@ -581,10 +659,10 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
  * one-two (he's gone for it).
  */
 function giveBack(d: Decision, q: PlayerState, ta: Vec): number {
-  if (q.idx !== d.s.ball.receivedFromIdx || (q.runTo && q.runUntil > d.s.tick) || ta.x > d.a.x + 5) return 0
-  return GIVE_BACK
+  if ((q.runTo && q.runUntil > d.s.tick) || ta.x > d.a.x + 5) return 0
+  return q.idx === d.s.ball.receivedFromIdx ? GIVE_BACK : 0
 }
-const GIVE_BACK = 0.006
+const GIVE_BACK = 0.003
 
 /** Through balls: into the space ahead of a forward, for him to run onto. */
 function throughBallOptions(d: Decision, consider: (o: Option) => void): void {
@@ -636,7 +714,7 @@ function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
   const ca = vec(clamp(a.x + dir.x * carry, 2, PITCH_LENGTH - 2), clamp(a.y + dir.y * carry, 2, PITCH_WIDTH - 2))
   consider({
     action: { kind: 'dribble', target },
-    u: (1 - risk) * (threat(ca) + POSSESSION_VALUE) - risk * loss + PROGRESS * clamp((ca.x - a.x) / 25, -1, 1) + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002,
+    u: (1 - risk) * (threat(ca) + pv(ca)) - risk * loss + PROGRESS * clamp((ca.x - a.x) / 25, -1, 1) + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002,
   })
 
   // Clean through, nobody but the keeper goal-side of him: run at goal. Chasers behind him have
@@ -648,7 +726,7 @@ function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
     const chased = clamp((2 - nearestDist(opps, p.pos)) / 2, 0, 1) * 0.3
     consider({
       action: { kind: 'dribble', target: wf(s, p.team, add(a, scale(norm(sub(goal, a)), 5))) },
-      u: (1 - chased) * (threat(ahead) + POSSESSION_VALUE) - chased * loss + rng.gauss() * 0.002,
+      u: (1 - chased) * (threat(ahead) + pv(ahead)) - chased * loss + rng.gauss() * 0.002,
     })
   }
 }
@@ -663,7 +741,7 @@ function holdOption(d: Decision, consider: (o: Option) => void): void {
   const risk = clamp(d.hurried * HOLD_RISK, 0, 1)
   const waited = (s.tick - s.possessedSince) * DT
   if (waited > HOLD_FOR) return
-  consider({ action: { kind: 'hold' }, u: (1 - risk) * (threat(a) + POSSESSION_VALUE) - risk * loss - waited * HOLD_PATIENCE + rng.gauss() * 0.002 })
+  consider({ action: { kind: 'hold' }, u: (1 - risk) * (threat(a) + pv(a)) - risk * loss - waited * HOLD_PATIENCE + rng.gauss() * 0.002 })
 }
 /** Longest he waits on the ball (s). */
 const HOLD_FOR = 3
@@ -687,8 +765,10 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
 }
 
 /** How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone else is to try it from distance. */
-const EAGER = 1.1
-const MIDFIELD_LONG_SHOTS = 1.25
+const EAGER = 0.65
+const MIDFIELD_LONG_SHOTS = 1.1
+const LEAD_SHOTS = 0.4
+const KEEP_FORGONE = 0.7
 
 /** A shot, if the chance is worth more than the best alternative: aimed, with his error, from where he is. */
 function shotIfWorthIt(d: Decision, bestU: number): Action | null {
@@ -708,7 +788,11 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const inBox = a.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(a.y - CENTER.y) < BOX_HALF_WIDTH
   const skill = freeKick ? attrs.freeKicks : inBox ? attrs.finishing : attrs.longShots
   const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (inBox || freeKick || p.slot.role === 'ST' || p.slot.role === 'W' ? 1 : MIDFIELD_LONG_SHOTS)
-  if (q <= 0.021 || q * eagerness <= bestU) return null
+  // Patience in their third is for choosing passes, not for passing up a shot.
+  // Two or more up, he takes fewer chances on (LEAD_SHOTS less keen at four up). The premium on
+  // keeping the ball in their third (ATTACKING_KEEP) is for choosing passes: a shot only partly gives it up.
+  const easing = 1 - LEAD_SHOTS * clamp(leadOf(s, p.team) - 1, 0, 2) / 2
+  if (q <= 0.021 || q * eagerness * easing <= bestU - (pv(a) - POSSESSION_VALUE) * KEEP_FORGONE) return null
   const gk = goalkeeperOf(s, (1 - p.team) as Side)
   const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
   const side = gy > CENTER.y ? -1 : 1
@@ -727,6 +811,9 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
 
 /** Passes longer than this (m) are long passes: longPassing, and only on if he sees them (vision). */
 const LONG_PASS = 25
+
+/** How much of the premium on keeping the ball in their third a lost cross costs. */
+const CROSS_KEEP = 0.5
 
 /** A cross: mostly crossing, partly how well he whips it (curve). */
 export const crossSkill = (a: PlayerState['attrs']): number => a.crossing * 0.75 + a.curve * 0.25
@@ -805,10 +892,11 @@ const PROGRESS = 0.016
  * A player's own taste for going forward (directness) or keeping it (low directness): a small nudge
  * to how he rates a pass by how far it moves the ball upfield, on top of what it's actually worth.
  */
-function forwardLean(p: PlayerState, from: Vec, to: Vec): number {
+function forwardLean(p: PlayerState, from: Vec, to: Vec, backMult = 1, dir = 1): number {
   // Playmakers and ball-playing defenders look forward first.
   const creative = p.archetype === 'playmaker' || p.archetype === 'deepPlaymaker' || p.archetype === 'ballPlayer' ? 0.2 : 0
-  return (PROGRESS + (p.def.traits.directness - 0.5 + creative) * 0.012) * clamp((to.x - from.x) / 25, -1, 1)
+  const lean = (PROGRESS * dir + (p.def.traits.directness - 0.5 + creative) * 0.012) * clamp((to.x - from.x) / 25, -1, 1)
+  return lean < 0 ? lean * backMult : lean
 }
 
 /** Who gets played in behind: forwards and wide men, and midfielders arriving late. */
@@ -862,7 +950,7 @@ function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, ma
       const risk = clamp(race.lost + misplace + (lofted ? 0.07 : 0) + 0.36, 0, 1)
       // Onto the ball in space: worth more the further clear of the defence he is.
       const space = clamp(0.7 + (1 - race.lost) * 0.4, 0.5, 1.3)
-      const value = threat(af(s, p.team, race.point)) * space + POSSESSION_VALUE
+      const value = threat(af(s, p.team, race.point)) * space + pv(af(s, p.team, race.point))
       out.push({ target, lofted, u: (1 - risk) * value - risk * loss + forwardLean(p, af(s, p.team, ball), spotA) + s.rng.gauss() * 0.002 })
     }
   }
@@ -944,8 +1032,11 @@ function crossesIntoSpace(
       // crosses with a man in front of him where he'd never play a pass through one.
       const risk = clamp(race.lost - race.chargedDown * 0.6 + misplace, 0, 1)
       // Aimed at a target man, it's more likely to be won.
-      const value = threat(af(s, p.team, race.point)) * SECOND_BALLS * (q.archetype === 'targetMan' ? 1.15 : 1) + POSSESSION_VALUE
-      out.push({ toIdx: q.idx, target, lofted, u: (1 - risk) * value - risk * loss + s.rng.gauss() * 0.002 })
+      const value = threat(af(s, p.team, race.point)) * SECOND_BALLS * (q.archetype === 'targetMan' ? 1.15 : 1) + pv(af(s, p.team, race.point))
+      // A cross that's cleared often comes straight back (a corner, a second ball): losing it costs
+      // only part of the premium on keeping the ball up there.
+      const lost = loss - (pv(a) - POSSESSION_VALUE) * (1 - CROSS_KEEP)
+      out.push({ toIdx: q.idx, target, lofted, u: (1 - risk) * value - risk * lost + s.rng.gauss() * 0.002 })
     }
   }
   return out
@@ -1021,7 +1112,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     lineX = clamp(b.x - IN_BEHIND, 20, 58)
     // Camped in their half, the side stretches up behind the attack: midfielders get to the edge of
     // the box rather than waiting 30 m out.
-    length = 40 + Math.max(0, b.x - 70) * 0.6
+    length = 42 + Math.max(0, b.x - 70) * 0.4
     widthK = 1.05
   } else {
     const [lo, hi] = BLOCK_LINES[s.teams[team].block]
@@ -1048,13 +1139,16 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   const depth = restDepth + (inPossession ? attackDepthFor(p) : 0)
   const x = lineX + depth * length
   // A winger holds the touchline to stretch them; a target man stays central for the cross.
-  const width = inPossession && arch === 'winger' ? 1.15 : inPossession && arch === 'targetMan' ? 0.4 : 1
-  // With no wide midfielders (a back five's midfield three), the central midfielders slide further
-  // across to the ball's side out of possession.
-  const noWide = !inPossession && p.slot.role === 'CM' && !teammatesOf(s, team).some((q) => q.slot.role === 'WM' || q.slot.role === 'W')
-  const y = CENTER.y + (p.slot.y - CENTER.y) * widthK * width + (b.y - CENTER.y) * (inPossession ? 0.2 : noWide ? 0.6 : 0.4)
+  // Centre-backs split wide with the ball, so a full-back or midfielder has an angle back to them.
+  const width = inPossession && arch === 'winger' ? 1.15 : inPossession && arch === 'targetMan' ? 0.4 : inPossession && p.slot.role === 'CB' ? 1.6 : 1
+  // Out of possession the whole side slides across to the ball (a man on the ball out wide is met by
+  // the nearest wide player and has the touchline behind him), as a back five's midfield three
+  // already did.
+  const y = CENTER.y + (p.slot.y - CENTER.y) * widthK * width + (b.y - CENTER.y) * (inPossession ? 0.2 : 0.6)
 
   let target = vec(x, y)
+  const bu = inPossession ? buildUpSpot(s, p, b) : null
+  if (bu) target = bu
   // An inverted full-back steps into midfield with the ball, beside the holding player.
   if (inPossession && arch === 'inverted' && p.slot.attackDepth <= 0.5 && b.x > 35) target = vec(lineX + 0.3 * length, CENTER.y + Math.sign(p.slot.y - CENTER.y) * 9)
   // A winger with the ball central in the final third comes inside off his touchline, into the
@@ -1130,11 +1224,41 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
       }
       // On the shoulder of the last defender, drifting a little either side of him as the line
       // moves: now and then he's caught a yard off.
-      const drift = forward ? Math.sin(s.tick / 37 + p.idx * 1.7) * 2 : 0
+      const drift = forward ? Math.sin(s.tick / 37 + p.idx * 1.7) * 2 - 1 : 0
       target = vec(Math.min(target.x, line - 0.5 + drift), target.y)
     }
   }
   return wf(s, team, vec(clamp(target.x, 3, PITCH_LENGTH - 3), clamp(target.y, 2, PITCH_WIDTH - 2)))
+}
+
+const BUILD_UP_TO = 40
+const BUILD_UP_UNPRESSED = 12
+
+/**
+ * Building from the back, unpressed: the centre-backs split towards the edges of the box, the
+ * holding midfielder drops between or beside them, the full-backs push on. A pass to a centre-back
+ * then also moves it forward or wide, and he has room to step in with it.
+ */
+function buildUpSpot(s: MatchState, p: PlayerState, b: Vec): Vec | null {
+  // Only from deep (BUILD_UP_TO m from our goal) and with nobody pressing the ball: pressed, the
+  // usual shape and the long ball.
+  if (b.x > BUILD_UP_TO) return null
+  const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
+  if (!owner || owner.team !== p.team) return null
+  if (nearestDist(opponentsOf(s, p.team), owner.pos) < BUILD_UP_UNPRESSED) return null
+  const side = Math.sign(p.slot.y - CENTER.y)
+  switch (p.slot.role) {
+    case 'CB':
+      return side === 0 ? vec(clamp(b.x - 6, 6, 26), CENTER.y) : vec(clamp(b.x, 10, 32), CENTER.y + side * 17)
+    case 'DM': {
+      const dms = teammatesOf(s, p.team).filter((q) => q.slot.role === 'DM').length
+      return vec(clamp(b.x + 10, 18, 42), CENTER.y + (b.y - CENTER.y) * 0.3 + (dms > 1 ? side * 7 : 0))
+    }
+    case 'FB':
+      return p.archetype === 'inverted' ? null : vec(clamp(b.x + 24, 30, 55), CENTER.y + side * (PITCH_WIDTH / 2 - 4))
+    default:
+      return null
+  }
 }
 
 /**
