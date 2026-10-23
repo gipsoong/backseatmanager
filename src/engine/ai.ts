@@ -575,7 +575,7 @@ function keenness(s: MatchState, team: Side): number {
   return Math.max(FAVOURITE_KEENNESS, 1 - Math.max(0, edgeOf(s, team))) * (1 - LEAD_EASING * clamp(leadOf(s, team) - 1, 0, 2) / 2)
 }
 const FAVOURITE_KEENNESS = 0.5
-const LEAD_EASING = 0.6
+const LEAD_EASING = 0.45
 
 /** Goals his side is ahead by. */
 const leadOf = (s: MatchState, team: Side): number => s.score[team] - s.score[1 - team]
@@ -795,7 +795,7 @@ const EAGER = 0.65
  * go, central midfielders more often look for the pass.
  */
 const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.7, DM: 1.4, CM: 1.05, WM: 1.5, W: 1.25, ST: 0.85 }
-const LEAD_SHOTS = 0.4
+const LEAD_SHOTS = 0.3
 const KEEP_FORGONE = 0.7
 
 /** A shot, if the chance is worth more than the best alternative: aimed, with his error, from where he is. */

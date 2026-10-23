@@ -740,7 +740,7 @@ function keeperSave(t: Touch): boolean {
   const flight = k ? (s.tick - k.tick) * DT : 1
   // A great keeper saves more, but not wildly more: the best are a few points of save rate above
   // the average, not ten.
-  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.reflexes - 12) * 0.02, 0.05, 0.96)
+  const pSave = clamp(1.0 - off * off * 1.5 - Math.max(0, 0.5 - flight) * 0.8 - Math.max(0, speed - 28) / 20 + (p.attrs.reflexes - 12) * 0.014, 0.05, 0.96)
   if (!rng.chance(pSave)) return miss(t)
   if (speed < 21 && rng.chance(0.3 + p.attrs.handling / 40)) {
     takePossession(s, p, contact, height, 'save', out)
