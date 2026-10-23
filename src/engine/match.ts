@@ -773,7 +773,7 @@ function glancedBehind({ s, p, contact, height, out }: Touch): boolean {
   const rng = s.rng
   if (!inPenaltyArea(p.pos, ownGoalX(p.team, s.half))) return false
   const challenged = s.players.some((o) => o.onPitch && o.team !== p.team && dist(o.pos, contact) < 2)
-  if (!rng.chance(challenged ? 0.75 : 0.45)) return false
+  if (!rng.chance(challenged ? 0.8 : 0.52)) return false
   // Wide of his own post rather than back across the goal mouth.
   const goalX = ownGoalX(p.team, s.half)
   const wide = contact.y < CENTER.y ? -1 : 1
