@@ -317,10 +317,52 @@ const SECOND_BALLS = 1.2
 const lossCost = (a: Vec): number => POSSESSION_VALUE + threat(vec(PITCH_LENGTH - a.x, PITCH_WIDTH - a.y))
 
 /**
- * Chance an opponent cuts a pass out, from how much later than the ball (s) he can reach its path.
- * Already there (margin <= 0) is close to certain; a few tenths of a second behind, unlikely.
+ * Chance the man going for a pass cuts it out, from how much later than the ball (s) he can reach
+ * its path: there first, about even (it can still beat him, or the man it's for gets there first);
+ * a few tenths of a second behind, unlikely. Fitted to what happens to passes in the loop, played
+ * to random options so the fit isn't only the passes players chose.
  */
-const interceptChance = (margin: number): number => 0.95 / (1 + Math.exp((margin - 0.15) * 10))
+const interceptChance = (margin: number): number => 0.6 / (1 + Math.exp((margin - 0.05) * 9))
+
+/** Chance a pass played within an opponent's reach gets to him (he can still miss it). */
+const IN_THE_LANE = 0.4
+/** Points along a ground pass (fractions of its length) where an opponent might meet it. */
+const LANE_SAMPLES = [0.2, 0.4, 0.6, 0.8, 1]
+
+/**
+ * Chance a ground pass from `from` to `target` is cut out, as the loop plays it out: the opponent
+ * who can get to its path soonest relative to the ball goes for it, once he has read it (his
+ * interceptions), getting up to speed from how he's moving now (reachTime); everyone else holds his
+ * place and only gets it if it's played within his reach. (Rating every opponent as a sprinter
+ * already on his way made a pass to a man in midfield look like a coin flip when ~5% were lost,
+ * so the ball always went back to the keeper.)
+ */
+function groundPassLost(s: MatchState, opps: PlayerState[], from: Vec, target: Vec, len: number): number {
+  const { speed } = passKinematics(len)
+  const ballTime = (db: number): number => (speed - Math.sqrt(Math.max(speed * speed - 2 * BALL_FRICTION * db, 0))) / BALL_FRICTION
+  let chaser = Infinity
+  let keep = 1
+  for (const o of opps) {
+    // Behind the pass: it's played away from him, unless he's tight enough to charge it down.
+    if (projectT(from, target, o.pos) < 0 && dist(o.pos, from) > CHARGE_DOWN_REACH) continue
+    const reach = reachOf(s, o)
+    const t0 = closestT(from, target, o.pos)
+    // In the lane already: it runs into him.
+    if (dist(o.pos, lerp(from, target, t0)) <= reach) {
+      keep *= 1 - IN_THE_LANE
+      continue
+    }
+    const read = delayFor(o.attrs.interceptions) * DT
+    let best = Infinity
+    for (const t of [t0, ...LANE_SAMPLES]) {
+      if (t < t0) continue
+      const c = lerp(from, target, t)
+      best = Math.min(best, read + reachTime(o, c, reach) - ballTime(t * len))
+    }
+    chaser = Math.min(chaser, best)
+  }
+  return 1 - keep * (1 - interceptChance(chaser))
+}
 
 /**
  * Chance the receiver loses a race to the ball, from how much sooner (s) he gets there than the
@@ -451,7 +493,10 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
       consider({ action: { kind: 'pass', toIdx: o.toIdx, target: o.target, lofted: o.lofted }, u: o.u })
     }
   }
-  if (opts.allowDribble) dribbleOptions(d, consider)
+  if (opts.allowDribble) {
+    dribbleOptions(d, consider)
+    holdOption(d, consider)
+  }
   const shot = opts.allowShot ? shotIfWorthIt(d, best.u) : null
   if (shot) return shot
   // A pass that's more likely to be lost than kept (utility below zero) is no better than no pass:
@@ -501,26 +546,13 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
     const value = threat(ta) * space + POSSESSION_VALUE
     // A long ball is only on if he sees it.
     if (len > LONG_PASS && !d.sees) continue
-    const misplace = judgedLooseness(len > LONG_PASS ? attrs.longPassing : attrs.shortPassing) * (len / 40) * 0.25 * (1 + d.hurried)
+    const misplace = judgedLooseness(len > LONG_PASS ? attrs.longPassing : attrs.shortPassing) * (len / 40) ** 2 * 0.1 * (1 + d.hurried)
 
     // Along the ground: can an opponent get to the ball's path before the ball does?
-    const { speed } = passKinematics(len)
-    let keep = 1
-    for (const o of opps) {
-      // Behind the pass: it's played away from him, unless he's tight enough to charge it down.
-      if (projectT(ball, target, o.pos) < 0 && dist(o.pos, ball) > CHARGE_DOWN_REACH) continue
-      const t = closestT(ball, target, o.pos)
-      const c = lerp(ball, target, t)
-      const db = t * len
-      const tBall = (speed - Math.sqrt(Math.max(speed * speed - 2 * BALL_FRICTION * db, 0))) / BALL_FRICTION
-      // Matches how the loop resolves it: anyone who can get within reach of the path first gets a touch.
-      const tOpp = Math.max(0, dist(o.pos, c) - reachOf(s, o)) / o.maxSpeed
-      keep *= 1 - interceptChance(tOpp - tBall)
-    }
-    const risk = clamp(1 - keep + misplace, 0, 1)
+    const risk = clamp(groundPassLost(s, opps, ball, target, len) + misplace, 0, 1)
     consider({
       action: { kind: 'pass', toIdx: q.idx, target, lofted: false },
-      u: (1 - risk) * value - risk * loss + forwardLean(p, a, ta) + rng.gauss() * 0.002,
+      u: (1 - risk) * value - risk * loss + forwardLean(p, a, ta) - giveBack(d, q, ta) + rng.gauss() * 0.002,
     })
 
     // In the air: a race on the ball's actual flight between him and the first opponent who can get
@@ -543,6 +575,17 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
   }
 }
 
+/**
+ * Straight back to the man who just gave it to him, no further forward: nothing gained that the
+ * first pass hadn't, and the side that plays it back and forth gets nowhere. Not the return of a
+ * one-two (he's gone for it).
+ */
+function giveBack(d: Decision, q: PlayerState, ta: Vec): number {
+  if (q.idx !== d.s.ball.receivedFromIdx || (q.runTo && q.runUntil > d.s.tick) || ta.x > d.a.x + 5) return 0
+  return GIVE_BACK
+}
+const GIVE_BACK = 0.006
+
 /** Through balls: into the space ahead of a forward, for him to run onto. */
 function throughBallOptions(d: Decision, consider: (o: Option) => void): void {
   const { s, p, opts, ball, a } = d
@@ -558,6 +601,9 @@ function throughBallOptions(d: Decision, consider: (o: Option) => void): void {
     }
   }
 }
+
+/** A carrier with nobody this close (m) is in space: he carries it on rather than looking to pass. */
+const OPEN_SPACE = 8
 
 /** Carrying it: towards goal, bending away from the nearest opponent; or, clean through, a run at goal. */
 function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
@@ -582,10 +628,15 @@ function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
   const beat = (attrs.dribbling * 2 + attrs.agility + attrs.acceleration) / 80
   const pressure = clamp((2.5 - nearestDist(opps, p.pos)) / 2.5, 0, 1) * 0.4
   const risk = clamp(clamp((5 - closest) / 5, 0, 1) * (1 - beat * 0.5) + pressure, 0, 1)
-  const heldFor = (s.tick - s.possessedSince) * DT // players don't dribble forever
+  // Players don't dribble forever, but with nobody near him he carries it on into the space.
+  const heldFor = (s.tick - s.possessedSince) * DT * clamp((OPEN_SPACE - nearestDist(opps, p.pos)) / 4, 0, 1)
+  // With room ahead he'll get further than the next stride before anyone closes him down: valued
+  // where he can carry it to, and for the ground it gains, like a pass.
+  const carry = clamp(closest - 2, 5, 12)
+  const ca = vec(clamp(a.x + dir.x * carry, 2, PITCH_LENGTH - 2), clamp(a.y + dir.y * carry, 2, PITCH_WIDTH - 2))
   consider({
     action: { kind: 'dribble', target },
-    u: (1 - risk) * (threat(ta) + POSSESSION_VALUE) - risk * loss + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002,
+    u: (1 - risk) * (threat(ca) + POSSESSION_VALUE) - risk * loss + PROGRESS * clamp((ca.x - a.x) / 25, -1, 1) + p.def.traits.flair * 0.004 - heldFor * 0.006 + rng.gauss() * 0.002,
   })
 
   // Clean through, nobody but the keeper goal-side of him: run at goal. Chasers behind him have
@@ -603,6 +654,25 @@ function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
 }
 
 /**
+ * Keeping it where he is, shielding it or waiting for a run: worth what the ball is worth here,
+ * less the chance the man on him takes it. With nothing on ahead and nobody close, a player keeps
+ * the ball rather than giving it straight back. Not for long, though: it's worth less the longer he waits.
+ */
+function holdOption(d: Decision, consider: (o: Option) => void): void {
+  const { s, a, rng, loss } = d
+  const risk = clamp(d.hurried * HOLD_RISK, 0, 1)
+  const waited = (s.tick - s.possessedSince) * DT
+  if (waited > HOLD_FOR) return
+  consider({ action: { kind: 'hold' }, u: (1 - risk) * (threat(a) + POSSESSION_VALUE) - risk * loss - waited * HOLD_PATIENCE + rng.gauss() * 0.002 })
+}
+/** Longest he waits on the ball (s). */
+const HOLD_FOR = 3
+/** Chance of losing it holding on with a man right on him (pressure 1). */
+const HOLD_RISK = 0.25
+/** How fast holding on loses its worth (per second). */
+const HOLD_PATIENCE = 0.0015
+
+/**
  * Moving away from the goal he attacks (at more than BACK_TO_GOAL_SPEED, heading more than about
  * 100 degrees off it) with an opponent within TIGHT_MARK and goal-side of him.
  */
@@ -615,6 +685,10 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
   const pa = af(s, p.team, p.pos).x
   return opponentsOf(s, p.team).some((o) => o.slot.role !== 'GK' && dist(o.pos, p.pos) < TIGHT_MARK && af(s, p.team, o.pos).x > pa)
 }
+
+/** How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone else is to try it from distance. */
+const EAGER = 1
+const MIDFIELD_LONG_SHOTS = 1
 
 /** A shot, if the chance is worth more than the best alternative: aimed, with his error, from where he is. */
 function shotIfWorthIt(d: Decision, bestU: number): Action | null {
@@ -633,7 +707,7 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const freeKick = (opts.maxShotDistance ?? 0) > MAX_SHOT_DISTANCE
   const inBox = a.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(a.y - CENTER.y) < BOX_HALF_WIDTH
   const skill = freeKick ? attrs.freeKicks : inBox ? attrs.finishing : attrs.longShots
-  const eagerness = (1.0 + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching
+  const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (inBox || freeKick || p.slot.role === 'ST' || p.slot.role === 'W' ? 1 : MIDFIELD_LONG_SHOTS)
   if (q <= 0.021 || q * eagerness <= bestU) return null
   const gk = goalkeeperOf(s, (1 - p.team) as Side)
   const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
@@ -721,13 +795,20 @@ function clearanceTarget(d: Decision): Vec {
 }
 
 /**
+ * Worth of moving the ball 25 m upfield, on top of the threat where it ends up. Deep in our half the
+ * threat barely changes from one spot to the next, so without it any pass that risked anything lost
+ * to a safe one sideways or back, and a side passed it about its own half for ever.
+ */
+const PROGRESS = 0.016
+
+/**
  * A player's own taste for going forward (directness) or keeping it (low directness): a small nudge
  * to how he rates a pass by how far it moves the ball upfield, on top of what it's actually worth.
  */
 function forwardLean(p: PlayerState, from: Vec, to: Vec): number {
   // Playmakers and ball-playing defenders look forward first.
   const creative = p.archetype === 'playmaker' || p.archetype === 'deepPlaymaker' || p.archetype === 'ballPlayer' ? 0.2 : 0
-  return (p.def.traits.directness - 0.5 + creative) * 0.012 * clamp((to.x - from.x) / 25, -1, 1)
+  return (PROGRESS + (p.def.traits.directness - 0.5 + creative) * 0.012) * clamp((to.x - from.x) / 25, -1, 1)
 }
 
 /** Who gets played in behind: forwards and wide men, and midfielders arriving late. */
@@ -905,8 +986,16 @@ function attackDepthFor(p: PlayerState): number {
   }
 }
 
+/** Behind his side's press line, the nearest man steps out to a carrier only this close to his own place in the shape (m). */
+const BLOCK_ENGAGE = 10
+/** ...but only with the ball this far from his own goal (m): nearer it, someone always goes to the man on the ball. */
+const SHAPE_FROM = 65
+
 /** How far from its own goal each block holds its line out of possession (m): lowest, highest. */
 const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
+
+/** In possession, how far behind the ball the back line holds (m). */
+const IN_BEHIND = 32
 
 /** Where a player stands in the team's shape, given the ball and who has it. */
 export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean): Vec {
@@ -929,7 +1018,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   let length: number
   let widthK: number
   if (inPossession) {
-    lineX = clamp(b.x - 32, 20, 58)
+    lineX = clamp(b.x - IN_BEHIND, 20, 58)
     // Camped in their half, the side stretches up behind the attack: midfielders get to the edge of
     // the box rather than waiting 30 m out.
     length = 40 + Math.max(0, b.x - 70) * 0.6
@@ -1138,6 +1227,10 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
     // A ball-winner hunts it higher still, and gets tighter.
     const winner = p.archetype === 'ballWinner'
     const pressing = oa.x <= pressLine + t.workRate * 8 + (winner ? 10 : 0)
+    // Behind the press line the block holds its shape: nobody leaves it to run out at a man on the
+    // ball in his own third. He's met once he carries it up to the man whose zone it is.
+    const zone = shapeTarget(s, p, false)
+    if (!pressing && oa.x > SHAPE_FROM && dist(owner.pos, zone) > BLOCK_ENGAGE) return defendIntent(s, p, zone)
     // How tight he gets: an aggressive man gets right up to him, a cautious one stands off.
     const stand = pressing ? 1.4 - t.aggression * 0.8 - (winner ? 0.3 : 0) : 3.5
     const ahead = add(owner.pos, scale(owner.vel, 0.4)) // meet him where he's going, not where he was

@@ -67,6 +67,9 @@ export interface CheckResult {
 const EPS = 1e-6
 const BALL_STEP = MAX_BALL_SPEED * DT + EPS
 const fmt = (v: Vec): string => `(${v.x.toFixed(2)}, ${v.y.toFixed(2)})`
+/** Slower than this (m/s) a man on the ball is standing on it; for this long (ticks) is too long. */
+const HOLD_STILL = 0.5
+const HOLD_LIMIT_TICKS = 50
 
 /** Independent penalty-area test: is p inside the box in front of goal line goalX? */
 function inBox(p: Vec, goalX: number): boolean {
@@ -110,6 +113,7 @@ export function checkMatch(
   let release: { tick: number; team: Side } | null = null
   let stillBallTicks = 0
   let heldTicks = 0
+  let standingTicks = 0
   // Penalties: each kick's taker (from its restart) and every kick, in order.
   let shootoutTaker: { idx: number; team: Side } | null = null
   let shootoutKicks: { team: Side; scored: boolean }[] | null = null
@@ -456,6 +460,13 @@ export function checkMatch(
     // --- Nobody sits on the ball forever.
     heldTicks = C.ball.ownerIdx !== null && C.ball.ownerIdx === P.ball.ownerIdx ? heldTicks + 1 : 0
     if (heldTicks === 200) v('stall', `player ${C.ball.ownerIdx} has held the ball for 20s`)
+
+    // --- A man waiting on the ball for a run (holding it up) gives it up or moves off within a few
+    // seconds: he doesn't stand on it.
+    const owner = C.ball.ownerIdx
+    const standing = C.phase === 'play' && owner !== null && owner === P.ball.ownerIdx && dist(P.players[owner], C.players[owner]) < HOLD_STILL * DT
+    standingTicks = standing ? standingTicks + 1 : 0
+    if (standingTicks === HOLD_LIMIT_TICKS) v('hold-on', `player ${owner} has stood on the ball for ${HOLD_LIMIT_TICKS / 10}s at ${fmt(C.players[owner!])}`)
 
     // --- Loose balls don't just sit there.
     const still = C.phase === 'play' && C.ball.ownerIdx === null && Math.hypot(C.ball.vx, C.ball.vy) < 0.05

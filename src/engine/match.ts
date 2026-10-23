@@ -1038,6 +1038,9 @@ function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; sp
 // ---------------------------------------------------------------------------
 // Challenges
 
+/** Chance a challenge is a foul, before the tackler's temper and aggression and how well he tackles. */
+const FOUL_BASE = 0.08
+
 function challenges(s: MatchState, out: MatchEvent[]): void {
   const c = s.players[s.ball.ownerIdx!]
   const rng = s.rng
@@ -1070,7 +1073,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const skill = o.slot.role === 'GK' ? (oa.diving + oa.handling) / 2 + 3 : style === 'slide' ? oa.slidingTackle : oa.standingTackle
   // His tackling against the carrier's close control and footwork; the stronger man holds his ground.
   const evade = ca.dribbling * 0.7 + ca.agility * 0.3
-  const pFoul = clamp(0.08 + traits.temper * 0.1 + traits.aggression * 0.06 + ((evade - skill) / 20) * 0.08, 0.04, 0.3) * care
+  const pFoul = clamp(FOUL_BASE + traits.temper * 0.1 + traits.aggression * 0.06 + ((evade - skill) / 20) * 0.08, 0.04, 0.3) * care
   const won = rng.chance(clamp(0.58 + (skill - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
   // Beaten outside his own box, a hot-headed defender may just pull him back.
   const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care)

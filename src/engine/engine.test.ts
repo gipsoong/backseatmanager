@@ -117,6 +117,25 @@ describe('the harness catches inconsistencies', () => {
     expect(violations.some((v) => v.rule === 'overlap')).toBe(true)
   })
 
+  it('flags a man standing on the ball', () => {
+    const [h, a] = teams(1)
+    let pinned: { idx: number; at: { x: number; y: number } } | null = null
+    const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 4 }, {
+      tamper: (s) => {
+        const o = s.ball.ownerIdx
+        if (!pinned && o !== null && s.phase.kind === 'play' && s.players[o].slot.role !== 'GK') pinned = { idx: o, at: { ...s.players[o].pos } }
+        // Keep him on the ball where he is, as if he'd chosen to hold it for ever.
+        if (pinned && s.tick < 2000 && s.phase.kind === 'play') {
+          s.ball.ownerIdx = pinned.idx
+          s.players[pinned.idx].pos = { ...pinned.at }
+          s.players[pinned.idx].vel = { x: 0, y: 0 }
+          s.decisionAt = s.tick + 5
+        }
+      },
+    })
+    expect(violations.some((v) => v.rule === 'hold-on')).toBe(true)
+  })
+
   it('flags a ball that leaves the pitch without going out of play', () => {
     const [h, a] = teams(1)
     const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 2 }, {
