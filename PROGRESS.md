@@ -9,6 +9,59 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
 request).
 
+## Done (session 18, round 3): shooting spread, strong sides, what a viewer sees
+
+Causes: shots followed position only through finishing and the forwards' eagerness, so full-backs,
+wide and holding midfielders hardly shot and forwards took ~73% of the goals. Strong sides scored
+68-78 a season because season fitness spiralled down (a flat +0.25 after a match: regulars started
+at ~0.55, the league played tired, ~2.2 goals a match) and a top keeper's reflexes were worth too
+much (the drafted side let in ~0.64 of the xG it faced). On screen: two men marked one forward
+(a centre-back and the holding midfielder standing on each other, ~40 times a match), teammates
+arrived on the same spot, and with the ball in our half the in-possession line didn't move, so the
+side stood still and played the same triangle.
+
+- `SHOOTING` (ai.ts): shot keenness by position (FB 1.7, DM 1.4, WM 1.5, W 1.25, CM 1.05, ST 0.8).
+  Wide midfielders make late runs (back post or box edge); the holding midfielder steps up to 25 m
+  out (`DM_STEP_UP`, `DM_EDGE`); an inside forward comes inside whenever the ball isn't on his flank.
+- Marking: a man is left to a teammate on him (`MARK_SHARE`, `MARKED`); a midfielder leaves a man
+  in behind him to the back line. In possession a man keeps 4 m off a teammate (`spaced`). The late
+  runner from deep takes the cut-back zone, not the striker's spot.
+- `lineInPossession`: the in-possession line follows the ball all the way up (0.5x + 6, 20-58 m).
+  Out of possession the block is 26 m deep (was 30), defenders go in less in their own third
+  (`OWN_THIRD_TACKLING`) and more carefully in their box (0.2).
+- Strength: `EDGE_SCALE` 2.5 (the favourite's keenness floor is reached at half an edge).
+  Lead easing milder (0.45, shots 0.3). Keeper reflexes 0.014 a point (was 0.02).
+- Season (season.ts): after a match a player gets back 75% of what he used (`MATCH_RECOVERY`).
+- No fifth swap between two men however the pass is played (`consider` in `chooseAction`); shot
+  blocks loop up less (`SHOT_BLOCK_LIFT`); defenders glance a cross behind a little more often.
+
+Draft matches (40 a column, per team per match; per 90 for starters):
+
+| | round 2 | round 3 | real |
+|---|---|---|---|
+| Shots CB / FB / DM / CM | 0.57 / 0.14 / 0.28 / 1.69 | 0.51 / 0.36 / 0.70 / 1.46 | 0.4-0.7 / 0.3-0.6 / 0.5-1 / 0.8-1.6 |
+| Shots WM / W / ST | 0.50 / 1.61 / 3.07 | 0.50 / 1.92 / 2.13 | 1.2-2 / 2-3 / 2.5-3.5 |
+| Non-penalty goals by W + ST | 73% | 57% | 55-60% |
+| Passes CB / DM / WM | 40 / 69 / 53 | 49 / 78 / 46 | 50-70 / 60-70 / 35-45 |
+| Ball time own / middle / final third | 30 / 48 / 21% | 27 / 53 / 21% | ~30 / 45 / 25% |
+| Possession, stronger side (3+ overall) | 54.5% | 56.6% | 55-60% |
+| Strength test (+1.25 attributes) | 53.4% | 58.0%, goals 2.06-0.53 | 55-60% |
+
+Watching (6 matches, `watch.ts` in the session scratchpad: position traces): teammates within 2.5 m
+for 3 s+ 91 -> 37 a match (centre-back with holding midfielder 40 -> 6); a man standing still 8 s+
+2.7 -> 0.7 a match; most passes one way between two men 31 -> 28.
+
+calibrate 80 1 / 201 / 401: 30 / 31 / 31 (miss: won by 4+ 11% on seed 1). Zero violations;
+vitest 70 and `tsc -b` pass.
+Seasons (La Liga, Ronaldo 94, seeds 1, 2, 5, 6, 11, 12): our side 86, 88, 88, 73, 77, 82 goals (mean
+84; round 2 68-78), 85-96 points; Ronaldo 26, 29, 34, 33, 36, 24 (mean 30); league 2.25-2.49 goals a
+match (was ~2.2); goal share DEF / MID / FWD 8 / 23 / 68 (WM counted as midfield).
+
+- **Still off:** wide midfielders shoot too little (0.5; few in these samples); strikers shoot a
+  little less than real (2.1) since their keenness came down to hold Ronaldo near 30; final third
+  21% (25%): a higher in-possession line got 25% but ~15 shots a side; the drafted side's 84 goals
+  is just short of 85; won by 4+ sits near the top of its range on seed 1.
+
 ## Done (session 18, round 2): build-up shape, who has the ball, territory
 
 Causes: wide midfielders were the hub because the flanks were always open and the side was
@@ -692,9 +745,9 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 1. **Draft mode polish**: more club-seasons; saving a draft in progress; a season summary (the record, 38-0 or not) at the end.
 2. **Transfers / scouting** (milestone 4) for the club mode, then development / youth
    (milestone 5). End of season: player ageing, a new season with the same clubs.
-3. **Who has the ball** (after session 18, round 2): centre-backs 42 passes per 90 (real 50-70),
-   wide midfielders 54 (35-45); ball in the final third 20% (25%); the stronger side ~54% (55-60%);
-   full-backs and wide midfielders rarely shoot, forwards take 70% of goals.
+3. **Who has the ball** (after session 18, round 3): ball in the final third 21% (real ~25%; a higher
+   line in possession gets there but every side shoots ~15 times); wide midfielders rarely shoot;
+   the drafted side scores ~84 a season (dominant real sides 85-110).
 4. **Realism gaps**: offsides (0.8–1.2 vs real ~1.8) need a line that steps up together;
    through balls high (~11, shown not scored).
 5. Optional: a friendlier results screen after each matchday (other scores coming in).

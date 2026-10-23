@@ -241,6 +241,11 @@ pulling the repo.
   passes cost more as a spell drags on (`backMultFor`); possession is worth more further up
   (`ATTACKING_KEEP`; shots and crosses forgo part of it); a stronger side (`edgeOf`) is less direct
   and a side two up eases off (`keenness`). `giveBack` escalates per swap, harness `ping-pong`.
+  Round 3: shot keenness by position (`SHOOTING`); one man to a man (`MARK_SHARE`), 4 m spacing in
+  possession (`spaced`), the in-possession line follows the ball (`lineInPossession`), a 26 m block.
+  Season fitness: a player gets back 75% of what a match used (`MATCH_RECOVERY`, season.ts). Look at a
+  match the way a viewer would with position traces (clumping, standing still, repeated passes),
+  not only aggregates.
 - Leagues (session 16): `squads.ts` is the Premier League; `squads-laliga.ts`, `-bundesliga.ts`,
   `-seriea.ts`, `-ligue1.ts` hold ~40 club-seasons each (`Pool.league`), with their own
   LEFT_FOOTED / WEAK_FOOT / ARCHETYPE tables merged in pools.ts. POOLS keeps the Premier League
