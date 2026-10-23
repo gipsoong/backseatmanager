@@ -73,7 +73,7 @@ export const wf = (s: MatchState, team: Side, p: Vec): Vec => toWorld(p, team, s
  * players' attributes at kick-off (EDGE_SCALE attribute points apart is 1, about sixteen overall).
  * The better side is in less of a hurry to go forward (see `keenness`), so it has more of the ball.
  */
-const EDGE_SCALE = 4
+const EDGE_SCALE = 2.5
 const edges = new WeakMap<MatchState, [number, number]>()
 export function edgeOf(s: MatchState, team: Side): number {
   let e = edges.get(s)
@@ -794,7 +794,7 @@ const EAGER = 0.65
  * How readily each position shoots when it has a chance: wide men and holding midfielders have a
  * go, central midfielders more often look for the pass.
  */
-const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.4, DM: 1.3, CM: 0.9, WM: 1.4, W: 1.25, ST: 1 }
+const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.7, DM: 1.4, CM: 1.05, WM: 1.5, W: 1.25, ST: 0.9 }
 const LEAD_SHOTS = 0.4
 const KEEP_FORGONE = 0.7
 
@@ -1635,6 +1635,8 @@ const ARRIVAL: Partial<Record<Archetype, number>> = {
 }
 /** A wide midfielder gets into the box from deep, at the back post or the edge of it. */
 const WIDE_ARRIVAL = 0.6
+/** How often (a tick) the keenest man behind the ball sets off to arrive late in the box. */
+const LATE_RUN_RATE = 0.02
 const arrivalEagerness = (p: PlayerState): number =>
   p.slot.role === 'WM' ? WIDE_ARRIVAL : p.slot.role === 'CM' || p.slot.role === 'DM' || p.slot.role === 'FB' ? (ARRIVAL[p.archetype] ?? 0) * (p.slot.role === 'DM' && p.archetype === 'ballWinner' ? 0.5 : 1) : 0
 
@@ -1655,7 +1657,7 @@ function lateRuns(s: MatchState, owner: PlayerState, a: Vec, started: PlayerStat
     // From behind the ball and outside the box, near enough to get there in time.
     const pa = af(s, p.team, p.pos)
     if (pa.x > a.x + 2 || pa.x > PITCH_LENGTH - BOX_DEPTH || pa.x < a.x - 25) continue
-    const chance = 0.02 * eager * (0.5 + p.def.traits.workRate) * (wide ? 1.4 : 1)
+    const chance = LATE_RUN_RATE * eager * (0.5 + p.def.traits.workRate) * (wide ? 1.4 : 1)
     if (s.rng.chance(chance)) {
       p.runUntil = s.tick + s.rng.int(40, 60)
       p.runTo = null
