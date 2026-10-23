@@ -656,13 +656,35 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
 /**
  * Straight back to the man who just gave it to him, no further forward: nothing gained that the
  * first pass hadn't, and the side that plays it back and forth gets nowhere. Not the return of a
- * one-two (he's gone for it).
+ * one-two (he's gone for it). Each time the two of them have already swapped it, it costs more,
+ * forward or not: two men passing it up the touchline to each other is still a loop.
  */
 function giveBack(d: Decision, q: PlayerState, ta: Vec): number {
-  if ((q.runTo && q.runUntil > d.s.tick) || ta.x > d.a.x + 5) return 0
-  return q.idx === d.s.ball.receivedFromIdx ? GIVE_BACK : 0
+  if (q.runTo && q.runUntil > d.s.tick) return 0
+  // The last pass was q's to him (however he then took it), and how many they swapped before that.
+  const swaps = exchanges(d.s, d.p.idx, q.idx) - 1
+  if (swaps < 0) return 0
+  if (swaps >= MAX_SWAPS) return Infinity
+  if (ta.x > d.a.x + 5 && swaps < 2) return 0
+  return GIVE_BACK * (1 + swaps * swaps)
 }
 const GIVE_BACK = 0.003
+/** After this many swaps between two men he looks for anyone else (the harness's ping-pong limit is six passes). */
+const MAX_SWAPS = 4
+
+/** How many passes in a row, latest first, have gone between a and b (the last one b to a). */
+function exchanges(s: MatchState, a: number, b: number): number {
+  let n = 0
+  let to = a
+  for (let i = s.events.length - 1; i >= 0 && n < 8; i--) {
+    const e = s.events[i]
+    if (e.type !== 'pass') continue
+    if (e.toIdx !== to || e.byIdx !== (to === a ? b : a)) break
+    n++
+    to = e.byIdx
+  }
+  return n
+}
 
 /** Through balls: into the space ahead of a forward, for him to run onto. */
 function throughBallOptions(d: Decision, consider: (o: Option) => void): void {

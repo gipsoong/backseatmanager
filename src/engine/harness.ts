@@ -343,7 +343,8 @@ export function checkMatch(
         if (away && tight) v('shot-on-the-spin', `${e.byIdx} shot going away from goal at ${speed.toFixed(1)}m/s with a man on his back`)
       }
       if (e.type === 'pass') {
-        pingPong = lastPair && lastPair.by === e.toIdx && lastPair.to === e.byIdx ? pingPong + 1 : 1
+        // Open play only: a throw-in or free kick to the man who won it starts a new move.
+        pingPong = !byRestart && lastPair && lastPair.by === e.toIdx && lastPair.to === e.byIdx ? pingPong + 1 : 1
         lastPair = { by: e.byIdx, to: e.toIdx }
         if (pingPong === PING_PONG_LIMIT) v('ping-pong', `${PING_PONG_LIMIT} passes in a row between ${e.byIdx} and ${e.toIdx}`)
         if (team(e.toIdx) !== team(e.byIdx) || !C.players[e.toIdx].onPitch) v('pass-receiver', `pass to ${e.toIdx}`)
