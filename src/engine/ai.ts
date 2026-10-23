@@ -520,6 +520,8 @@ export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): A
   // or carriers stand still waiting for a perfect option.
   let best: Option = { action: { kind: 'hold' }, u: -Infinity }
   const consider = (o: Option): void => {
+    // However he'd play it (lofted, through, crossed), never a fifth swap between the same two men.
+    if (o.action.kind === 'pass' && exchanges(s, p.idx, o.action.toIdx) > MAX_SWAPS) return
     if (o.u > best.u) best = o
   }
   passOptions(d, consider)
@@ -1115,8 +1117,14 @@ const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
 const DM_STEP_UP = 76
 const DM_EDGE = 25
 
-/** In possession, how far behind the ball the back line holds (m). */
-const IN_BEHIND = 30
+/**
+ * In possession, where the back line holds (m from our goal) for the ball at x: it follows the ball
+ * all the way up (a line that only moved once the ball was past halfway left the whole side
+ * standing still, and passing it round the same triangle, while the ball was in our half).
+ */
+const lineInPossession = (x: number): number => clamp(x * LINE_FOLLOWS + LINE_BASE, 20, 58)
+const LINE_FOLLOWS = 0.5
+const LINE_BASE = 6
 
 /** Where a player stands in the team's shape, given the ball and who has it. */
 export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean): Vec {
@@ -1139,7 +1147,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   let length: number
   let widthK: number
   if (inPossession) {
-    lineX = clamp(b.x - IN_BEHIND, 20, 58)
+    lineX = lineInPossession(b.x)
     // Camped in their half, the side stretches up behind the attack: midfielders get to the edge of
     // the box rather than waiting 30 m out.
     length = 42 + Math.max(0, b.x - 70) * 0.4
@@ -1152,7 +1160,8 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     lineX = Math.min(clamp(b.x - 22, lo, hi) - (unpressured ? 7 : 0), Math.max(b.x - 2, 4))
     // Ball wide near our byline: drop to the six-yard box, where the crosses are aimed.
     if (b.x < 24 && Math.abs(b.y - CENTER.y) > 10) lineX = Math.min(lineX, 6)
-    length = 30
+    // A compact block: about 26 m from back line to front (30 left too much room between the lines).
+    length = 26
     widthK = 0.7
   }
   const arch = p.archetype
@@ -1180,7 +1189,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   const bu = inPossession ? buildUpSpot(s, p, b) : null
   if (bu) target = bu
   // An inverted full-back steps into midfield with the ball, beside the holding player.
-  if (inPossession && arch === 'inverted' && p.slot.attackDepth <= 0.5 && b.x > 35) target = vec(lineX + 0.3 * length, CENTER.y + Math.sign(p.slot.y - CENTER.y) * 9)
+  if (inPossession && arch === 'inverted' && p.slot.attackDepth <= 0.5 && b.x > 35) target = vec(lineX + 0.3 * length, CENTER.y + Math.sign(p.slot.y - CENTER.y) * 9 + (b.y - CENTER.y) * 0.2)
   // A winger with the ball central in the final third comes inside off his touchline, into the
   // channel between full-back and centre-back, level with the edge of the box: where he can
   // shoot or slip the striker in.
@@ -1359,7 +1368,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
 
   if (owner.team === p.team) {
     const running = p.runUntil > s.tick
-    return { target: shapeTarget(s, p, true), urgency: running ? 1 : 0.6 }
+    const target = shapeTarget(s, p, true)
+    return { target: running && p.runTo ? target : spaced(s, p, target), urgency: running ? 1 : 0.6 }
   }
 
   // Out of possession: nearest player engages the carrier, the next covers behind him; others hold shape and mark.
@@ -1375,7 +1385,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   if (chasers.get(p.idx) === 0) {
     const oa = af(s, p.team, owner.pos)
     const block = s.teams[p.team].block
-    const pressLine = { low: 38, mid: 55, high: 105 }[block]
+    // The better side presses higher, the weaker one sits off: the ball goes to the better side.
+    const pressLine = { low: 38, mid: 55, high: 105 }[block] + PRESS_BY_EDGE * edgeOf(s, p.team)
     const goalSide = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
     const t = p.def.traits
     // A hard-working presser pushes the press a little higher up the pitch.
@@ -1393,6 +1404,29 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   }
   return defendIntent(s, p, shapeTarget(s, p, false))
 }
+
+/** In possession, a man keeps this far from a teammate (m): two on one spot offer one pass, not two. */
+const SPACING = 4
+
+/** His spot, moved off a teammate already standing on it (or the carrier). */
+function spaced(s: MatchState, p: PlayerState, target: Vec): Vec {
+  for (const q of teammatesOf(s, p.team)) {
+    if (q.idx === p.idx || q.slot.role === 'GK') continue
+    const d = dist(q.pos, target)
+    if (d >= SPACING || dist(q.pos, target) > dist(p.pos, target)) continue
+    const away = d > 0.1 ? norm(sub(target, q.pos)) : norm(sub(p.pos, q.pos))
+    return add(target, scale(away, SPACING - d))
+  }
+  return target
+}
+
+/** How much higher (m) a side presses for each unit of edge (see edgeOf); lower for a weaker side. */
+const PRESS_BY_EDGE = 0
+
+/** A man is left to a teammate this much nearer him (m). */
+const MARK_SHARE = 2
+/** ...and only if that teammate is on him, this close (m): not someone merely nearer, off pressing the ball. */
+const MARKED = 4
 
 /** Hold the zone, but stay goal-side of any opponent who comes into it. Sprint back if out of position. */
 function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
@@ -1424,11 +1458,20 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
   }
   if (p.slot.role !== 'GK') {
     let mark: PlayerState | null = null
+    const back = p.slot.role === 'CB' || p.slot.role === 'FB'
+    const zoneX = af(s, p.team, zone).x
     for (const o of opponentsOf(s, p.team)) {
       if (o.slot.role === 'GK' || o.idx === s.ball.ownerIdx || dist(o.pos, zone) > 10) continue
       // A man arriving late from deep is easy to lose, watching the ball: he's picked up only once
       // he's close, sooner by a good marker.
       if (o.runKind === 'late' && o.runUntil > s.tick && dist(o.pos, p.pos) > 3 + p.attrs.marking * 0.25) continue
+      // One man to a man: if a teammate is clearly nearer him, he's that teammate's (two on one
+      // forward leaves a centre-back and the holding midfielder standing on each other).
+      // A midfielder leaves a man who has gone in behind him to the back line, rather than
+      // dropping in among it.
+      if (!back && af(s, p.team, o.pos).x < zoneX - 4) continue
+      const od = dist(o.pos, p.pos)
+      if (teammatesOf(s, p.team).some((q) => q.idx !== p.idx && q.slot.role !== 'GK' && dist(q.pos, o.pos) < Math.min(od - MARK_SHARE, MARKED))) continue
       if (!mark || dist(o.pos, zone) < dist(mark.pos, zone)) mark = o
     }
     if (mark) {
@@ -1640,7 +1683,8 @@ function lateRunSpot(s: MatchState, p: PlayerState, b: Vec): Vec | null {
   // A wide midfielder: the back post from the far side, the edge of the box from the near one.
   if (p.slot.role === 'WM') return Math.sign(p.slot.y - CENTER.y) === -side ? spot(PITCH_LENGTH - 7, CENTER.y - side * 5) : spot(PITCH_LENGTH - 15, CENTER.y + side * 9)
   const inside = p.archetype === 'boxToBox' || p.archetype === 'playmaker'
-  if (wide && b.x > 80) return inside ? spot(PITCH_LENGTH - 11, CENTER.y - side * 1.5) : spot(PITCH_LENGTH - 16, CENTER.y + side * 2)
+  // (The striker has the near post and the spot: the man from deep takes the cut-back zone.)
+  if (wide && b.x > 80) return inside ? spot(PITCH_LENGTH - 13, CENTER.y + side * 4) : spot(PITCH_LENGTH - 17, CENTER.y - side * 3)
   return p.archetype === 'boxToBox' ? spot(PITCH_LENGTH - 13, CENTER.y - side * 4) : spot(PITCH_LENGTH - 18, CENTER.y - side * 6)
 }
 

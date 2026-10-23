@@ -634,7 +634,7 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
     // Off a body at pace it goes anywhere: on, wide, looping up; often behind. A shot, struck
     // hardest, spins off at the widest angles and loops highest.
     const shot = k?.kind === 'shot'
-    return deflect(t, 'block', s.rng.range(0.35, 0.6), s.rng.range(-0.3, 0.9), shot ? 1.1 : 0.7, shot ? 6 : 3)
+    return deflect(t, 'block', s.rng.range(0.35, 0.6), s.rng.range(-0.3, 0.9), shot ? 1.1 : 0.7, shot ? SHOT_BLOCK_LIFT : 3)
   }
   if (fromOpponent && k?.lofted && p.slot.role !== 'GK' && glancedBehind(t)) return true
   if (height > AERIAL_HEIGHT) return header(s, p, contact, height, out)
@@ -701,7 +701,7 @@ function chargeDown(t: Touch): boolean {
   // going (so from near the byline, often behind). A shot, struck hardest, spins off at wide
   // angles. Anything else comes back off him.
   if (k.lofted) return deflect(t, 'block', rng.range(0.5, 0.75), rng.range(0.2, 0.9), 0.6, 5)
-  if (k.kind === 'shot') return deflect(t, 'block', rng.range(0.35, 0.6), rng.range(0, 0.9), 1.1, 6)
+  if (k.kind === 'shot') return deflect(t, 'block', rng.range(0.35, 0.6), rng.range(0, 0.9), 1.1, SHOT_BLOCK_LIFT)
   return deflect(t, 'block', 0.45, rng.range(-0.6, 0.6))
 }
 
@@ -1041,6 +1041,8 @@ function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; sp
 
 /** Chance a challenge is a foul, before the tackler's temper and aggression and how well he tackles. */
 const FOUL_BASE = 0.13
+/** How readily a defender goes in for a tackle in his own third, against elsewhere. */
+const OWN_THIRD_TACKLING = 0.85
 /**
  * A through ball's error, times an ordinary pass's: weighting one into the space behind a line is
  * hard (real ones find their man ~40-55% of the time; without this, ~65%).
@@ -1048,6 +1050,8 @@ const FOUL_BASE = 0.13
 const THROUGH_BALL_ERROR = 5
 /** How much a man closing him down (pressureOn 1) takes off a poor first touch's chance of keeping it. */
 const FIRST_TOUCH_PRESSURE = 0.3
+/** How hard (m/s, upward at most) a blocked shot loops up off the body. */
+const SHOT_BLOCK_LIFT = 3.5
 
 function challenges(s: MatchState, out: MatchEvent[]): void {
   const c = s.players[s.ball.ownerIdx!]
@@ -1067,15 +1071,17 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   // Most of the time a defender jockeys, shows him away and waits; an aggressive one goes in sooner.
   // Up the pitch, forwards counter-press the ball they've just lost.
   const finalThird = af(s, o.team, c.pos).x > 70
+  // In his own third he holds his ground a little more: a missed tackle there is a chance.
+  const ownThird = af(s, o.team, c.pos).x < 35
   // A poor tackler jockeys rather than dives in: a forward goes in about half as often as a centre-back.
   const willing = clamp(0.4 + (o.attrs.standingTackle - 6) * 0.1, 0.4, 1.4)
-  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : 1) * willing)) return
+  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : ownThird ? OWN_THIRD_TACKLING : 1) * willing)) return
 
   const oa = o.attrs
   const ca = c.attrs
   const inOwnBox = inPenaltyArea(c.pos, ownGoalX(o.team, s.half))
   // Players go in more carefully in their own box, and once they've been booked.
-  const care = (inOwnBox ? 0.25 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
+  const care = (inOwnBox ? 0.2 : 1) * (o.yellowCards > 0 ? 0.5 : 1)
   // Going in from beyond standing reach means going to ground.
   const style: TackleStyle = dist(o.pos, c.pos) > SLIDE_TACKLE_DISTANCE ? 'slide' : 'standing'
   const skill = o.slot.role === 'GK' ? (oa.diving + oa.handling) / 2 + 3 : style === 'slide' ? oa.slidingTackle : oa.standingTackle
