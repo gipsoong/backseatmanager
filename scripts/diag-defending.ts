@@ -2,15 +2,18 @@
  * Who wins the ball, by position, per 90 for starters (real ranges alongside), and how opponents'
  * passes were won: cut out on the way (interception), taken off the receiver (a duel, counted as a
  * tackle), blocked by a man on the passer, or picked up once they'd run on (a recovery).
- * `node scripts/diag-defending.ts [n] [first seed]` (draft club-season matches).
+ * `node scripts/diag-defending.ts [n] [first seed] [--random]` (draft club-season matches, or with
+ * --random made-up club-mode sides, as calibrate plays).
  */
-import { runMatch } from '../src/engine/index.ts'
+import { randomTeam, runMatch } from '../src/engine/index.ts'
 import { POOLS } from '../src/draft/pools.ts'
 import { poolTeam } from '../src/draft/draft.ts'
 import { playerLines } from '../src/viewer/players.ts'
 
-const n = Number(process.argv[2] ?? 30)
-const seed0 = Number(process.argv[3] ?? 1000)
+const args = process.argv.slice(2).filter((a) => a !== '--random')
+const random = process.argv.includes('--random')
+const n = Number(args[0] ?? 30)
+const seed0 = Number(args[1] ?? 1000)
 const ROLES = ['CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 // Rough top-league per-90 figures (Opta-style): tackles won, interceptions.
 const REAL: Record<string, string> = { CB: '1.0 / 1.4', FB: '1.3 / 1.2', DM: '1.7 / 1.3', CM: '1.3 / 0.9', WM: '1.0 / 0.7', W: '0.7 / 0.4', ST: '0.4 / 0.2' }
@@ -20,7 +23,8 @@ let ints = 0
 for (let i = 0; i < n; i++) {
   const a = i % POOLS.length
   const b = (i * 7 + 3) % POOLS.length === a ? (a + 1) % POOLS.length : (i * 7 + 3) % POOLS.length
-  const m = runMatch(poolTeam(a, new Set()), poolTeam(b, new Set()), { seed: seed0 + i })
+  const seed = seed0 + i
+  const m = random ? runMatch(randomTeam(seed * 2 + 1), randomTeam(seed * 2 + 2), { seed }) : runMatch(poolTeam(a, new Set()), poolTeam(b, new Set()), { seed })
   const lines = playerLines(m, m.events)
   m.players.forEach((p, k) => {
     const l = lines[k]

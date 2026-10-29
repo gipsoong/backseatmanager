@@ -162,7 +162,10 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
   const teams: [TeamDef, TeamDef] = [home, away]
   const players: PlayerState[] = []
   const player = (team: Side, def: PlayerDef, slot: Slot, onPitch: boolean): PlayerState => {
-    const baseSpeed = 5.8 + (def.attrs.sprintSpeed / 20) * 2.8
+    // A keeper's card speed is on a lower scale than an outfield player's (a typical one is 40-55),
+    // and he only ever runs a few yards: it counts half as much, about a 10.
+    const sprint = slot.role === 'GK' ? (def.attrs.sprintSpeed + 10) / 2 : def.attrs.sprintSpeed
+    const baseSpeed = 5.8 + (sprint / 20) * 2.8
     const energy = config.fitness?.[def.id] ?? 1
     return {
       idx: players.length,
@@ -1067,9 +1070,9 @@ function celebrate(s: MatchState, scorer: PlayerState): { style: Celebration; sp
 // Challenges
 
 /** Chance a challenge is a foul, before the tackler's temper and aggression and how well he tackles. */
-const FOUL_BASE = 0.13
+const FOUL_BASE = 0.14
 /** How readily a defender goes in for a tackle in his own third, against elsewhere. */
-const OWN_THIRD_TACKLING = 0.85
+const OWN_THIRD_TACKLING = 0.75
 /**
  * A through ball's error, times an ordinary pass's: weighting one into the space behind a line is
  * hard (real ones find their man ~40-55% of the time; without this, ~65%).
@@ -1079,6 +1082,9 @@ const THROUGH_BALL_ERROR = 5
 const FIRST_TOUCH_PRESSURE = 0.3
 /** How hard (m/s, upward at most) a blocked shot loops up off the body. */
 const SHOT_BLOCK_LIFT = 3.5
+
+/** The tackling a man who goes in wins it with at the least: a forward's card defending is 1-3. */
+const TACKLE_FLOOR = 8
 
 function challenges(s: MatchState, out: MatchEvent[]): void {
   const c = s.players[s.ball.ownerIdx!]
@@ -1115,7 +1121,8 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   // His tackling against the carrier's close control and footwork; the stronger man holds his ground.
   const evade = ca.dribbling * 0.7 + ca.agility * 0.3
   const pFoul = clamp(FOUL_BASE + traits.temper * 0.1 + traits.aggression * 0.06 + ((evade - skill) / 20) * 0.08, 0.04, 0.3) * care
-  const won = rng.chance(clamp(0.58 + (skill - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
+  // However poor a tackler, a man who does go in wins some (often from behind, on a carrier facing away).
+  const won = rng.chance(clamp(0.58 + (Math.max(skill, TACKLE_FLOOR) - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
   // Beaten outside his own box, a hot-headed defender may just pull him back.
   const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care)
   // A poor slide tackle is a foul waiting to happen.

@@ -1,7 +1,7 @@
 import { clamp } from './geometry.ts'
 import { Rng } from './rng.ts'
-import { archetypeFrom } from './archetypes.ts'
-import { POSITIONAL, expandAttributes } from './attributes.ts'
+import { type Archetype, archetypeFrom, cardFor } from './archetypes.ts'
+import { type Card, OVERALL_SHIFT, POSITIONAL, cardAttributes, expandAttributes, positionLevel } from './attributes.ts'
 import type { Attributes, Block, Formation, Kit, LegacyAttributes, PlayerDef, Role, Slot, TeamDef, Traits } from './types.ts'
 
 const s = (role: Role, depth: number, y: number, attackDepth = 0): Slot => ({ role, depth, y, attackDepth })
@@ -202,9 +202,50 @@ export function makeTraits(rng: Rng, role: Role): Traits {
   }
 }
 
-function madeUp(rng: Rng, role: Role, quality: number): Pick<PlayerDef, 'attrs' | 'traits'> {
+/**
+ * How far a made-up player's position level (`positionLevel`) sits from his squad's quality: where
+ * the old profiles' position skills sat, so sides play as strongly as they did.
+ */
+const CARD_LEVEL: Record<Role, number> = { GK: 0, CB: 0.15, FB: -0.4, DM: 0.1, CM: 0.05, WM: 0.1, W: -0.65, ST: -0.4 }
+
+/** A card rating for a level, unrounded (the inverse of `fromRating`). */
+const ratingAt = (v: number): number => (v <= 15 ? 80 + (v - 13.5) * 4 : 86 + (v - 15) * 6)
+
+/**
+ * A made-up player's card: his archetype's at the overall that puts his position's skills at his
+ * quality, varied a little group by group, and by build: some quick and slight, some slow and
+ * strong, so two strikers of a level aren't the same man.
+ */
+function madeCard(rng: Rng, base: Attributes, role: Role, archetype: Archetype, quality: number): Attributes {
+  const target = quality + CARD_LEVEL[role]
+  const vary = Array.from({ length: 6 }, () => rng.gauss() * 3)
+  // A wide midfielder tracks back more than a winger.
+  if (role === 'WM') vary[4] += 10
+  if (role !== 'GK') {
+    const build = rng.gauss()
+    vary[0] += 5 * build
+    vary[5] -= 4 * build
+  }
+  // The same jitter each time round, so only the overall moves.
+  const jitters: number[] = []
+  let x = ratingAt(target)
+  let attrs = base
+  for (let round = 0; round < 4; round++) {
+    let i = 0
+    const jitter = (): number => (jitters[i] ??= rng.gauss() * 0.7, jitters[i++])
+    const card = cardFor(archetype, x).map((v, g) => Math.round(Math.max(30, Math.min(99, v + vary[g])))) as Card
+    attrs = cardAttributes(base, card, role, archetype, x, jitter)
+    x += (target - positionLevel(attrs, role)) * (x < 86 ? 4 : 6)
+  }
+  return attrs
+}
+
+function madeUp(rng: Rng, role: Role, quality: number): Pick<PlayerDef, 'attrs' | 'traits' | 'archetype' | 'card'> {
   const traits = makeTraits(rng, role)
-  return { attrs: makeAttributes(rng, role, quality, traits), traits }
+  const profile = makeProfile(rng, role, quality)
+  const archetype = archetypeFrom(profile, traits, role)
+  const base = expandAttributes(profile, role, archetype, () => rng.gauss() * 0.8)
+  return { attrs: madeCard(rng, base, role, archetype, quality), traits, archetype, card: true }
 }
 
 /**
@@ -214,6 +255,10 @@ function madeUp(rng: Rng, role: Role, quality: number): Pick<PlayerDef, 'attrs' 
 export function makePlayer(rng: Rng, id: string, name: string, shirt: number, role: Role, quality: number): PlayerDef {
   return { id, name, shirt, role, ...madeUp(rng, role, quality), positions: makePositions(rng, role), ...makeFeet(rng) }
 }
+
+/** A made-up player whose overall (`ability` x 5) is about `overall`: his card at the quality that gives it. */
+export const makePlayerAt = (rng: Rng, id: string, name: string, shirt: number, role: Role, overall: number): PlayerDef =>
+  makePlayer(rng, id, name, shirt, role, overall / 5 - CARD_LEVEL[role] - OVERALL_SHIFT[role])
 
 /** A made-up name, from the same lists as the clubs' players. */
 export const madeUpName = (rng: Rng): string => `${rng.pick(FIRST)} ${rng.pick(ALL_LAST)}`
@@ -251,15 +296,11 @@ export function randomTeam(seed: number, block?: Block, formation?: Formation): 
     names.add(name)
     return name
   }
-  const players: PlayerDef[] = FORMATIONS[f].map((slot, i) => ({
-    id: `${seed}-${i}`,
-    name: uniqueName(),
-    shirt: i + 1,
-    role: slot.role,
-    ...madeUp(rng, slot.role, quality),
-    positions: makePositions(rng, slot.role),
-    ...makeFeet(rng, slot),
-  }))
+  const players: PlayerDef[] = FORMATIONS[f].map((slot, i) => {
+    const name = uniqueName()
+    const made = madeUp(rng, slot.role, quality)
+    return { id: `${seed}-${i}`, name, shirt: i + 1, role: slot.role, ...made, positions: makePositions(rng, slot.role), ...makeFeet(rng, slot, made.archetype) }
+  })
   // A bench covering every line, a notch below the first team.
   const bench: PlayerDef[] = BENCH_ROLES.map((role, i) => ({
     id: `${seed}-${11 + i}`,
@@ -359,8 +400,10 @@ export function playingAttributes(def: PlayerDef, place: Role | Slot): Attribute
  * Made-up players' feet: about one in four left-footed; most with an average weaker foot. Wide
  * players are mostly on their own foot's flank, as clubs pick them.
  */
-function makeFeet(rng: Rng, slot?: Slot): Pick<PlayerDef, 'foot' | 'weakFoot'> {
-  const side = slot && WIDE.includes(slot.role) ? sideOf(slot) : null
+function makeFeet(rng: Rng, slot?: Slot, archetype?: Archetype): Pick<PlayerDef, 'foot' | 'weakFoot'> {
+  const flank = slot && WIDE.includes(slot.role) ? sideOf(slot) : null
+  // An inside forward is picked for the flank across from his foot.
+  const side = flank && archetype === 'insideForward' ? (flank === 'L' ? 'R' : 'L') : flank
   const foot = rng.chance(side === 'L' ? 0.85 : side === 'R' ? 0.1 : 0.25) ? 'left' : 'right'
   const r = rng.next()
   return { foot, weakFoot: r < 0.15 ? 2 : r < 0.75 ? 3 : r < 0.95 ? 4 : 5 }
@@ -382,6 +425,7 @@ function makePositions(rng: Rng, role: Role): Role[] | undefined {
  */
 export function ability(def: PlayerDef): number {
   if (def.overall) return def.overall / 5
+  if (def.card) return positionLevel(def.attrs, def.role) + OVERALL_SHIFT[def.role]
   const a = def.attrs
   const vals = def.role === 'GK' ? [a.diving, a.handling, a.reflexes, a.gkPositioning, a.kicking] : (Object.keys(a) as (keyof Attributes)[]).filter((k) => !GK_ONLY.includes(k)).map((k) => a[k])
   return vals.reduce((x, y) => x + y, 0) / vals.length

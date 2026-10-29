@@ -292,6 +292,41 @@ const HEADING_ARCHETYPE: Partial<Record<Archetype, number>> = { targetMan: 2, st
 const STAMINA: Record<Role, number> = { GK: -6, CB: -3, FB: -0.5, DM: -1.5, CM: -0.5, WM: -1, W: -1.5, ST: -3 }
 const STAMINA_ARCHETYPE: Partial<Record<Archetype, number>> = { boxToBox: 1, ballWinner: 1, overlapping: 0.5, targetMan: -1, playmaker: -0.5, deepPlaymaker: -0.5 }
 
+/**
+ * What his position's overall is made of, about FIFA's weights: a striker's finishing, positioning,
+ * heading and touch, a centre-back's tackling, marking and strength. For players made from a card
+ * (`PlayerDef.card`), whose skills away from their position are as low as real players' are, so an
+ * even average of everything would mark a forward down for not defending.
+ */
+export const OVERALL_WEIGHTS: Record<Role, Partial<Record<Sub, number>>> = {
+  GK: { diving: 1, handling: 1, reflexes: 1, gkPositioning: 1, kicking: 1 },
+  CB: { sprintSpeed: 2, heading: 10, shortPassing: 5, ballControl: 4, interceptions: 13, marking: 14, standingTackle: 17, slidingTackle: 14, reactions: 5, strength: 13, jumping: 3 },
+  FB: { acceleration: 5, sprintSpeed: 7, crossing: 9, shortPassing: 7, ballControl: 8, interceptions: 12, marking: 8, standingTackle: 11, slidingTackle: 14, reactions: 8, heading: 4, stamina: 8 },
+  DM: { shortPassing: 14, longPassing: 10, ballControl: 10, interceptions: 14, marking: 9, standingTackle: 12, slidingTackle: 5, reactions: 7, vision: 4, strength: 12, stamina: 6 },
+  CM: { shortPassing: 17, longPassing: 13, vision: 13, ballControl: 14, dribbling: 7, reactions: 8, interceptions: 5, positioning: 6, standingTackle: 5, stamina: 6, longShots: 4 },
+  WM: { acceleration: 7, sprintSpeed: 6, crossing: 10, dribbling: 15, ballControl: 13, shortPassing: 11, longPassing: 5, vision: 7, reactions: 7, positioning: 8, stamina: 5, finishing: 6 },
+  W: { acceleration: 7, sprintSpeed: 6, crossing: 9, dribbling: 16, ballControl: 14, shortPassing: 9, vision: 6, reactions: 7, positioning: 9, finishing: 10, longShots: 4, agility: 3 },
+  ST: { finishing: 20, positioning: 13, heading: 10, shotPower: 10, reactions: 8, dribbling: 7, ballControl: 10, longShots: 3, acceleration: 4, sprintSpeed: 5, strength: 5 },
+}
+
+/** His position's weighted level (1-20), by `OVERALL_WEIGHTS`. */
+export function positionLevel(a: Attributes, role: Role): number {
+  let n = 0
+  let t = 0
+  for (const [k, w] of Object.entries(OVERALL_WEIGHTS[role]) as [Sub, number][]) {
+    n += a[k] * w
+    t += w
+  }
+  return n / t
+}
+
+/**
+ * What a card-made player's position level is shifted by to read on the old scale (club-mode
+ * overalls were an even average of everything, which sat this far below a position's own skills),
+ * so old saves' players and new ones are rated alike.
+ */
+export const OVERALL_SHIFT: Record<Role, number> = { GK: 0, CB: -2.55, FB: -0.9, DM: -1.4, CM: -1.38, WM: -1.53, W: -1.44, ST: -1.35 }
+
 /** Sub-attributes that come from knowing a position: technique and reading the game, not the body. */
 export const POSITIONAL: Sub[] = [
   'finishing',

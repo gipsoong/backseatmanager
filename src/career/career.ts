@@ -4,7 +4,7 @@
  * retirements, the board's target, and the history of seasons gone. Pure and deterministic, like
  * the season: `nextSeason` turns a finished season into the next one.
  */
-import { type Attributes, type PlayerDef, type Role, type TeamDef, Rng, freshName, makePlayer } from '../engine/index.ts'
+import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, freshName, makePlayerAt } from '../engine/index.ts'
 import { type Finance, settle, startFinance } from './money.ts'
 import { type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 
@@ -150,6 +150,9 @@ const YOUNG_GROWTH_WEIGHT: Partial<Record<keyof Attributes, number>> = {
   jumping: 1.5,
 }
 
+/** How readily a card-made player's legs and physique move, at the least (1 is an even share). */
+const BODY_RELEVANCE = 1.5
+
 /**
  * His attributes moved a point at a time until his overall is `target` (or as near as 1-20 allows):
  * the legs first on the way down, and for a young player (`young`) on the way up too.
@@ -158,12 +161,21 @@ export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boole
   const attrs = { ...p.attrs }
   const subs = p.role === 'GK' ? KEEPER_SUBS : (Object.keys(attrs) as (keyof Attributes)[]).filter((k) => !KEEPER_SUBS.includes(k))
   const def = { ...p, attrs }
+  // A card-made player's overall is his position's skills (`OVERALL_WEIGHTS`): those move most, the
+  // rest a little, but the legs and physique as much as ever, whether or not they count in his
+  // overall (an even average of everything for older players, so all alike).
+  const weights = OVERALL_WEIGHTS[p.role]
+  const total = Object.values(weights).reduce((a, b) => a + b, 0)
+  const bodily = (k: keyof Attributes): boolean => k in DECLINE_WEIGHT || k in YOUNG_GROWTH_WEIGHT
+  const relevance = Object.fromEntries(
+    subs.map((k) => [k, p.card ? Math.max(bodily(k) ? BODY_RELEVANCE : 0, 0.3 + ((weights[k] ?? 0) / total) * subs.length) : 1]),
+  ) as Record<keyof Attributes, number>
   for (let i = 0; i < 400; i++) {
     const dir = Math.sign(target - playerRating(def))
     if (dir === 0) break
     const open = subs.filter((k) => (dir > 0 ? attrs[k] < 20 : attrs[k] > 1))
     if (!open.length) break
-    const w = open.map((k) => (declining && dir < 0 ? (DECLINE_WEIGHT[k] ?? 0.6) : young && dir > 0 ? (YOUNG_GROWTH_WEIGHT[k] ?? 1) : 1))
+    const w = open.map((k) => (declining && dir < 0 ? (DECLINE_WEIGHT[k] ?? 0.6) : young && dir > 0 ? (YOUNG_GROWTH_WEIGHT[k] ?? 1) : 1) * relevance[k])
     let r = rng.next() * w.reduce((a, b) => a + b, 0)
     let k = open[open.length - 1]
     for (let j = 0; j < open.length; j++) if ((r -= w[j]) < 0) {
@@ -237,9 +249,9 @@ export const squadsLevel = (teams: TeamDef[]): number => {
   return all.reduce((n, p) => n + playerRating(p), 0) / all.length
 }
 
-/** A made-up player at an overall: a profile near it, then moved there exactly. */
+/** A made-up player at an overall: his card at about it, then moved there exactly. */
 function madeAt(rng: Rng, id: string, name: string, shirt: number, role: Role, overall: number): PlayerDef {
-  return shiftTo(makePlayer(rng, id, name, shirt, role, overall / 5 + 0.5), overall, rng, false)
+  return shiftTo(makePlayerAt(rng, id, name, shirt, role, overall), overall, rng, false)
 }
 
 /** The season over: on to the next, with the same clubs, a summer's development and a fresh fixture list. */

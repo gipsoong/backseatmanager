@@ -129,6 +129,11 @@ export interface PlayerDef {
   side?: 'L' | 'R'
   /** A real player's overall (draft mode), shown instead of one worked out from his attributes. */
   overall?: number
+  /**
+   * Made from a card (club and career players since session 21): his overall is his position's
+   * weighted skills (`positionLevel`), not an even average of everything. Unset in older saves.
+   */
+  card?: true
 }
 
 /** Shirt colours. `family` is used to spot clashes between two kits. */

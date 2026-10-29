@@ -143,8 +143,11 @@ describe('the harness catches inconsistencies', () => {
     let n = 0
     const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 10 }, {
       tamper: (s) => {
-        const e = s.events.at(-1)
-        if (e?.type !== 'pass' || e.tick !== s.tick || n >= 8) return
+        // Every open-play pass of the tick (a restart starts a new move), wherever it is among the tick's events.
+        const now = s.events.filter((r) => r.tick === s.tick)
+        if (now.some((r) => r.type === 'restart')) return
+        const e = now.find((r) => r.type === 'pass')
+        if (e?.type !== 'pass' || n >= 8) return
         const mate = s.players.find((q) => q.team === s.players[e.byIdx].team && q.idx !== e.byIdx && q.onPitch && q.slot.role !== 'GK')!
         pair ??= [e.byIdx, mate.idx]
         const [x, y] = n % 2 === 0 ? pair : [pair[1], pair[0]]
