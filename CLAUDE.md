@@ -381,4 +381,26 @@ pulling the repo.
   never from the strongest side; the top four don't take a rival's two best). AI clubs still get a
   signing for each retirement; the manager's club doesn't. No contracts yet.
 
+- Performance (session 21). A match is ~41k ticks, ~1.3 s on one desktop core (was ~2.4 s). Hot,
+  in order: the per-tick movement intents (`playIntent` → `shapeTarget`, `defendIntent`, ~40%),
+  the carrier's options (`chooseAction`: through balls, passes, their races, ~17%), loose-ball
+  chasers (`pickChasers` → `arrivalOf`), `movePlayer`, ball paths, GC. What made it faster, all
+  without changing a result: a per-tick snapshot (module variable, also held while choosing an
+  action) caching side lists, lines, offside lines, the ball's frame, the corner plan and pair
+  distances (`pairDist`, `nearestTo`); `firstReach` passing over path points a man can't reach even
+  flat out (`arrivalOf` and the race searches stop at the best arrival so far); options bounded
+  before their costly part (a lane, a race) and skipped if they can't beat the best so far, with
+  their random draw still made (`Decision.bestU`, `BOUND_SLACK`); hot geometry on numbers
+  (`ballPath`, `movePlayer`, `afX`, `wfXY`). Rules for such work: keep the RNG draws in the same
+  order and the arithmetic in the same order (a + b + c is not a + (b + c) in floats; `wf(af(p))`
+  is not p), and check with `node scripts/fingerprint.ts` before and after (24 matches: club,
+  career, draft, knockout with penalties; every hash must match) plus `calibrate 80 1` (identical).
+  Profile with `node --cpu-prof` on a small runner; `--no-turbo-inlining` shows helpers' share.
+- Matchday in the browser (`season/simulate.ts`): a lasting pool of workers (one a core while the
+  manager waits, up to 8; one core left free for background work), and results kept by their
+  inputs (sides, seed, fitness of the match's players, tie): the hub starts the day's matches as
+  soon as it shows (`prefetch`), so "Just the result" or the rest of a watched day is mostly done;
+  a changed eleven is a different match and is played afresh. `autoPick` works out each man's
+  ability once a pick (the market asks for many elevens a window day).
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

@@ -10,6 +10,29 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19). Next: contracts,
 in-match management (on hold at the owner's request).
 
+## Done (session 21): a faster matchday
+
+The owner: with 20-club careers, "Just the result" took 10-14 s in the browser (~2.4 s a match on
+one core), on a phone through the single-file artifact. No result may change.
+
+- Engine, ~1.8x on one core (2.3-2.6 s -> 1.2-1.4 s a match): per-tick snapshot caches (side
+  lists, offside lines, ball frame, corner plan, pair distances), arrival searches that skip
+  unreachable stretches and stop at the best arrival so far, options bounded before their races,
+  hot geometry on numbers. `scripts/fingerprint.ts`: 24 matches (club, career, draft, knockout with
+  penalties), identical before and after; `calibrate 80 1` identical; zero violations.
+- Matchday: a lasting worker pool (a worker a core while he waits, up to 8; was at most 3-4 and
+  remade every day), results kept by their inputs, and the day's matches started as soon as the
+  hub shows. `autoPick` 2.5x faster (the market's many elevens; same picks).
+- Measured (Chromium via Playwright, built app, 4-core box, career matchdays 1-3 of 10 matches,
+  box quiet): before 13.6 / 12.9 / 11.9 s; now, pressed at once 10.7 (cold workers) / 4.4 / 4.1 s;
+  after 3 s on the hub 3.6 / 0.6 / 1.3 s. Chrome's CPU throttling reaches only the page, not
+  workers (CDP refuses it for workers), so a phone can't be mimicked for the matches themselves;
+  per match it's ~4x the desktop's. Under another session's heavy load (load 7-11) the ratio held
+  (~1.7-2x at once, more with a look at the hub). Harness: `node pw.cjs <dist> <throttle> <dwell>`
+  style scripts in the scratchpad, not in the repo.
+- **Open:** the first matchday after load is slow (cold workers and JIT); allocation (GC ~10-15%)
+  is the engine's next lever; worker pool on a phone not yet tried on a real device.
+
 ## Done (session 20): player cards that look like the player
 
 The owner: Kane 90 showed PAC 86, SHO 80, DRI 92, DEF 72 (real ~70/93/83/47). Every draft player

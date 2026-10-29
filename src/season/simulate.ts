@@ -128,7 +128,7 @@ const poolSize = (): number => Math.max(1, Math.min(8, cores()))
 /** Background matches leave a core for the page (a match being watched, the hub's animations). */
 const backgroundLimit = (): number => Math.max(1, Math.min(poolSize(), cores() - 1))
 /** Idle workers are let go after this long (ms). */
-const IDLE = 60_000
+const IDLE = 180_000
 
 const queue: Job[] = []
 const slots: Slot[] = []
