@@ -288,7 +288,7 @@ function ballUnpressured(s: MatchState, team: Side): boolean {
   const cached = snap?.unpressured?.[team]
   if (cached !== undefined) return cached
   const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
-  const v = owner !== null && owner.team !== team && nearestDist(teammatesOf(s, team), owner.pos) > 4
+  const v = owner !== null && owner.team !== team && nearestTo(s, teammatesOf(s, team), owner) > 4
   if (snap) (snap.unpressured ??= [])[team] = v
   return v
 }
@@ -567,6 +567,13 @@ export function pressureOn(s: MatchState, p: PlayerState): number {
     most = Math.max(most, Math.min(1, near) * (0.4 + ((o.attrs.standingTackle + o.attrs.marking) / 40) * 0.9))
   }
   return clamp(most * (1 + (13 - p.attrs.composure) * 0.03), 0, 1)
+}
+
+/** `nearestDist(ps, q.pos)`, from the snapshot's pair distances. */
+function nearestTo(s: MatchState, ps: PlayerState[], q: PlayerState): number {
+  let best = Infinity
+  for (const o of ps) best = Math.min(best, pairDist(s, o, q))
+  return best
 }
 
 function nearestDist(ps: PlayerState[], p: Vec): number {
@@ -1481,7 +1488,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
       else if (role === 'ST' && p.slot.depth >= 1) target = vec(Math.max(target.x, line - (arch === 'targetMan' ? 4 : 2)), target.y)
       // Marked tight: check back towards the ball to make a yard of space for a pass to feet.
       const ownerPos = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx].pos
-      if (forward && ownerPos && nearestDist(opponentsOf(s, team), p.pos) < 2.5 && dist(ownerPos, p.pos) > 14) {
+      if (forward && ownerPos && nearestTo(s, opponentsOf(s, team), p) < 2.5 && dist(ownerPos, p.pos) > 14) {
         target = add(target, scale(norm(sub(af(s, team, ownerPos), target)), 6))
       }
       // On the shoulder of the last defender, drifting a little either side of him as the line
@@ -1507,7 +1514,7 @@ function buildUpSpot(s: MatchState, p: PlayerState, b: Vec): Vec | null {
   if (b.x > BUILD_UP_TO) return null
   const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
   if (!owner || owner.team !== p.team) return null
-  if (nearestDist(opponentsOf(s, p.team), owner.pos) < BUILD_UP_UNPRESSED) return null
+  if (nearestTo(s, opponentsOf(s, p.team), owner) < BUILD_UP_UNPRESSED) return null
   const side = Math.sign(p.slot.y - CENTER.y)
   switch (p.slot.role) {
     case 'CB':
@@ -1871,14 +1878,14 @@ export function maybeStartRuns(s: MatchState): PlayerState[] {
 
 function runsInBehind(s: MatchState, owner: PlayerState, started: PlayerState[]): void {
   const opps = opponentsOf(s, owner.team)
-  const time = nearestDist(opps, owner.pos) > 5 ? 2.5 : 1
+  const time = nearestTo(s, opps, owner) > 5 ? 2.5 : 1
   const line = offsideLine(s, owner.team, owner.pos)
   for (const p of teammatesOf(s, owner.team)) {
     if (p.idx === owner.idx || p.runUntil > s.tick) continue
     if (p.slot.role !== 'ST' && p.slot.role !== 'W' && p.slot.role !== 'WM') continue
     // From on (or near) the line: a run from deep is just getting forward.
     if (afX(s, p.team, p.pos) < line - 12) continue
-    const marked = nearestDist(opps, p.pos) < 3 ? 1.6 : 1
+    const marked = nearestTo(s, opps, p) < 3 ? 1.6 : 1
     const style = p.archetype === 'poacher' ? 1.5 : p.archetype === 'targetMan' || p.archetype === 'falseNine' ? 0.4 : 1
     const chance = (0.002 + (p.attrs.positioning / 20) * 0.002) * time * marked * (0.5 + p.def.traits.workRate) * style
     if (s.rng.chance(chance)) {
