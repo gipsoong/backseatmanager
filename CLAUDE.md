@@ -356,4 +356,19 @@ pulling the repo.
   a season; run seeds in parallel): goals a match, top scorer, best side, league level, per-90 by line
   and age. `career/fake.ts` plays a season without the engine, for tests of the long run.
 
+- Career market (session 19, stage 2): career leagues are 20 clubs, 38 matchdays (`LEAGUE_SIZE`);
+  `leagueTeams` renames so nobody in a squad shares a surname (`freshName`; randomTeam itself is
+  untouched, so friendlies and calibrate play the same). `career/money.ts`: `marketValue` (overall
+  priced by position, `ROLE_OFFSET`, plus some of his room to grow while young, less with age),
+  `wage`, `wageBill`, `Career.finance` (cash, income ≈ the starting wage bill; `settle` each summer
+  adds income and prize money, takes wages). Windows in a career: August's and January's matchdays
+  (`windowOf`, `thisWindow` scope the per-window limits). `draft/transfers.ts` serves both modes:
+  draft is unchanged (players only); a career deal may carry a `fee` (+ the manager pays), judged by
+  `judgeForMoney` / `askingPrice` (values, a margin, `POINT_VALUE` £m per point of sideOf's curve,
+  whose reference is the league's level, `curveRef`); offers are bids for your players
+  (`moneyOffers`). `career/market.ts` `marketDay`: the other clubs' deals among themselves, called
+  after each matchday and at a season's start (≤ 2 a matchday, ≤ 5 a window; one per club a window;
+  never from the strongest side; the top four don't take a rival's two best). AI clubs still get a
+  signing for each retirement; the manager's club doesn't. No contracts yet.
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

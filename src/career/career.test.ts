@@ -43,6 +43,16 @@ describe('ageing', () => {
     expect(playerRating(down)).toBe(playerRating(p) - 3)
     const fell = (k: 'sprintSpeed' | 'acceleration' | 'vision' | 'marking'): number => p.attrs[k] - down.attrs[k]
     expect(fell('sprintSpeed') + fell('acceleration')).toBeGreaterThan(fell('vision') + fell('marking'))
+    // A young player fills out: pace comes on more than the rest on the way up.
+    const low = { ...p, attrs: Object.fromEntries(Object.entries(p.attrs).map(([k, v]) => [k, Math.min(v, 12)])) as unknown as typeof p.attrs }
+    let legs = 0
+    let mind = 0
+    for (let i = 0; i < 20; i++) {
+      const grown = shiftTo(low, playerRating(low) + 4, new Rng(i), false, true)
+      legs += grown.attrs.sprintSpeed + grown.attrs.acceleration - low.attrs.sprintSpeed - low.attrs.acceleration
+      mind += grown.attrs.vision + grown.attrs.marking - low.attrs.vision - low.attrs.marking
+    }
+    expect(legs).toBeGreaterThan(mind * 1.5)
   })
 })
 
