@@ -652,9 +652,9 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
 }
 
 /** Interceptions from which a man gets a foot to every opponent's pass that comes within reach. */
-const READS_PASSES = 14
-/** How often he does below that: 0.8 at 10, 0.6 at 6, 0.4 at the worst. */
-const readsPass = (interceptions: number): number => clamp(1 - (READS_PASSES - interceptions) * 0.05, 0.4, 1)
+const READS_PASSES = 6
+/** How often he does below that: 0.88 at 5, 0.64 at 3, 0.4 at 1 (a forward who never defends). */
+const readsPass = (interceptions: number): number => clamp(1 - (READS_PASSES - interceptions) * 0.12, 0.4, 1)
 
 /** Offside: judged from positions when the ball was played, called when the player gets involved. */
 function offsideCall({ s, p, out }: Touch): true {
