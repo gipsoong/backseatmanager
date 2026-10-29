@@ -293,15 +293,14 @@ export function Transfers({
               return (
                 <li key={i}>
                   <Swatch kit={season.teams[club].kit} />{" "}
-                  {inIds.map(name).join(", ")}{" "}
-                  <span className="muted">in, for</span>{" "}
-                  {outIds.map(name).join(", ")}{" "}
-                  {t.fee && (
-                    <span>
-                      {" "}
-                      {t.fee.from === season.userTeam ? "paying" : "receiving"}{" "}
-                      {money(t.fee.amount)}
-                    </span>
+                  {dealText(
+                    inIds.map(name),
+                    outIds.map(name),
+                    t.fee
+                      ? t.fee.from === season.userTeam
+                        ? t.fee.amount
+                        : -t.fee.amount
+                      : 0,
                   )}{" "}
                   <span className="muted">
                     · {season.teams[club].name}, before matchday {t.matchday}
@@ -330,6 +329,15 @@ export function Transfers({
       )}
     </div>
   );
+}
+
+/** "X in, for Y and £3m", "X in for £11m", "Y out for £5m". */
+function dealText(inn: string[], out: string[], paid: number): string {
+  const fee = paid ? money(Math.abs(paid)) : "";
+  if (!inn.length) return `${out.join(", ")} out${paid < 0 ? ` for ${fee}` : ""}`;
+  const give = [...out, ...(paid > 0 ? [fee] : [])].join(" and ");
+  const got = paid < 0 ? ` and ${fee}` : "";
+  return `${inn.join(", ")} in${got}${give ? `, for ${give}` : ""}`;
 }
 
 /** What a deal does to one side: its eleven's rating before and after, and the reasons. */

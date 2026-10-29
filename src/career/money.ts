@@ -5,7 +5,7 @@
  * A player's value comes from his overall, his age and his room to grow: a 19-year-old who could
  * become an 80 is worth far more than a 30-year-old of the same overall today.
  */
-import type { PlayerDef } from '../engine/index.ts'
+import type { PlayerDef, Role } from '../engine/index.ts'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
 import type { Person } from './career.ts'
 
@@ -15,6 +15,13 @@ export interface Finance {
   /** What a club takes in a season before prize money (gate, television, sponsors), by club. */
   income: number[]
 }
+
+/**
+ * How far a position's overalls sit from the league's (made-up players' overalls average their
+ * sub-attributes, so a keeper reads ~7 high and a centre-back ~4 low): a keeper of 62 is priced like
+ * an average player, not a star.
+ */
+const ROLE_OFFSET: Record<Role, number> = { GK: 7, CB: -4, FB: 2, DM: 0, CM: 1, WM: -1, W: -3, ST: -1 }
 
 /** The overall his value is priced at: today's, plus some of what he could become while he's young. */
 function pricedAt(overall: number, who: Person | undefined): number {
@@ -28,7 +35,7 @@ function pricedAt(overall: number, who: Person | undefined): number {
 export function marketValue(p: PlayerDef, who: Person | undefined): number {
   const age = who?.age ?? 26
   const ageing = age <= 29 ? 1 : Math.max(0.25, 1 - 0.17 * (age - 29))
-  const v = 2 * 1.16 ** (pricedAt(playerRating(p), who) - 55) * ageing
+  const v = 2 * 1.16 ** (pricedAt(playerRating(p), who) - ROLE_OFFSET[p.role] - 55) * ageing
   return Math.max(0.1, Math.round(v * 10) / 10)
 }
 
