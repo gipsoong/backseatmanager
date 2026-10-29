@@ -98,7 +98,7 @@ export const onPitch = (s: MatchState): PlayerState[] => s.players.filter((p) =>
  * lists can't change, so they're built once per tick; callers must not modify them.
  */
 export function teammatesOf(s: MatchState, team: Side): PlayerState[] {
-  const snap = snapshots.get(s)
+  const snap = snapOf(s)
   const cached = snap?.sides?.[team]
   if (cached) return cached
   const list = s.players.filter((p) => p.onPitch && p.team === team)
@@ -176,7 +176,7 @@ export function offsideLine(s: MatchState, team: Side, ballPos: Vec): number {
 
 /** Where `team`'s opponents' second-last player stands, in `team`'s attacking frame. */
 export function defensiveLine(s: MatchState, team: Side): number {
-  const snap = snapshots.get(s)
+  const snap = snapOf(s)
   const cached = snap?.lines[team]
   if (cached !== undefined) return cached
   let first = -Infinity
@@ -209,19 +209,27 @@ interface Snapshot {
   path?: BallPoint[]
   arrivals?: Map<number, { ticks: number; point: BallPoint }>
 }
-const snapshots = new WeakMap<MatchState, Snapshot>()
+// One match steps at a time (a tick runs start to finish), so the snapshot is a module variable
+// rather than a WeakMap lookup on every call.
+let snapState: MatchState | null = null
+let snapData: Snapshot | null = null
+const snapOf = (s: MatchState): Snapshot | undefined => (snapState === s && snapData ? snapData : undefined)
 
 export function beginMovement(s: MatchState): void {
-  snapshots.set(s, { lines: [] })
+  snapState = s
+  snapData = { lines: [] }
 }
 
 export function endMovement(s: MatchState): void {
-  snapshots.delete(s)
+  if (snapState === s) {
+    snapState = null
+    snapData = null
+  }
 }
 
 /** An opponent has the ball and none of `team` is within 4m of him. */
 function ballUnpressured(s: MatchState, team: Side): boolean {
-  const snap = snapshots.get(s)
+  const snap = snapOf(s)
   const cached = snap?.unpressured?.[team]
   if (cached !== undefined) return cached
   const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
@@ -232,7 +240,7 @@ function ballUnpressured(s: MatchState, team: Side): boolean {
 
 /** The loose ball's path over the next 40 ticks. */
 function loosePath(s: MatchState): BallPoint[] {
-  const snap = snapshots.get(s)
+  const snap = snapOf(s)
   if (snap?.path) return snap.path
   const path = ballPath(s.ball)
   if (snap) snap.path = path
@@ -287,8 +295,22 @@ export function reachTime(pl: PlayerState, point: Vec, reach: number): number {
  * accelerating as `reachTime` has it.
  */
 export function arrivalOf(pl: PlayerState, path: BallPoint[], reach: number, reachHeight: number): { ticks: number; point: BallPoint } {
+  // Hot (every loose-ball tick, every player, every point): a point he can't reach even at top
+  // speed all the way (reachTime is never less than (distance - reach) / maxSpeed) is passed over
+  // on squared distances, with a margin so rounding can't skip one reachTime would accept.
+  const px = pl.pos.x
+  const py = pl.pos.y
+  const ms = pl.maxSpeed
   for (let k = 0; k < path.length; k++) {
-    if (path[k].z <= reachHeight && reachTime(pl, path[k], reach) <= k * DT) return { ticks: k, point: path[k] }
+    const b = path[k]
+    if (b.z > reachHeight) continue
+    if (ms > 0) {
+      const r = reach + ms * k * DT * 1.000001 + 1e-6
+      const dx = b.x - px
+      const dy = b.y - py
+      if (dx * dx + dy * dy > r * r) continue
+    }
+    if (reachTime(pl, b, reach) <= k * DT) return { ticks: k, point: b }
   }
   const end = path[path.length - 1]
   return { ticks: path.length + reachTime(pl, end, reach) / DT, point: end }
@@ -515,6 +537,17 @@ type Option = { action: Action; u: number }
  * than the best of them; deep in his own half with nothing on, he clears it.
  */
 export function chooseAction(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
+  // Nothing moves while he decides: the same per-tick snapshot as movement (lines, side lists).
+  if (snapOf(s)) return choose(s, p, opts)
+  beginMovement(s)
+  try {
+    return choose(s, p, opts)
+  } finally {
+    endMovement(s)
+  }
+}
+
+function choose(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
   const d = decisionFor(s, p, opts)
   // Holding the ball is only a fallback when nothing else is possible; it never wins on merit,
   // or carriers stand still waiting for a perfect option.
@@ -1357,7 +1390,7 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   // Loose ball: the quickest player from each team goes for it.
   if (!owner) {
     if (chasers.has(p.idx)) {
-      const known = snapshots.get(s)?.arrivals?.get(p.idx)
+      const known = snapOf(s)?.arrivals?.get(p.idx)
       return { target: (known ?? arrivalOf(p, loosePath(s), reachOf(s, p), reachHeightOf(s, p))).point, urgency: 1 }
     }
     if (p.slot.role === 'GK') return { target: keeperShotTarget(s, p) ?? shapeTarget(s, p, false), urgency: 1 }
@@ -1540,7 +1573,7 @@ export function pickChasers(s: MatchState): Map<number, number> {
   const path = loosePath(s)
   const times = new Map<number, { ticks: number; point: BallPoint }>()
   for (const p of onPitch(s)) times.set(p.idx, arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)))
-  const snap = snapshots.get(s)
+  const snap = snapOf(s)
   if (snap) snap.arrivals = times
   const firstOf = (team: Side): number => Math.min(...teammatesOf(s, team).map((p) => times.get(p.idx)!.ticks))
   for (const team of [0, 1] as const) {
