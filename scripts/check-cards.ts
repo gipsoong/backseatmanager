@@ -1,6 +1,6 @@
 /**
  * Every player with a card of his own (draft/cards.ts): the card the table gives him in each of his
- * seasons next to the card his sub-attributes show, flagging any group more than 2 off, and table
+ * seasons next to the card his sub-attributes show, flagging any group more than 2 off (bar a forward's defending at the floor), and table
  * entries that don't match a season in the squads. `node scripts/check-cards.ts [--all]` (--all
  * prints every season, not only the table's own and the misses).
  */
@@ -28,8 +28,10 @@ for (const [name, [, year, overall]] of Object.entries(CARDS)) {
       const want = cardOf(name, start, o, p.role === 'GK')!
       const got = groupRatings(p.attrs, p.role)
       const diffs = got.map((g, k) => g.value - want[k])
-      const miss = diffs.some((d) => Math.abs(d) > 2)
-      worst = Math.max(worst, ...diffs.map(Math.abs))
+      // A forward's tackling can't go below 1: a good header's defending bottoms out at 33-36.
+      const floor = p.role !== 'GK' && ['interceptions', 'marking', 'standingTackle', 'slidingTackle'].every((k) => p.attrs[k as 'marking'] <= 1)
+      const miss = diffs.some((d, k) => Math.abs(d) > 2 && !(k === 4 && floor && d > 0))
+      worst = Math.max(worst, ...diffs.map((d, k) => (k === 4 && floor && d > 0 ? 0 : Math.abs(d))))
       rows++
       if (miss) off++
       if (all || miss || (start === year && o === overall)) {

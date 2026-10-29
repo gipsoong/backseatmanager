@@ -171,9 +171,15 @@ pulling the repo.
   takes one season per club and drops a name already in an earlier side. `pools.ts` keeps what we
   know by name (foot, weak foot, archetype). `draft.ts` runs the 20 rounds (11 starters + 9 subs,
   one club-season offered per round), turns pool players into engine players and builds the
-  20-team league (38 matchdays). Attributes come from `shapedAttributes` (archetypes.ts): his
-  archetype's shape at his overall, with a little noise. Not seeded at random per name: that made
-  a 91 anything from a 16 to a 20 finisher and decided who was "overpowered". No transfers in
+  20-team league (38 matchdays). Attributes come from a card (session 20): his own FIFA-like six
+  group ratings from `draft/cards.ts` (`CARDS`: 340 players, everyone 84+ and clear profiles like
+  Vardy or Giroud; [born, season, overall, card], moved to his other seasons by overall and age in
+  `cardOf`), else his archetype's card at his overall (`cardFor`, `CARD_SHAPES` in archetypes.ts:
+  forwards defend ~45 below their overall, centre-backs shoot ~40 below). `cardAttributes`
+  (attributes.ts) fits sub-attributes to it: each group spread by position and archetype
+  (`IN_GROUP`, `ARCHETYPE_IN_GROUP`: a striker's defending is heading), shifted until its average is
+  the card's. `node scripts/check-cards.ts` prints table vs card (all within 2). Saved players keep
+  their attributes. Club mode (`makeAttributes`) still uses the old broad-profile shapes. No transfers in
   this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
 - `src/screens/` — Start, PickTeam, Draft, Career (summer news, board line, History tab, a player's
   change and career lines), Hub (next fixture; tabs: review at season's end,

@@ -97,7 +97,7 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
     foot: LEFT_FOOTED.has(name) ? 'left' : 'right',
     weakFoot: WEAK_FOOT[name] ?? 3,
     side: SIDE[name],
-    attrs: cardAttributes(shapedAttributes(rng, role, archetype, quality), card, role, archetype, () => rng.gauss() * 0.7),
+    attrs: cardAttributes(shapedAttributes(rng, role, archetype, quality), card, role, archetype, overall, () => rng.gauss() * 0.7),
     traits,
     overall,
   }
