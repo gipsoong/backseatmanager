@@ -4,6 +4,14 @@ import { type Season, squadOf, table } from '../season/season.ts'
 import { ordinal } from './format.ts'
 import { stagger } from './motion.ts'
 import { Swatch } from './Hub.tsx'
+import { money, valueOf, wage } from '../career/money.ts'
+import type { PlayerDef } from '../engine/index.ts'
+
+/** "Value £4.2m · £13k a week", in a career. */
+export function moneyLine(season: Season, p: PlayerDef): string | null {
+  if (!season.career?.finance) return null
+  return `Value ${money(valueOf(season, p))} · £${wage(p, season.career.people[p.id])}k a week`
+}
 
 /** His overall's change over the summer: "+3", "−2" (nothing in a career's first season or when level). */
 export function Change({ season, id }: { season: Season; id: string }) {

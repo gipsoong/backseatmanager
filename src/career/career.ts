@@ -5,6 +5,7 @@
  * the season: `nextSeason` turns a finished season into the next one.
  */
 import { type Attributes, type PlayerDef, type Role, type TeamDef, Rng, freshName, makePlayer } from '../engine/index.ts'
+import { type Finance, settle, startFinance } from './money.ts'
 import { type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 
 /** What the game knows about a player beyond his attributes. */
@@ -70,6 +71,8 @@ export interface Career {
   history: PastSeason[]
   /** Each club's strength when the career began (its eleven's overall), which signings keep up. */
   levels: number[]
+  /** Each club's money (from stage 2; a save without it gets it on loading). */
+  finance?: Finance
   summer?: Summer
 }
 
@@ -98,7 +101,8 @@ export function startCareer(s: Season): Season {
     for (const p of t.bench) people[p.id] = firstPerson(rng, p, 25, 4.5)
   }
   const career: Career = { number: 1, people, aim: 'topHalf', history: [], levels: s.teams.map((_, i) => elevenRating(s, i)) }
-  return { ...s, career: { ...career, aim: aimFor(s, s.userTeam) } }
+  const started = { ...s, career: { ...career, aim: aimFor(s, s.userTeam) } }
+  return { ...started, career: { ...started.career, finance: startFinance(started) } }
 }
 
 function firstPerson(rng: Rng, p: PlayerDef, mean: number, sd: number): Person {
@@ -244,6 +248,10 @@ export function nextSeason(s: Season): Season {
   if (!c) throw new Error('not a career')
   const rng = new Rng(s.seed * 104729 + c.number * 7919)
   const history = [...c.history, pastSeason(s)]
+  // The season's accounts, before anyone leaves: income and prize money in, wages out.
+  const places = new Array<number>(s.teams.length)
+  table(s).forEach((r, i) => (places[r.team] = i + 1))
+  const finance = settle(s, c.finance ?? startFinance(s), places)
   const full = matchdays(s) * 90
   const people: Record<string, Person> = {}
   const summer: Summer = { retired: [], academy: [], signed: [], released: [] }
@@ -341,7 +349,7 @@ export function nextSeason(s: Season): Season {
     return { ...t, players: xi, bench: squad.filter((p) => !xi.includes(p)) }
   })
   const next: Season = { ...base, teams: picked }
-  return { ...next, career: { number: c.number + 1, people, aim: aimFor(next, s.userTeam), history, levels: c.levels, summer } }
+  return { ...next, career: { number: c.number + 1, people, aim: aimFor(next, s.userTeam), history, levels: c.levels, finance, summer } }
 }
 
 /** A finished season, for the history. */
@@ -392,5 +400,7 @@ export function pastSeason(s: Season): PastSeason {
 /** A save from before careers (version 2): club mode becomes a career's first season. */
 export function upgradeCareer(s: Season): Season {
   const v3 = { ...s, version: 3 as const }
-  return v3.mode === 'draft' || v3.career ? v3 : startCareer(v3)
+  if (v3.mode === 'draft') return v3
+  if (!v3.career) return startCareer(v3)
+  return v3.career.finance ? v3 : { ...v3, career: { ...v3.career, finance: startFinance(v3) } }
 }

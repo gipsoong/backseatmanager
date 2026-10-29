@@ -1,7 +1,8 @@
 /**
- * The January window, in draft mode: swap players with the other clubs. No money, only players:
- * one or two of yours for one or two of theirs. Clubs make offers too. Pure: a deal is judged and
- * applied the same way every time.
+ * Transfer windows. Draft mode: the January window, players only, one or two of yours for one or
+ * two of theirs. Career mode: a summer window (August's matchdays) and January, with money: buy,
+ * sell, swap, or swap with a fee (money.ts values players and keeps each club's cash). Clubs make
+ * offers too. Pure: a deal is judged and applied the same way every time.
  *
  * How a club judges a deal: by what it does to its side, the way a manager would.
  * - Its eleven before and after (the staff pick with the new squad, fitness and injuries counted):
@@ -22,14 +23,17 @@ import {
 import { shortName } from "../names.ts";
 import {
   type Season,
+  type Transfer,
   autoPick,
   avgRating,
   isOver,
   matchdayDate,
   matchdays,
   squadOf,
+  playerRating,
   table,
 } from "../season/season.ts";
+import { valueOf } from "../career/money.ts";
 
 /** Deals the manager can make in one window. */
 export const DEALS_PER_WINDOW = 3;
@@ -38,6 +42,10 @@ export const MAX_PER_SIDE = 2;
 /** Squad sizes a deal can leave a club with. */
 const MIN_SQUAD = 18;
 const MAX_SQUAD = 22;
+/** A career squad can hold a few more (the summer trims it back to the academy's cap). */
+const CAREER_MAX_SQUAD = 26;
+const maxSquad = (s: Season): number =>
+  s.career ? CAREER_MAX_SQUAD : MAX_SQUAD;
 
 export interface Deal {
   /** The club you're dealing with. */
@@ -45,15 +53,38 @@ export interface Deal {
   /** Your players going to them, and theirs coming to you (ids). */
   give: string[];
   get: string[];
+  /** Career mode: money the manager pays them, £m (below zero, they pay him). */
+  fee?: number;
 }
 
-/** The matchdays played in January (their dates), or none if it's not a draft season. */
+/**
+ * The matchdays a window is open for: January's in draft mode; August's and January's in a career;
+ * none otherwise.
+ */
 export function windowMatchdays(s: Season): number[] {
-  if (s.mode !== "draft") return [];
-  return Array.from({ length: matchdays(s) }, (_, i) => i + 1).filter(
-    (md) => matchdayDate(s, md).getUTCMonth() === 0,
+  const months = s.mode === "draft" ? [0] : s.career ? [7, 0] : [];
+  return Array.from({ length: matchdays(s) }, (_, i) => i + 1).filter((md) =>
+    months.includes(matchdayDate(s, md).getUTCMonth()),
   );
 }
+
+/** The window a matchday falls in (its matchdays), or none. */
+export function windowOf(s: Season, md: number): number[] {
+  const all = windowMatchdays(s);
+  if (!all.includes(md)) return [];
+  const month = matchdayDate(s, md).getUTCMonth();
+  return all.filter((d) => matchdayDate(s, d).getUTCMonth() === month);
+}
+
+/** "summer" or "January", for the window open now (or the next one). */
+export const windowName = (s: Season, md = s.matchday): string =>
+  matchdayDate(s, md).getUTCMonth() === 7 ? "summer" : "January";
+
+/** Deals of the window open now (all of them are, in draft mode's one window). */
+export const thisWindow = (s: Season): Transfer[] => {
+  const w = windowOf(s, s.matchday);
+  return (s.transfers ?? []).filter((t) => w.includes(t.matchday));
+};
 
 /** Open while the next match to be played is in January. */
 export const windowOpen = (s: Season): boolean =>
@@ -61,7 +92,7 @@ export const windowOpen = (s: Season): boolean =>
 
 /** Deals done in this season's window. */
 export const dealsDone = (s: Season): number =>
-  (s.transfers ?? []).filter(
+  thisWindow(s).filter(
     (t) => t.to.includes(s.userTeam) || t.from.includes(s.userTeam),
   ).length;
 
@@ -73,7 +104,7 @@ export function worth(s: Season, p: PlayerDef): number {
   const avg = avgRating(s.stats[p.id]);
   const form =
     avg !== null && (s.stats[p.id]?.apps ?? 0) >= 5 ? (avg - 6.75) * 2 : 0;
-  return (p.overall ?? 70) + form;
+  return playerRating(p) + form;
 }
 
 /** A club's best eleven from a squad (the staff's pick, fitness and injuries counted), slot by slot. */
@@ -113,7 +144,7 @@ export function elevenOf(
   };
   const slots = FORMATIONS[s.teams[club].formation];
   const xi = autoPick(probe, club).map((id) => squad.find((q) => q.id === id)!);
-  const fitted = xi.map((p, i) => (p.overall ?? 70) * fitFor(p, slots[i]));
+  const fitted = xi.map((p, i) => playerRating(p) * fitFor(p, slots[i]));
   const bench = squad.filter(
     (p) =>
       !xi.includes(p) &&
@@ -124,14 +155,23 @@ export function elevenOf(
     (n, line) =>
       n +
       Math.max(
-        60,
+        curveRef(s) - 20,
         ...bench
           .filter((p) => LINE_OF[p.role] === line)
-          .map((p) => p.overall ?? 70),
+          .map((p) => playerRating(p)),
       ),
     0,
   );
   return { xi, fitted, rating: fitted.reduce((a, b) => a + b, 0) / 11, depth };
+}
+
+/**
+ * Where a point of overall starts to count for more: 80 among clubs of the past, a career league's
+ * own level otherwise.
+ */
+export function curveRef(s: Season): number {
+  const levels = s.career?.levels;
+  return levels ? levels.reduce((a, b) => a + b, 0) / levels.length : 80;
 }
 
 /** A place's name: "right wing", "centre-back". */
@@ -211,8 +251,9 @@ export function sideOf(
     }
   }
   // A point at the top is worth more than one lower down: 88 over 85 matters more than 72 over 69.
+  const ref = curveRef(s);
   const curve = (e: Eleven): number =>
-    e.fitted.reduce((n, f) => n + 10 * 1.12 ** (f - 80), 0);
+    e.fitted.reduce((n, f) => n + 10 * 1.12 ** (f - ref), 0);
   const value =
     curve(after) - curve(before) + (after.depth - before.depth) * 0.15;
   let wanted = 1;
@@ -226,7 +267,7 @@ export function sideOf(
       );
     }
     const best = [...squad].sort(
-      (a, b) => (b.overall ?? 0) - (a.overall ?? 0),
+      (a, b) => playerRating(b) - playerRating(a),
     )[0];
     if (out.includes(best)) {
       wanted += 3;
@@ -264,6 +305,7 @@ export function judge(s: Season, deal: Deal): Verdict {
   const get = deal.get.map((id) => theirs.find((p) => p.id === id)!);
   const them = sideOf(s, deal.club, get, give);
   const you = sideOf(s, s.userTeam, give, get);
+  if (s.career) return judgeForMoney(s, deal, them, you, give, get);
   const gap = them.value - them.wanted;
   const interest = gap >= 0 ? "yes" : gap >= -2.5 ? "close" : "no";
   const reason =
@@ -275,19 +317,92 @@ export function judge(s: Season, deal: Deal): Verdict {
   return { ok: interest === "yes", interest, them, you, reason };
 }
 
+/** A point of a side's value (sideOf's curve) in £m, as a club weighs what a player does for it. */
+export const POINT_VALUE = 0.6;
+
+/**
+ * Career mode's verdict: what the deal is worth to them in money. The players' market values, what
+ * each does for their eleven, and the fee; against a margin they'd want for letting players go
+ * (more for their best player, or to a rival near them in the table).
+ */
+function judgeForMoney(
+  s: Season,
+  deal: Deal,
+  them: Side,
+  you: Side,
+  give: PlayerDef[],
+  get: PlayerDef[],
+): Verdict {
+  const price = askingPrice(s, deal, them, give, get);
+  const fee = deal.fee ?? 0;
+  const gap = fee - price;
+  const out = get.reduce((n, p) => n + valueOf(s, p), 0);
+  const interest =
+    gap >= -0.05 ? "yes" : gap >= -Math.max(1, out * 0.2) ? "close" : "no";
+  const cash = s.career!.finance?.cash;
+  const theirCash = cash?.[deal.club] ?? Infinity;
+  const myCash = cash?.[s.userTeam] ?? Infinity;
+  if (fee > myCash + 0.05)
+    return { ok: false, interest, them, you, reason: "You don't have the money." };
+  if (-fee > theirCash + 0.05)
+    return { ok: false, interest: "no", them, you, reason: "They can't afford that." };
+  const reason =
+    interest === "yes"
+      ? "They would take that."
+      : price > 0
+        ? `They'd want ${moneyLine(price)} for that.`
+        : `They'd pay up to ${moneyLine(-price)}.`;
+  return { ok: interest === "yes", interest, them, you, reason };
+}
+
+const moneyLine = (v: number): string =>
+  v >= 1 ? `£${v.toFixed(v >= 10 ? 0 : 1)}m` : `£${Math.round(v * 1000)}k`;
+
+/**
+ * The smallest fee (£m the manager pays; below zero, the most they'd pay him) at which they'd say
+ * yes: what they give up in value and margin, less what they get.
+ */
+export function askingPrice(
+  s: Season,
+  deal: Deal,
+  them: Side = sideOf(
+    s,
+    deal.club,
+    deal.get.map((id) => byId(s, id)!),
+    deal.give.map((id) => byId(s, id)!),
+  ),
+  give: PlayerDef[] = deal.give.map((id) => byId(s, id)!),
+  get: PlayerDef[] = deal.get.map((id) => byId(s, id)!),
+): number {
+  const out = get.reduce((n, p) => n + valueOf(s, p), 0);
+  const inn = give.reduce((n, p) => n + valueOf(s, p), 0);
+  // What players coming in do for them counts for less than what they'd fetch elsewhere.
+  const margin = out * 0.15 + (them.wanted - 1) * out * 0.1;
+  const price = out - inn * 0.8 + margin - them.value * POINT_VALUE;
+  // A sale: they pay at most what the player's worth to them, never more than his value and a half.
+  return Math.round(Math.max(price, -inn * 1.5) * 10) / 10;
+}
+
 /** Why a deal can't be made at all, or null if it can be put to them. */
 function checkDeal(s: Season, deal: Deal): string | null {
   if (!windowOpen(s)) return "The window is shut.";
   if (dealsDone(s) >= DEALS_PER_WINDOW)
     return `That's ${DEALS_PER_WINDOW} deals this window, the most you can do.`;
   if (deal.club === s.userTeam) return "Pick another club.";
-  if (!deal.give.length || !deal.get.length)
+  const money = !!s.career && (deal.fee ?? 0) !== 0;
+  if (!deal.give.length && !deal.get.length)
     return "Choose who you want and who you offer.";
+  if ((!deal.give.length || !deal.get.length) && !money)
+    return s.career
+      ? "Add a fee, or a player each way."
+      : "Choose who you want and who you offer.";
   if (deal.give.length > MAX_PER_SIDE || deal.get.length > MAX_PER_SIDE)
     return `At most ${MAX_PER_SIDE} players each way.`;
   if (
-    (s.transfers ?? []).some(
-      (t) => t.from.includes(deal.club) || t.to.includes(deal.club),
+    thisWindow(s).some(
+      (t) =>
+        (t.from.includes(deal.club) || t.to.includes(deal.club)) &&
+        (t.from.includes(s.userTeam) || t.to.includes(s.userTeam)),
     )
   )
     return `You've already done a deal with ${s.teams[deal.club].name} this window.`;
@@ -297,15 +412,15 @@ function checkDeal(s: Season, deal: Deal): string | null {
   const get = deal.get.map((id) => theirs.find((p) => p.id === id));
   if (give.some((p) => !p) || get.some((p) => !p))
     return "Those players have moved on.";
-  const moved = new Set((s.transfers ?? []).flatMap((t) => t.ids));
+  const moved = new Set(thisWindow(s).flatMap((t) => t.ids));
   const already = [...give, ...get].find((p) => moved.has(p!.id));
   if (already) return `${already.name} has already moved this window.`;
   const mineAfter = mine.length - give.length + get.length;
   const theirsAfter = theirs.length - get.length + give.length;
   if (mineAfter < MIN_SQUAD || theirsAfter < MIN_SQUAD)
     return `Both squads need at least ${MIN_SQUAD} players.`;
-  if (mineAfter > MAX_SQUAD || theirsAfter > MAX_SQUAD)
-    return `Squads can't go over ${MAX_SQUAD} players.`;
+  if (mineAfter > maxSquad(s) || theirsAfter > maxSquad(s))
+    return `Squads can't go over ${maxSquad(s)} players.`;
   const keepers = (ps: (PlayerDef | undefined)[]): number =>
     ps.filter((p) => p!.role === "GK").length;
   if (
@@ -344,6 +459,7 @@ const OFFERS_PER_MATCHDAY = 2;
  */
 export function offersFor(s: Season): Deal[] {
   if (!windowOpen(s) || dealsDone(s) >= DEALS_PER_WINDOW) return [];
+  if (s.career) return moneyOffers(s);
   const declined = new Set((s.declined ?? []).map(dealKey));
   const rng = new Rng(s.seed * 131 + s.matchday);
   const mine = squadOf(s.teams[s.userTeam]);
@@ -381,7 +497,7 @@ export function offersFor(s: Season): Deal[] {
         if (!v.ok || !v.you) continue;
         // Something for you: your side no worse, or a better player coming in.
         const forYou =
-          v.you.value + ((q.overall ?? 0) - (p.overall ?? 0)) * 0.3;
+          v.you.value + (playerRating(q) - playerRating(p)) * 0.3;
         if (forYou < -0.5) continue;
         const score = forYou + v.them!.value * 0.2;
         if (!best || score > best.score) best = { deal, score };
@@ -391,6 +507,41 @@ export function offersFor(s: Season): Deal[] {
         break;
       }
     }
+  }
+  return found
+    .sort((a, b) => b.score - a.score)
+    .slice(0, OFFERS_PER_MATCHDAY)
+    .map((x) => x.deal);
+}
+
+/**
+ * Career mode's offers: a club that could use one of your players, and has the money, bids for him:
+ * near his value, up to what he'd be worth to them.
+ */
+function moneyOffers(s: Season): Deal[] {
+  const declined = new Set((s.declined ?? []).map((d) => `${d.club}:${d.give.join()}`));
+  const rng = new Rng(s.seed * 131 + s.matchday);
+  const mine = squadOf(s.teams[s.userTeam]);
+  const cash = s.career!.finance?.cash ?? [];
+  const found: { deal: Deal; score: number }[] = [];
+  for (const club of rng.shuffle(
+    s.teams.map((_, i) => i).filter((i) => i !== s.userTeam),
+  )) {
+    if (found.length >= 4) break;
+    const theirs = squadOf(s.teams[club]);
+    const base = elevenOf(s, club);
+    const target = mine
+      .map((p) => ({ p, gain: elevenOf(s, club, [...theirs, p]).rating - base.rating }))
+      .filter((x) => x.gain > 0.25 && !found.some((f) => f.deal.give.includes(x.p.id)))
+      .sort((a, b) => b.gain - a.gain)[0];
+    if (!target || declined.has(`${club}:${target.p.id}`)) continue;
+    // What they'd pay at most, and a bid a little under it.
+    const most = -askingPrice(s, { club, give: [target.p.id], get: [] });
+    const bid = Math.round(Math.min(most, cash[club] ?? 0, valueOf(s, target.p) * (1.05 + rng.next() * 0.3)) * 10) / 10;
+    if (bid < Math.max(0.3, valueOf(s, target.p) * 0.8)) continue;
+    const deal: Deal = { club, give: [target.p.id], get: [], fee: -bid };
+    if (!judge(s, deal).ok) continue;
+    found.push({ deal, score: bid / valueOf(s, target.p) });
   }
   return found
     .sort((a, b) => b.score - a.score)
@@ -424,6 +575,23 @@ export function makeDeal(s: Season, deal: Deal): Season {
     ...deal.give.map(() => deal.club),
     ...deal.get.map(() => s.userTeam),
   ];
+  const fee = deal.fee
+    ? deal.fee > 0
+      ? { from: s.userTeam, to: deal.club, amount: deal.fee }
+      : { from: deal.club, to: s.userTeam, amount: -deal.fee }
+    : undefined;
+  const moved = movePlayers(s, { matchday: s.matchday, ids, from, to, fee });
+  const lineup =
+    s.lineup && s.lineup.some((id) => deal.give.includes(id)) ? null : s.lineup;
+  return { ...moved, lineup };
+}
+
+/**
+ * Players change clubs (their season's numbers, fitness and injuries go with them), money changes
+ * hands, the move is recorded, and each club's usual eleven is picked again.
+ */
+export function movePlayers(s: Season, t: Transfer): Season {
+  const { ids, to } = t;
   const players = ids.map((id) => byId(s, id)!);
   let teams = s.teams.map((t, club) => {
     const staying = squadOf(t).filter((p) => !ids.includes(p.id));
@@ -440,24 +608,39 @@ export function makeDeal(s: Season, deal: Deal): Season {
     ];
     return { ...t, players: squad.slice(0, 11), bench: squad.slice(11) };
   });
+  const finance = s.career?.finance;
   const moved: Season = {
     ...s,
     teams,
-    transfers: [
-      ...(s.transfers ?? []),
-      { matchday: s.matchday, ids, from, to },
-    ],
+    transfers: [...(s.transfers ?? []), t],
+    ...(finance && t.fee
+      ? {
+          career: {
+            ...s.career!,
+            finance: {
+              ...finance,
+              cash: finance.cash.map((c, club) =>
+                Math.round(
+                  (c +
+                    (club === t.fee!.to ? t.fee!.amount : 0) -
+                    (club === t.fee!.from ? t.fee!.amount : 0)) *
+                    10,
+                ) / 10,
+              ),
+            },
+          },
+        }
+      : {}),
   };
   // The usual eleven, in slot order, for both clubs: the staff's pick with the new squad.
-  teams = moved.teams.map((t, club) => {
-    if (club !== s.userTeam && club !== deal.club) return t;
-    const squad = squadOf(t);
+  const clubs = new Set([...t.from, ...to]);
+  teams = moved.teams.map((team, club) => {
+    if (!clubs.has(club)) return team;
+    const squad = squadOf(team);
     const xi = autoPick(moved, club).map(
       (id) => squad.find((p) => p.id === id)!,
     );
-    return { ...t, players: xi, bench: squad.filter((p) => !xi.includes(p)) };
+    return { ...team, players: xi, bench: squad.filter((p) => !xi.includes(p)) };
   });
-  const lineup =
-    s.lineup && s.lineup.some((id) => deal.give.includes(id)) ? null : s.lineup;
-  return { ...moved, teams, lineup };
+  return { ...moved, teams };
 }

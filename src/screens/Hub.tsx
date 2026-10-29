@@ -14,7 +14,12 @@ import {
 } from "../season/season.ts";
 import { Squad } from "./Squad.tsx";
 import { Transfers } from "./Transfers.tsx";
-import { type Deal, offersFor, windowOpen } from "../draft/transfers.ts";
+import {
+  type Deal,
+  offersFor,
+  windowName,
+  windowOpen,
+} from "../draft/transfers.ts";
 import { SeasonReview, Stats } from "./Stats.tsx";
 import { TabBar, type TabDef } from "./Tabs.tsx";
 import { stagger } from "./motion.ts";
@@ -157,7 +162,7 @@ export function Hub({
               {windowOpen(season) && (
                 <div className="window-note">
                   <p className="meta">
-                    The January window is open
+                    The {windowName(season)} window is open
                     {offers.length
                       ? `, and ${offers.length === 1 ? "a club has made an offer" : `${offers.length} clubs have made offers`} for your players.`
                       : "."}
@@ -286,7 +291,7 @@ export function Hub({
               ...(season.career?.history.length
                 ? [{ id: "history", label: "History" } as const]
                 : []),
-              ...(season.mode === "draft"
+              ...(season.mode === "draft" || season.career
                 ? [
                     {
                       id: "transfers",

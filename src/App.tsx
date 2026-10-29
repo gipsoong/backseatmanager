@@ -29,6 +29,7 @@ import {
   userCupFixture,
 } from "./draft/cup.ts";
 import { loadSeason, saveSeason } from "./season/store.ts";
+import { marketDay } from "./career/market.ts";
 import {
   aimFor,
   elevenRating,
@@ -126,7 +127,7 @@ export default function App() {
       await commit(completeCupMatchday(s, results));
     } else {
       results.set(userFixture(s, s.matchday)!.id, resultOf(timeline.state));
-      await commit(advanceCup(completeMatchday(s, results)));
+      await commit(advanceCup(marketDay(completeMatchday(s, results))));
     }
     others.current = null;
     setBusy(false);
@@ -148,7 +149,9 @@ export default function App() {
     else
       await commit(
         advanceCup(
-          completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday))),
+          marketDay(
+            completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday))),
+          ),
         ),
       );
     setBusy(false);
@@ -207,7 +210,9 @@ export default function App() {
           onPick={(i) => {
             const s = { ...screen.season, userTeam: i };
             void commit(
-              s.career ? { ...s, career: { ...s.career, aim: aimFor(s, i) } } : s,
+              s.career
+                ? marketDay({ ...s, career: { ...s.career, aim: aimFor(s, i) } })
+                : s,
             );
             setScreen({ kind: "hub" });
           }}
@@ -242,7 +247,9 @@ export default function App() {
             onSimulate={() => void simulateMatchday(season)}
             onNewSeason={season.mode === "draft" ? newDraft : newSeason}
             onNextSeason={
-              season.career ? () => void commit(nextSeason(season)) : undefined
+              season.career
+                ? () => void commit(marketDay(nextSeason(season)))
+                : undefined
             }
             onLineup={(lineup) => void commit({ ...season, lineup })}
             // A new shape: the staff pick the side for it again.

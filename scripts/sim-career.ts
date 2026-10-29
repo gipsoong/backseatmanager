@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs'
 import { runMatch } from '../src/engine/index.ts'
 import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, isOver, matchTeam, matchdays, playerRating, resultOf, squadOf, table } from '../src/season/season.ts'
 import { leagueLevel, nextSeason, squadsLevel, startCareer } from '../src/career/career.ts'
+import { marketDay } from '../src/career/market.ts'
 
 const seed = Number(process.argv[2] ?? 1)
 const seasons = Number(process.argv[3] ?? 5)
@@ -46,11 +47,11 @@ for (let n = 1; n <= seasons; n++) {
     const results = new Map<number, Result>()
     const fitness = fitnessFor(s)
     for (const f of fixturesOn(s, s.matchday)) results.set(f.id, resultOf(runMatch(matchTeam(s, f.home), matchTeam(s, f.away), { seed: f.seed, fitness })))
-    s = completeMatchday(s, results)
+    s = marketDay(completeMatchday(s, results))
   }
   report(s)
   process.stderr.write(`season ${n} (${Math.round((Date.now() - t0) / 1000)}s)\n`)
   history.push(s)
-  if (n < seasons) s = nextSeason(s)
+  if (n < seasons) s = marketDay(nextSeason(s))
 }
 if (out) writeFileSync(out, JSON.stringify(history))

@@ -202,6 +202,8 @@ export interface Transfer {
   ids: string[]
   from: number[]
   to: number[]
+  /** Career mode: money that changed hands, £m, from one club to the other. */
+  fee?: { from: number; to: number; amount: number }
 }
 
 /**

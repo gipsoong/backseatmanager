@@ -7,7 +7,7 @@ import { positionsLabel, styleLabel } from '../names.ts'
 import { RATED_MINUTES, type Season, type SeasonStats, avgRating, playerRating, squadOf } from '../season/season.ts'
 import { clubOf, goalsPrevented, matchLog, onTargetRate, per90 } from '../season/stats.ts'
 import { Swatch } from './Hub.tsx'
-import { CareerLines, Change, ageOf } from './Career.tsx'
+import { CareerLines, Change, ageOf, moneyLine } from './Career.tsx'
 
 const n = (st: SeasonStats, k: keyof SeasonStats): number => st[k] ?? 0
 const pct = (a: number, b: number): string => (b ? `${Math.round((a / b) * 100)}%` : '–')
@@ -110,6 +110,7 @@ export function PlayerCard({ season, id, onClose }: { season: Season; id: string
             {positionsLabel(p)} · {styleLabel(p)}
             {ageOf(season, id) !== undefined && ` · ${ageOf(season, id)}`} · {club >= 0 ? season.teams[club].name : ''}
           </p>
+          {moneyLine(season, p) && <p className="muted">{moneyLine(season, p)}</p>}
         </div>
         <span className="card-rating">
           <span className="rating big" title="Overall">

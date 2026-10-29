@@ -1,0 +1,77 @@
+/**
+ * Money in a career: what a player is worth and earns, what each club has to spend, and what a
+ * season brings in. Pure. Amounts are in £m (wages in £k a week).
+ *
+ * A player's value comes from his overall, his age and his room to grow: a 19-year-old who could
+ * become an 80 is worth far more than a 30-year-old of the same overall today.
+ */
+import type { PlayerDef } from '../engine/index.ts'
+import { type Season, playerRating, squadOf } from '../season/season.ts'
+import type { Person } from './career.ts'
+
+export interface Finance {
+  /** Money to spend, by club. */
+  cash: number[]
+  /** What a club takes in a season before prize money (gate, television, sponsors), by club. */
+  income: number[]
+}
+
+/** The overall his value is priced at: today's, plus some of what he could become while he's young. */
+function pricedAt(overall: number, who: Person | undefined): number {
+  if (!who) return overall
+  const room = Math.max(0, who.potential - overall)
+  const share = who.age <= 20 ? 0.7 : who.age <= 23 ? 0.5 : who.age <= 26 ? 0.25 : 0
+  return overall + room * share
+}
+
+/** What a club would pay for him with nothing else to weigh, £m (a tenth at the least). */
+export function marketValue(p: PlayerDef, who: Person | undefined): number {
+  const age = who?.age ?? 26
+  const ageing = age <= 29 ? 1 : Math.max(0.25, 1 - 0.17 * (age - 29))
+  const v = 2 * 1.16 ** (pricedAt(playerRating(p), who) - 55) * ageing
+  return Math.max(0.1, Math.round(v * 10) / 10)
+}
+
+/** His wages, £k a week: by what he's worth now (not what he might become), from a floor of 3. */
+export function wage(p: PlayerDef, who: Person | undefined): number {
+  const now = marketValue(p, who && { ...who, potential: 0 })
+  return Math.round(3 + now * 2.5)
+}
+
+export const valueOf = (s: Season, p: PlayerDef): number => marketValue(p, s.career?.people[p.id])
+
+/** A club's wage bill for a season, £m. */
+export function wageBill(s: Season, club: number): number {
+  const weekly = squadOf(s.teams[club]).reduce((n, p) => n + wage(p, s.career?.people[p.id]), 0)
+  return Math.round(weekly * 52) / 1000
+}
+
+/** Prize money for a league finish, £m: £300k a place from the bottom. */
+export const prizeFor = (place: number, n: number): number => round1(0.3 * (n - place))
+
+/**
+ * Each club's money when a career begins: an income that covers its wages (prize money is the
+ * profit), and cash to spend in proportion to its squad's worth.
+ */
+export function startFinance(s: Season): Finance {
+  const income = s.teams.map((_, c) => round1(wageBill(s, c)))
+  const cash = s.teams.map((t) => round1(5 + 0.12 * squadOf(t).reduce((n, p) => n + valueOf(s, p), 0)))
+  return { cash, income }
+}
+
+/** The summer's accounts: income and prize money in, a season's wages out. */
+export function settle(s: Season, f: Finance, places: number[]): Finance {
+  return {
+    income: f.income,
+    cash: f.cash.map((c, club) => round1(c + f.income[club] + prizeFor(places[club], s.teams.length) - wageBill(s, club))),
+  }
+}
+
+export const round1 = (v: number): number => Math.round(v * 10) / 10
+
+/** £12.5m, £800k. */
+export function money(v: number): string {
+  const a = Math.abs(v)
+  const s = a >= 1 ? `£${a.toFixed(a >= 10 ? 0 : 1)}m` : `£${Math.round(a * 1000)}k`
+  return v < 0 ? `−${s}` : s
+}

@@ -1,5 +1,6 @@
 /**
- * The January window (draft mode): offers other clubs make for your players, and your own offers.
+ * The transfer window (January in draft mode; summer and January in a career, with money): offers
+ * other clubs make for your players, and your own offers.
  * Pick a club, see where they're short, choose who you want and who you'll give, and see how they
  * read it: what it does to their side, and to yours.
  */
@@ -18,6 +19,7 @@ import {
   type Deal,
   MAX_PER_SIDE,
   type Verdict,
+  askingPrice,
   dealsDone,
   elevenOf,
   judge,
@@ -25,8 +27,11 @@ import {
   offersFor,
   placeName,
   windowMatchdays,
+  windowName,
+  windowOf,
   windowOpen,
 } from "../draft/transfers.ts";
+import { money, valueOf, wage, wageBill } from "../career/money.ts";
 import { Swatch } from "./Hub.tsx";
 import { stagger } from "./motion.ts";
 
@@ -45,15 +50,26 @@ export function Transfers({
   onDeal: (deal: Deal) => void;
   onDecline: (deal: Deal) => void;
 }) {
-  const january = windowMatchdays(season);
+  const career = !!season.career?.finance;
   const open = windowOpen(season);
+  // The window open now, or the next one to open.
+  const january = open
+    ? windowOf(season, season.matchday)
+    : windowOf(
+        season,
+        windowMatchdays(season).find((md) => md > season.matchday) ??
+          windowMatchdays(season)[0] ??
+          0,
+      );
+  const wname = january.length ? windowName(season, january[0]) : "January";
   const others = season.teams
     .map((_, i) => i)
     .filter((i) => i !== season.userTeam);
   const [club, setClub] = useState(others[0]);
   const [give, setGive] = useState<string[]>([]);
   const [get, setGet] = useState<string[]>([]);
-  const deal: Deal = { club, give, get };
+  const [fee, setFee] = useState(0);
+  const deal: Deal = career ? { club, give, get, fee } : { club, give, get };
   const verdict = judge(season, deal);
   const offers = useMemo(() => offersFor(season), [season]);
   const toggle = (
@@ -79,15 +95,36 @@ export function Transfers({
 
   const first = january[0];
   const last = january.at(-1);
+  const finance = season.career?.finance;
+  const cash = finance?.cash[season.userTeam] ?? 0;
+  const around = career
+    ? done.filter(
+        (t) =>
+          !t.from.includes(season.userTeam) && !t.to.includes(season.userTeam),
+      )
+    : [];
+  const mineDone = done.filter(
+    (t) => t.from.includes(season.userTeam) || t.to.includes(season.userTeam),
+  );
+  const what = career
+    ? "Buy, sell, or swap one or two players each way, with or without a fee."
+    : "Swap one or two of your players for one or two of theirs.";
   return (
     <div className="transfers">
       <p className="meta pad">
         {open
-          ? `The January window is open until the match on ${dateFmt.format(matchdayDate(season, last!))} (matchday ${last}). Swap one or two of your players for one or two of theirs. ${DEALS_PER_WINDOW - dealsDone(season)} of ${DEALS_PER_WINDOW} deals left.`
+          ? `The ${wname} window is open until the match on ${dateFmt.format(matchdayDate(season, last!))} (matchday ${last}). ${what} ${DEALS_PER_WINDOW - dealsDone(season)} of ${DEALS_PER_WINDOW} deals left.`
           : first && season.matchday < first
-            ? `The January window opens before matchday ${first} (${dateFmt.format(matchdayDate(season, first))}). Then you can swap players with the other clubs, and they'll come to you with offers.`
-            : "The January window has shut."}
+            ? `The ${wname} window opens before matchday ${first} (${dateFmt.format(matchdayDate(season, first))}). Then you can deal with the other clubs, and they'll come to you with offers.`
+            : `The ${wname} window has shut.`}
       </p>
+      {career && finance && (
+        <p className="meta pad budget">
+          <span className="eyebrow">Budget</span> <strong>{money(cash)}</strong>{" "}
+          · wages {money(wageBill(season, season.userTeam))} a season, income{" "}
+          {money(finance.income[season.userTeam])} and prize money
+        </p>
+      )}
       {open && offers.length > 0 && (
         <section className="pad offers">
           <h4 className="eyebrow">Offers for your players</h4>
@@ -102,7 +139,9 @@ export function Transfers({
                 <p className="deal-line">
                   <Swatch kit={season.teams[o.club].kit} />{" "}
                   {season.teams[o.club].name} offer{" "}
-                  {o.get.map(name).join(" and ")}{" "}
+                  {o.get.length > 0 && o.get.map(name).join(" and ")}
+                  {o.get.length > 0 && (o.fee ?? 0) < 0 && " and "}
+                  {(o.fee ?? 0) < 0 && money(-o.fee!)}{" "}
                   <span className="muted">for</span>{" "}
                   {o.give.map(name).join(" and ")}
                 </p>
@@ -177,10 +216,38 @@ export function Transfers({
             aria-live="polite"
           >
             <p className="deal-line">
-              {get.length ? get.map(name).join(" and ") : "…"}{" "}
+              {get.length ? get.map(name).join(" and ") : career ? "" : "…"}
+              {career && fee < 0 && `${get.length ? " and " : ""}${money(-fee)}`}
+              {career && !get.length && fee >= 0 && "…"}{" "}
               <span className="muted">for</span>{" "}
-              {give.length ? give.map(name).join(" and ") : "…"}
+              {give.length ? give.map(name).join(" and ") : career ? "" : "…"}
+              {career && fee > 0 && `${give.length ? " and " : ""}${money(fee)}`}
+              {career && !give.length && fee <= 0 && "…"}
             </p>
+            {career && (
+              <div className="fee">
+                <span className="eyebrow">
+                  {fee > 0 ? "You pay" : fee < 0 ? "They pay" : "No fee"}
+                </span>
+                <span className="fee-amount">{fee ? money(Math.abs(fee)) : "–"}</span>
+                <div className="fee-buttons">
+                  <button type="button" className="btn ghost slim" onClick={() => setFee(Math.round((fee - 1) * 10) / 10)} aria-label="One million less">
+                    −£1m
+                  </button>
+                  <button type="button" className="btn ghost slim" onClick={() => setFee(Math.round((fee + 1) * 10) / 10)} aria-label="One million more">
+                    +£1m
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost slim"
+                    disabled={!give.length && !get.length}
+                    onClick={() => setFee(askingPrice(season, { club, give, get }))}
+                  >
+                    Their price
+                  </button>
+                </div>
+              </div>
+            )}
             {verdict.them ? (
               <>
                 <p className={`interest ${verdict.interest}`}>
@@ -203,6 +270,7 @@ export function Transfers({
                 onDeal(deal);
                 setGive([]);
                 setGet([]);
+                setFee(0);
               }}
             >
               Make the deal
@@ -210,11 +278,11 @@ export function Transfers({
           </section>
         </>
       )}
-      {done.length > 0 && (
+      {mineDone.length > 0 && (
         <section className="pad">
           <h4 className="eyebrow">Deals done</h4>
           <ul className="deals">
-            {done.map((t, i) => {
+            {mineDone.map((t, i) => {
               const club =
                 t.from.find((c) => c !== season.userTeam) ??
                 t.to.find((c) => c !== season.userTeam)!;
@@ -228,12 +296,35 @@ export function Transfers({
                   {inIds.map(name).join(", ")}{" "}
                   <span className="muted">in, for</span>{" "}
                   {outIds.map(name).join(", ")}{" "}
+                  {t.fee && (
+                    <span>
+                      {" "}
+                      {t.fee.from === season.userTeam ? "paying" : "receiving"}{" "}
+                      {money(t.fee.amount)}
+                    </span>
+                  )}{" "}
                   <span className="muted">
                     · {season.teams[club].name}, before matchday {t.matchday}
                   </span>
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+      {around.length > 0 && (
+        <section className="pad">
+          <h4 className="eyebrow">Around the league</h4>
+          <ul className="deals">
+            {around.map((t, i) => (
+              <li key={i}>
+                <Swatch kit={season.teams[t.to[0]].kit} /> {name(t.ids[0])}{" "}
+                <span className="muted">
+                  {season.teams[t.from[0]].name} to {season.teams[t.to[0]].name}
+                  {t.fee ? `, ${money(t.fee.amount)}` : ""} · matchday {t.matchday}
+                </span>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -279,7 +370,12 @@ function PlayerPick({
   starters?: Set<string>;
   onToggle: (id: string) => void;
 }) {
-  const moved = new Set((season.transfers ?? []).flatMap((t) => t.ids));
+  const moved = new Set(
+    (season.transfers ?? [])
+      .filter((t) => windowOf(season, season.matchday).includes(t.matchday))
+      .flatMap((t) => t.ids),
+  );
+  const career = !!season.career?.finance;
   const squad = [...squadOf(season.teams[club])].sort(
     (a, b) => playerRating(b) - playerRating(a),
   );
@@ -317,6 +413,8 @@ function PlayerPick({
                   )}
                   <small className="style">
                     {styleLabel(p)} · {form(p)}
+                    {career &&
+                      ` · ${season.career!.people[p.id]?.age} · ${money(valueOf(season, p))}, ${wage(p, season.career!.people[p.id])}k a week`}
                   </small>
                 </span>
                 <span className="rating">{playerRating(p)}</span>
