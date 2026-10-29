@@ -10,6 +10,53 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19). Next: contracts,
 in-match management (on hold at the owner's request).
 
+## Done (session 21): club and career players get cards too
+
+Made-up players (club/career mode, academy, signings) were still the old broad profiles: a forward
+defended at ~65-70 and every card looked flat. On branch `wip/club-cards`.
+
+- `madeCard` (teams.ts): his archetype's card (`cardFor`) at the level that puts his position's
+  skills where the old profiles' were (`CARD_LEVEL`, so sides play as strongly), varied by group (sd
+  3) and build (PAC up, PHY down, or the other way), +10 DEF for wide midfielders; fitted with
+  `cardAttributes`. Two strikers of a 51: PAC 79 SHO 73 PHY 60 (poacher) and PAC 56 SHO 73 PHY 76
+  (target man). Their overall (`PlayerDef.card`) is FIFA-like position weights (`OVERALL_WEIGHTS`,
+  `positionLevel`) plus `OVERALL_SHIFT`, which keeps the old even-average scale: overalls,
+  `ROLE_OFFSET`, potentials and values read as before, and old saves keep their attributes and
+  their even average. `makePlayerAt` makes one at an overall; `shiftTo` moves a card player's
+  position skills most, legs and physique at least 1.5x (pace still goes first, kids fill out).
+- Engine: a poor tackler who goes in wins some (`TACKLE_FLOOR` 8: forwards' DEF is 1-3 points);
+  own-third tackling 0.85 -> 0.75, `FOUL_BASE` 0.13 -> 0.14; a keeper's card speed (~40) counts half
+  for his top speed (with card keepers woodwork went 0.63 -> 0.92 a match).
+- `diag-defending --random` plays made-up sides. The fault-injection ping-pong test now rewrites
+  open-play passes only.
+
+| | before | after | real |
+|---|---|---|---|
+| calibrate 80 1 / 201 / 401 | 30 / 31 / 31 | 31 / 30 / 31 | |
+| Made-up cards, q13, DEF of W / ST; SHO of CB | 65 / 67; 65 | 33 / 36; 40 | 30-45; 40-60 |
+| Tackles / int per 90 (made-up sides), W | 1.40 / 1.18 | 0.61 / 0.73 | 0.7 / 0.4 |
+| ST | 1.46 / 1.29 | 0.74 / 0.74 | 0.4 / 0.2 |
+| WM | 1.73 / 2.01 | 0.90 / 1.45 | 1.0 / 0.7 |
+| Career goals a match (seeds 1-3 x 5 seasons) | 2.40-2.77, mean 2.52 | 2.47-2.77, mean 2.63 | 2.5-2.9 |
+| Top scorer | 27-40 | 20-32, one 45 | 22-35 |
+| Best side | 82-106 | 84-106 | 80-100 |
+| League eleven, S1 -> S5 | +0.1..+0.4 | +0.1, +0.2, +0.5 | ±1 |
+| Strongest - weakest eleven | 10.9-13.5 | 9.9-13.3 (seed 2 10.8 -> 13.3) | 8-15 |
+| Per 90 regulars DEF / MID / FWD goals | 0.03-0.05 / - / 0.32-0.39 | 0.02-0.05 / 0.11-0.15 / 0.29-0.39 | |
+| Drafted side (La Liga, Ronaldo 94; seeds 1, 2, 5, 6) goals | 67-80 | 85, 76, 90, 71 | |
+| Ronaldo's goals | 24, 20, 20, 34 | 36, 21, 31, 30 | 22-35 |
+
+Why the greedy drafted side wasn't dominant: it isn't. One club-season a round and the best that
+fits an open place gives an eleven of 82.6-83.5 against a league of ~78 whose best side is 85-86
+(real club-seasons with several 85+ cards), with three keepers among nine substitutes. At full
+fitness the same eleven scores what it did before cards (seed 1: 82 before, 83 now). A dominant
+side (the best La Liga player for each place, eleven of 88) scores 110 with 102 points, Ronaldo 33.
+
+- **Still off:** club overalls (even-average scale, ~45-65) and the cards (FIFA scale, ~60-85)
+  still read on different scales, as before; woodwork ~0.8 a match (top of range); squads' average
+  overall (not the elevens') drifts down ~1.2 in five seasons; two seasons' top scorers of 20-21 and
+  one of 45; seed 1's best sides 104-106.
+
 ## Done (session 21): a faster matchday
 
 The owner: with 20-club careers, "Just the result" took 10-14 s in the browser (~2.4 s a match on
