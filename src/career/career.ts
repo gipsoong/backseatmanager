@@ -284,7 +284,8 @@ export function nextSeason(s: Season): Season {
     // The academy: two or three a summer, 16 to 18, a long way off the first team, now and then a gem.
     const intake = rng.int(2, 3)
     for (let i = 0; i < intake; i++) {
-      const overall = Math.round(level - 13 + rng.next() * 12)
+      // Below the club's own first team (a weak club's kids are weaker), however high they may go.
+      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift - 14 + rng.next() * 10)
       const potential = Math.max(overall + 3, Math.round(level + GEM_FLOOR + GEM_RANGE * rng.next() ** 2))
       const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(), shirt(), rng.pick(ACADEMY_ROLES), overall)
       squad.push(q)

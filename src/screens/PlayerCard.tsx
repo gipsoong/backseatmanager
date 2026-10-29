@@ -7,6 +7,7 @@ import { positionsLabel, styleLabel } from '../names.ts'
 import { RATED_MINUTES, type Season, type SeasonStats, avgRating, playerRating, squadOf } from '../season/season.ts'
 import { clubOf, goalsPrevented, matchLog, onTargetRate, per90 } from '../season/stats.ts'
 import { Swatch } from './Hub.tsx'
+import { CareerLines, Change, ageOf } from './Career.tsx'
 
 const n = (st: SeasonStats, k: keyof SeasonStats): number => st[k] ?? 0
 const pct = (a: number, b: number): string => (b ? `${Math.round((a / b) * 100)}%` : '–')
@@ -106,11 +107,15 @@ export function PlayerCard({ season, id, onClose }: { season: Season; id: string
         <div>
           <h3>{p.name}</h3>
           <p className="muted">
-            {positionsLabel(p)} · {styleLabel(p)} · {club >= 0 ? season.teams[club].name : ''}
+            {positionsLabel(p)} · {styleLabel(p)}
+            {ageOf(season, id) !== undefined && ` · ${ageOf(season, id)}`} · {club >= 0 ? season.teams[club].name : ''}
           </p>
         </div>
-        <span className="rating big" title="Overall">
-          {playerRating(p)}
+        <span className="card-rating">
+          <span className="rating big" title="Overall">
+            {playerRating(p)}
+          </span>
+          <Change season={season} id={id} />
         </span>
       </div>
       <dl className="attrs">
@@ -127,7 +132,10 @@ export function PlayerCard({ season, id, onClose }: { season: Season; id: string
         ))}
       </dl>
       {!st.apps ? (
-        <p className="meta">He hasn't played this season.</p>
+        <>
+          <p className="meta">He hasn't played this season.</p>
+          <CareerLines season={season} id={id} />
+        </>
       ) : (
         <>
           <div className="season-sections">
@@ -182,6 +190,7 @@ export function PlayerCard({ season, id, onClose }: { season: Season; id: string
             </table>
             <p className="meta">* Came on as a substitute.</p>
           </section>
+          <CareerLines season={season} id={id} />
         </>
       )}
     </div>

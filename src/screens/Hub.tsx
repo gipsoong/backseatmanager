@@ -18,6 +18,7 @@ import { type Deal, offersFor, windowOpen } from "../draft/transfers.ts";
 import { SeasonReview, Stats } from "./Stats.tsx";
 import { TabBar, type TabDef } from "./Tabs.tsx";
 import { stagger } from "./motion.ts";
+import { BoardLine, History, SummerNote, careerLabel } from "./Career.tsx";
 import { surname } from "../viewer/commentary.ts";
 import {
   CUP_NAME,
@@ -34,7 +35,14 @@ const dateFmt = new Intl.DateTimeFormat(undefined, {
   timeZone: "UTC",
 });
 
-type Tab = "review" | "table" | "fixtures" | "squad" | "stats" | "transfers";
+type Tab =
+  | "review"
+  | "table"
+  | "fixtures"
+  | "squad"
+  | "stats"
+  | "transfers"
+  | "history";
 
 export function Swatch({ kit }: { kit: Kit }) {
   return <span className="swatch" style={{ background: kit.shirt }} />;
@@ -46,6 +54,7 @@ export function Hub({
   onWatch,
   onSimulate,
   onNewSeason,
+  onNextSeason,
   onLineup,
   onFormation,
   onDeal,
@@ -57,6 +66,8 @@ export function Hub({
   onWatch: () => void;
   onSimulate: () => void;
   onNewSeason: () => void;
+  /** Career mode: on to next season with the same club. */
+  onNextSeason?: () => void;
   onLineup: (ids: string[] | null) => void;
   onFormation: (f: Formation) => void;
   onDeal: (deal: Deal) => void;
@@ -68,7 +79,7 @@ export function Hub({
   const [wasOver, setWasOver] = useState(isOver(season));
   if (isOver(season) !== wasOver) {
     setWasOver(isOver(season));
-    if (isOver(season)) setTab("review");
+    setTab(isOver(season) ? "review" : "table");
   }
   // The matchday shown in Fixtures: the current one, unless the manager has paged away from it
   // since the last matchday was played.
@@ -98,7 +109,9 @@ export function Hub({
           <p className="eyebrow">
             {season.mode === "draft"
               ? `Draft · ${season.league ?? "Premier League"} 2010–now`
-              : `Matchday · Season ${season.startDate.slice(0, 4)}`}
+              : season.career
+                ? careerLabel(season)
+                : `Matchday · Season ${season.startDate.slice(0, 4)}`}
           </p>
           <h1>
             <Swatch kit={me.kit} /> {me.name}
@@ -139,6 +152,8 @@ export function Hub({
                 <span className="v">v</span>{" "}
                 <TeamName team={season.teams[next.away]} />
               </h2>
+              <BoardLine season={season} over={false} />
+              <SummerNote season={season} />
               {windowOpen(season) && (
                 <div className="window-note">
                   <p className="meta">
@@ -195,6 +210,7 @@ export function Hub({
                   place > CUP_PLACES &&
                   ` A top-${CUP_PLACES} finish would have played on in the ${CUP_NAME}.`}
               </p>
+              <BoardLine season={season} over />
               <div className="actions">
                 {season.cup && cupOn ? (
                   <button type="button" className="btn" onClick={onEnterCup}>
@@ -211,6 +227,24 @@ export function Hub({
                       onClick={onEnterCup}
                     >
                       Back to the {CUP_NAME}
+                    </button>
+                  </>
+                ) : season.career && onNextSeason ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={onNextSeason}
+                      disabled={busy}
+                    >
+                      Next season
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={onNewSeason}
+                    >
+                      New career
                     </button>
                   </>
                 ) : (
@@ -249,6 +283,9 @@ export function Hub({
               { id: "fixtures", label: "Fixtures" },
               { id: "squad", label: "Squad" },
               { id: "stats", label: "Stats" },
+              ...(season.career?.history.length
+                ? [{ id: "history", label: "History" } as const]
+                : []),
               ...(season.mode === "draft"
                 ? [
                     {
@@ -273,6 +310,7 @@ export function Hub({
           )}
           {tab === "stats" && <Stats season={season} />}
           {tab === "review" && <SeasonReview season={season} />}
+          {tab === "history" && <History season={season} />}
           {tab === "table" && (
             <table className="league">
               <thead>

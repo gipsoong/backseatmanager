@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { type Season, matchdays, table } from '../season/season.ts'
 import { type ClubRecord, clubRecords, leaderboards } from '../season/stats.ts'
 import { PlayerCard } from './PlayerCard.tsx'
+import { BoardLine } from './Career.tsx'
 import { type Standout, review } from '../season/review.ts'
 import { FORMATIONS } from '../engine/index.ts'
 import { shortName } from '../names.ts'
@@ -181,6 +182,7 @@ export function SeasonReview({ season }: { season: Season }) {
           Goals {mine.goalsFor}–{mine.goalsAgainst} (expected {mine.xgFor.toFixed(0)}–{mine.xgAgainst.toFixed(0)}), {mine.cleanSheets} clean sheets.
           {mine.biggestWin && ` Biggest win ${mine.biggestWin.for}–${mine.biggestWin.against} against ${name(mine.biggestWin.opponent)}.`}
         </p>
+        <BoardLine season={season} over />
         <p className="meta">
           {name(rows[0].team)} are champions.
           {scorer && ` Golden Boot: ${scorer.player.name}, ${scorer.value} goals (${name(scorer.club)}).`}

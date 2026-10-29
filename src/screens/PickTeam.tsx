@@ -4,8 +4,19 @@ import { squadRating } from '../season/season.ts'
 import { Swatch } from './Hub.tsx'
 import { stagger } from './motion.ts'
 
-export function PickTeam({ teams, onPick, onBack }: { teams: TeamDef[]; onPick: (i: number) => void; onBack: () => void }) {
-  const order = teams.map((t, i) => ({ t, i, rating: squadRating(t) })).sort((a, b) => b.rating - a.rating)
+export function PickTeam({
+  teams,
+  ratingOf = (i) => squadRating(teams[i]),
+  onPick,
+  onBack,
+}: {
+  teams: TeamDef[]
+  /** A club's strength as the board will judge it. */
+  ratingOf?: (i: number) => number
+  onPick: (i: number) => void
+  onBack: () => void
+}) {
+  const order = teams.map((t, i) => ({ t, i, rating: Math.round(ratingOf(i)) })).sort((a, b) => b.rating - a.rating)
   return (
     <div className="pick">
       <header className="top">

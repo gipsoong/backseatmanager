@@ -10,17 +10,19 @@ import { FORMATION_BLURB } from './Draft.tsx'
 import { PlayerCard } from './PlayerCard.tsx'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { stagger } from './motion.ts'
+import { Change, ageOf } from './Career.tsx'
 
-type SortKey = 'name' | 'pos' | 'style' | 'rtg' | 'fit' | 'apps' | 'goals' | 'assists' | 'avg'
+type SortKey = 'name' | 'pos' | 'style' | 'age' | 'rtg' | 'fit' | 'apps' | 'goals' | 'assists' | 'avg'
 
 const ROLE_ORDER = ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 
 /** Column headers you can sort by: first click sorts the way that's most useful (best first). */
-const COLUMNS: { key: SortKey; label: string; title?: string; wide?: boolean; team?: boolean }[] = [
+const COLUMNS: { key: SortKey; label: string; title?: string; wide?: boolean; team?: boolean; career?: boolean }[] = [
   { key: 'name', label: 'Player', team: true },
   { key: 'pos', label: 'Pos' },
   { key: 'style', label: 'Style', wide: true },
-  { key: 'rtg', label: 'Rtg', title: 'Overall' },
+  { key: 'age', label: 'Age', career: true },
+  { key: 'rtg', label: 'Rtg', title: 'Overall (change since last season)' },
   { key: 'fit', label: 'Fit', title: 'Fitness' },
   { key: 'apps', label: 'Apps', title: 'Starts (appearances as a substitute)', wide: true },
   { key: 'goals', label: 'Gls', title: 'Goals' },
@@ -45,6 +47,7 @@ export function Squad({
   onFormation: (f: Formation) => void
 }) {
   const club = season.teams[season.userTeam]
+  const columns = COLUMNS.filter((c) => !c.career || season.career)
   const squad = squadOf(club)
   const xi = lineupFor(season, season.userTeam)
   const slots = FORMATIONS[club.formation]
@@ -64,6 +67,8 @@ export function Squad({
         return ROLE_ORDER.indexOf(p.role)
       case 'style':
         return styleLabel(p)
+      case 'age':
+        return ageOf(season, p.id) ?? 0
       case 'rtg':
         return playerRating(p)
       case 'fit':
@@ -189,7 +194,7 @@ export function Squad({
       <table className="league squad-table">
         <thead>
           <tr>
-            {COLUMNS.map((c) => (
+            {columns.map((c) => (
               <th
                 key={c.key}
                 className={[c.team ? 'team' : '', c.wide ? 'wide' : ''].filter(Boolean).join(' ') || undefined}
@@ -219,7 +224,11 @@ export function Squad({
                 </td>
                 <td>{positionsLabel(p)}</td>
                 <td className="wide style">{styleLabel(p)}</td>
-                <td>{playerRating(p)}</td>
+                {season.career && <td>{ageOf(season, p.id)}</td>}
+                <td className="rtg-cell">
+                  {playerRating(p)}
+                  <Change season={season} id={p.id} />
+                </td>
                 <td>
                   <span className="fit" title={`${Math.round(c.fitness * 100)}% fit`}>
                     <span style={{ width: `${c.fitness * 100}%` }} className={c.fitness < 0.7 ? 'low' : undefined} />

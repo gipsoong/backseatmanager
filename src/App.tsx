@@ -29,6 +29,12 @@ import {
   userCupFixture,
 } from "./draft/cup.ts";
 import { loadSeason, saveSeason } from "./season/store.ts";
+import {
+  aimFor,
+  elevenRating,
+  nextSeason,
+  startCareer,
+} from "./career/career.ts";
 import { MatchViewer } from "./viewer/MatchViewer.tsx";
 import { Timeline } from "./viewer/timeline.ts";
 
@@ -149,7 +155,10 @@ export default function App() {
   };
 
   const newSeason = (): void =>
-    setScreen({ kind: "pick", season: createSeason(randomSeed(), 0) });
+    setScreen({
+      kind: "pick",
+      season: startCareer(createSeason(randomSeed(), 0)),
+    });
   const newDraft = (): void => setScreen({ kind: "draft", seed: randomSeed() });
 
   // Each screen fades up as it arrives (keyed, so a new screen is a new element); the cup and the
@@ -193,9 +202,13 @@ export default function App() {
       {screen.kind === "pick" && (
         <PickTeam
           teams={screen.season.teams}
+          ratingOf={(i) => elevenRating(screen.season, i)}
           onBack={() => setScreen({ kind: "start" })}
           onPick={(i) => {
-            void commit({ ...screen.season, userTeam: i });
+            const s = { ...screen.season, userTeam: i };
+            void commit(
+              s.career ? { ...s, career: { ...s.career, aim: aimFor(s, i) } } : s,
+            );
             setScreen({ kind: "hub" });
           }}
         />
@@ -228,6 +241,9 @@ export default function App() {
             onWatch={() => watch(season)}
             onSimulate={() => void simulateMatchday(season)}
             onNewSeason={season.mode === "draft" ? newDraft : newSeason}
+            onNextSeason={
+              season.career ? () => void commit(nextSeason(season)) : undefined
+            }
             onLineup={(lineup) => void commit({ ...season, lineup })}
             // A new shape: the staff pick the side for it again.
             onFormation={(formation) =>

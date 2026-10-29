@@ -31,12 +31,15 @@ export function Start({
             <span>
               Continue with <Swatch kit={me.kit} /> {me.name}
             </span>
-            <span className="sub">{saved.matchday > matchdays(saved) ? 'Season over' : `Matchday ${saved.matchday} of ${matchdays(saved)}`}</span>
+            <span className="sub">
+              {saved.career ? `Season ${saved.career.number} · ` : ''}
+              {saved.matchday > matchdays(saved) ? 'Season over' : `Matchday ${saved.matchday} of ${matchdays(saved)}`}
+            </span>
           </button>
         )}
         <button type="button" className={`btn big rise${saved ? ' ghost' : ''}`} style={stagger(1)} onClick={onNew}>
-          <span>New season</span>
-          <span className="sub">Manage a club in a league of ten{saved ? ' · replaces your saved season' : ''}</span>
+          <span>New career</span>
+          <span className="sub">Manage a club in a league of ten, season after season{saved ? ' · replaces your saved game' : ''}</span>
         </button>
         <button type="button" className="btn big ghost rise" style={stagger(2)} onClick={onDraft}>
           <span>Draft a side</span>

@@ -2816,6 +2816,75 @@ div.draft-hint .meta {
 }
 
 /* Reduced motion: no movement, only instant state changes. */
+/* Career mode */
+.change {
+  margin-left: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.change.up {
+  color: var(--accent);
+}
+
+.rtg-cell {
+  white-space: nowrap;
+}
+
+.card-rating {
+  display: inline-flex;
+  align-items: baseline;
+  justify-self: end;
+}
+
+.board-line {
+  margin: 4px 0 0;
+}
+
+.board-line .eyebrow {
+  margin-right: 4px;
+}
+
+.met {
+  color: var(--accent);
+}
+
+.missed {
+  color: var(--muted);
+}
+
+.summer-note {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  animation: rise var(--dur-slow) var(--ease-out) backwards;
+}
+
+.summer-note .meta {
+  margin: 0;
+  color: var(--ink);
+}
+
+.history {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.history > .meta {
+  margin: 0;
+  padding: 0 12px;
+}
+
+.history .trophy {
+  color: var(--goal);
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
