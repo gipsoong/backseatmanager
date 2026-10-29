@@ -42,6 +42,9 @@ function report(s: Season): void {
   const hoard = Math.max(...s.teams.map((_, c) => top20.filter((x) => x.club === c).length))
   const deals = (s.transfers ?? []).filter((t) => !t.from.includes(s.userTeam) && !t.to.includes(s.userTeam)).length
   const cash = s.career!.finance?.cash ?? [0]
+  // Squads grow to 24 with academy kids, so their average falls while the best twenty's holds.
+  const best20 = s.teams.flatMap((t) => squadOf(t).map(playerRating).sort((a, b) => b - a).slice(0, 20))
+  console.log(`    best twenty of each squad ${(best20.reduce((a, b) => a + b, 0) / best20.length).toFixed(2)}`)
   console.log(
     `    champions' eleven ${strength[rows[0].team].toFixed(1)}, bottom ${strength[rows.at(-1)!.team].toFixed(1)}; strongest - weakest ${(Math.max(...strength) - Math.min(...strength)).toFixed(1)} | top-20 players at one club ${hoard} | AI deals ${deals} | cash ${Math.min(...cash).toFixed(0)}..${Math.max(...cash).toFixed(0)}`,
   )

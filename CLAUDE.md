@@ -185,9 +185,14 @@ pulling the repo.
   archetype shows as "Deep-lying forward" (DLF). Saved players keep
   their attributes. Club and career players (session 21, `madeCard` in teams.ts) get their archetype's
   card too, at the level that puts their position's skills where the old profiles' were (`CARD_LEVEL`),
-  varied by group and build (quick and slight vs slow and strong); `PlayerDef.card` marks them, and their
-  overall is `positionLevel` (FIFA-like `OVERALL_WEIGHTS`) plus `OVERALL_SHIFT` (onto the old even-average
-  scale, so old saves, which keep that average, rate alike). `makePlayerAt` makes one at an overall;
+  varied by group and build (quick and slight vs slow and strong); `PlayerDef.card` marks them.
+  Since session 22 every made-up player's overall (`playerRating`) is on the draft's FIFA-like scale:
+  `cardOverall` = `ratingAt(positionLevel)` (FIFA-like `OVERALL_WEIGHTS`) + `CARD_GAP` (how far draft
+  players' overalls sit above that, measured, sd ~1), so a club league reads ~67-87, elevens ~80.
+  `ability()` (1-20, picks and substitutions) is untouched, still on the old club scale
+  (`OVERALL_SHIFT`), so every match plays as before. Save version 4: `upgradeCareer` moves a v3
+  career's potentials, changes, levels and history onto the new scale (an old point is 0.8 of a new
+  one). Career constants in overall points were scaled by 0.8 with it. `makePlayerAt` makes one at an overall;
   `shiftTo` moves a card player's position skills most, legs and physique at least `BODY_RELEVANCE`.
   `makeAttributes` (old profiles) still reads unknown draft players' archetypes. No transfers in
   this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
