@@ -638,6 +638,9 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   }
   if (fromOpponent && k?.lofted && p.slot.role !== 'GK' && glancedBehind(t)) return true
   if (height > AERIAL_HEIGHT) return header(s, p, contact, height, out)
+  // An opponent's pass along the ground past a man who doesn't read the game (a forward, mostly):
+  // he's slow to put a foot out and it can go by him.
+  if (fromOpponent && k?.kind === 'pass' && !isKeeper && p.attrs.interceptions < READS_PASSES && !s.rng.chance(readsPass(p.attrs.interceptions))) return miss(t)
   // A pass arriving at normal pace is almost always controlled; a hard ball less so.
   // With a man on him, a poor first touch gets away from him; a good one (ballControl) keeps it.
   const pControl = clamp(0.985 + (p.attrs.ballControl - 10) * 0.003 - Math.max(0, speed - 8) * 0.02 - FIRST_TOUCH_PRESSURE * pressureOn(s, p) * clamp(1.6 - p.attrs.ballControl / 12.5, 0.1, 1.2), 0.5, 0.995)
@@ -647,6 +650,11 @@ function resolveTouch(s: MatchState, p: PlayerState, contact: Vec, height: numbe
   }
   return deflect(t, 'miscontrol', 0.3)
 }
+
+/** Interceptions from which a man gets a foot to every opponent's pass that comes within reach. */
+const READS_PASSES = 14
+/** How often he does below that: 0.8 at 10, 0.6 at 6, 0.4 at the worst. */
+const readsPass = (interceptions: number): number => clamp(1 - (READS_PASSES - interceptions) * 0.05, 0.4, 1)
 
 /** Offside: judged from positions when the ball was played, called when the player gets involved. */
 function offsideCall({ s, p, out }: Touch): true {
