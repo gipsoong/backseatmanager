@@ -7,8 +7,52 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
 (session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
-seasons that carry on (session 19). Next: career stage 2, the summer and January market (reusing
-draft/transfers.ts); in-match management (on hold at the owner's request).
+seasons that carry on (session 19); career stage 2, the market (session 19). Next: contracts,
+in-match management (on hold at the owner's request).
+
+## Done (session 19, stage 2): the career market
+
+On branch `wip/career2`. Career leagues are 20 clubs and 38 matchdays.
+
+- Money (`career/money.ts`): a player's value comes from his overall (priced by his position's
+  level, `ROLE_OFFSET`, so a keeper's high overall isn't a star's), his room to grow while young, and
+  his age (a 19-year-old 60 with potential 80 is worth ~7x a 30-year-old 60). Wages follow his
+  value now. Each club has cash and an income equal to its starting wage bill; each summer adds
+  income and prize money (£300k a place) and takes the wages.
+- Windows: August's matchdays (1-4) and January's. The Deals tab works for both modes: in a career
+  you can buy, sell or swap with a fee (−£1m / +£1m / "Their price"); clubs bid money for your
+  players; the budget and wage bill are shown; "Around the league" lists the other clubs' deals.
+  Value and wages are on the player card.
+- The other clubs (`career/market.ts`): ≤ 2 deals a window matchday, ≤ 5 a window, one per club;
+  a club buys for its weakest place at the seller's price (value, a margin, what losing him costs);
+  never from the strongest side; the top four don't take a rival's two best players.
+- Retirements: AI clubs still get a signing for each; the manager's club doesn't. Young players
+  gain more pace and physique (`YOUNG_GROWTH_WEIGHT`). No two players in a squad share a surname
+  (`freshName`; `leagueTeams` renames, randomTeam unchanged). The count-up lands on its number even
+  when frames stop. Contracts: skipped for now.
+
+Checks (`sim-career.ts` seeds 1-3, five 20-club seasons each, every match played, AI market on):
+
+| | seed 1 | seed 2 | seed 3 | target |
+|---|---|---|---|---|
+| Goals a match, by season | 2.44 2.77 2.68 2.54 2.58 | 2.52 2.47 2.54 2.55 2.55 | 2.44 2.40 2.44 2.41 2.47 | 2.5-2.9 |
+| Top scorer | 31 34 29 30 35 | 40 34 36 27 31 | 38 33 29 29 30 | 22-35 |
+| Best side, points | 88 98 93 97 104 | 93 85 84 82 93 | 95 93 106 89 85 | 80-100 |
+| League eleven overall, S1 → S5 | 58.7 → 58.8 | 57.4 → 57.8 | 58.5 → 58.8 | ±1 |
+| Strongest − weakest eleven | 12.2 11.0 11.3 12.7 13.1 | 12.9 11.8 13.0 13.1 13.5 | 12.2 10.9 11.3 11.7 11.0 | 8-15, not widening |
+| Most top-20 players at one club | 2-3 | 3-5 | 2-4 | |
+
+Per 90, regulars, every season: defenders 0.03-0.05 goals, 0.40-0.48 shots; midfielders 1.1-1.5
+shots; forwards 0.32-0.39 goals, 2.3-2.75 shots. Regulars of 21 and under 0.5-1.5 shots; 32 and over
+0.7-1.2. Ten AI deals a season, £2-38m. Regulars' pace holds (11.6 → 11.2-11.6). calibrate 80 1 /
+201: 30/31 and 31/31, zero violations. vitest 84 and `tsc -b` pass. A matchday of ten in the
+browser ("Just the result", 3 workers on 4 cores): 10-14 s; one match is ~2.4 s on a core.
+
+- **Still off:** goals a match averages 2.52 (seed 3 2.43); a stronger bench didn't move it (half
+  season, 2.68 → 2.62) and it isn't the career (season 1 is the same). Two top scorers of 38-40 and
+  two best sides of 104-106 in fifteen seasons. Seed 1's champions' eleven rises 59.7 → 66.2 over five
+  seasons while the strongest-weakest gap stays 11-13. Richest club's cash 75-86 by season 5. A
+  matchday takes 10-14 s to simulate.
 
 ## Done (session 19): career mode, stage 1
 

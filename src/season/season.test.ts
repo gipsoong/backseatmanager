@@ -130,7 +130,7 @@ describe('squads, fitness and injuries', () => {
     if (scored) expect(goals.rows[0].value).toBeGreaterThan(0)
     const passes = Object.values(s.stats).reduce((n, st) => n + (st.passes ?? 0), 0)
     expect(passes).toBeGreaterThan(1000)
-  })
+   }, 180_000)
 
   it('carries tiredness and injuries into the next matchdays', () => {
     let s = createSeason(9, 0, new Date('2026-03-01'), leagueTeams(9, 10))

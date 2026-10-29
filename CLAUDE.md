@@ -350,10 +350,10 @@ pulling the repo.
   league's level, now and then a gem); squads capped at `SQUAD_MAX` 24 by releasing the least promising
   of 19+. Newcomers are pulled against the league's drift (`DRIFT_PULL`) so the league neither
   inflates nor drains. Then a fresh `createSeason` with the same clubs a year on, elevens re-picked.
-  Board target (`aimFor`, by `elevenRating` rank: top 20% title, top half, else avoid the bottom two).
+  Board target (`aimFor`, by `elevenRating` rank: top 15% title, top half, else avoid the bottom 15%).
   Club strength in career code is `elevenRating` (the staff's eleven), not `squadRating` (formation
-  order). Check the long run with `node scripts/sim-career.ts <seed> 5` (every match played, ~3.5 min
-  a season; run seeds in parallel): goals a match, top scorer, best side, league level, per-90 by line
+  order). Check the long run with `node scripts/sim-career.ts <seed> 5` (every match played, ~15 min
+  a 20-club season; run seeds in parallel): goals a match, top scorer, best side, league level, per-90 by line
   and age. `career/fake.ts` plays a season without the engine, for tests of the long run.
 
 - Career market (session 19, stage 2): career leagues are 20 clubs, 38 matchdays (`LEAGUE_SIZE`);
