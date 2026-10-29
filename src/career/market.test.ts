@@ -12,12 +12,12 @@ describe('money', () => {
   it('prices youth and potential above age', () => {
     const p = start(1).teams[0].players[5]
     const at = (overall: number) => ({ ...p, attrs: p.attrs, overall })
-    const young = marketValue(at(60), { age: 19, potential: 80 })
-    const old = marketValue(at(60), { age: 30, potential: 60 })
+    const young = marketValue(at(74), { age: 19, potential: 86 })
+    const old = marketValue(at(74), { age: 30, potential: 74 })
     expect(young).toBeGreaterThan(old * 3)
-    expect(marketValue(at(70), { age: 26, potential: 70 })).toBeGreaterThan(marketValue(at(60), { age: 26, potential: 60 }))
+    expect(marketValue(at(82), { age: 26, potential: 82 })).toBeGreaterThan(marketValue(at(74), { age: 26, potential: 74 }))
     // Wages follow what he's worth now, not what he may become.
-    expect(wage(at(60), { age: 19, potential: 80 })).toBe(wage(at(60), { age: 19, potential: 60 }))
+    expect(wage(at(74), { age: 19, potential: 86 })).toBe(wage(at(74), { age: 19, potential: 74 }))
   })
 })
 

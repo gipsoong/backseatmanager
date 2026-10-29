@@ -1,7 +1,7 @@
 import { clamp } from './geometry.ts'
 import { Rng } from './rng.ts'
 import { type Archetype, archetypeFrom, cardFor } from './archetypes.ts'
-import { type Card, OVERALL_SHIFT, POSITIONAL, cardAttributes, expandAttributes, positionLevel } from './attributes.ts'
+import { CARD_GAP, type Card, OVERALL_SHIFT, POSITIONAL, cardAttributes, expandAttributes, fromRating, positionLevel, ratingAt } from './attributes.ts'
 import type { Attributes, Block, Formation, Kit, LegacyAttributes, PlayerDef, Role, Slot, TeamDef, Traits } from './types.ts'
 
 const s = (role: Role, depth: number, y: number, attackDepth = 0): Slot => ({ role, depth, y, attackDepth })
@@ -208,9 +208,6 @@ export function makeTraits(rng: Rng, role: Role): Traits {
  */
 const CARD_LEVEL: Record<Role, number> = { GK: 0, CB: 0.15, FB: -0.4, DM: 0.1, CM: 0.05, WM: 0.1, W: -0.65, ST: -0.4 }
 
-/** A card rating for a level, unrounded (the inverse of `fromRating`). */
-const ratingAt = (v: number): number => (v <= 15 ? 80 + (v - 13.5) * 4 : 86 + (v - 15) * 6)
-
 /**
  * A made-up player's card: his archetype's at the overall that puts his position's skills at his
  * quality, varied a little group by group, and by build: some quick and slight, some slow and
@@ -256,9 +253,12 @@ export function makePlayer(rng: Rng, id: string, name: string, shirt: number, ro
   return { id, name, shirt, role, ...madeUp(rng, role, quality), positions: makePositions(rng, role), ...makeFeet(rng) }
 }
 
-/** A made-up player whose overall (`ability` x 5) is about `overall`: his card at the quality that gives it. */
+/**
+ * A made-up player whose overall (FIFA-like, `cardOverall`) is about `overall`: his card at the
+ * quality that gives it.
+ */
 export const makePlayerAt = (rng: Rng, id: string, name: string, shirt: number, role: Role, overall: number): PlayerDef =>
-  makePlayer(rng, id, name, shirt, role, overall / 5 - CARD_LEVEL[role] - OVERALL_SHIFT[role])
+  makePlayer(rng, id, name, shirt, role, fromRating(overall - CARD_GAP[role]) - CARD_LEVEL[role])
 
 /** A made-up name, from the same lists as the clubs' players. */
 export const madeUpName = (rng: Rng): string => `${rng.pick(FIRST)} ${rng.pick(ALL_LAST)}`
@@ -420,9 +420,11 @@ function makePositions(rng: Rng, role: Role): Role[] | undefined {
 }
 
 /**
- * A rough overall, 1-20: a real player's own overall (out of 100) scaled down; a card-made
- * player's position skills (`positionLevel`, onto the old scale); otherwise (older saves) the
- * even average of his outfield or goalkeeping attributes.
+ * How good the staff think he is, 1-20, for picking elevens and substitutes: a real player's own
+ * overall (out of 100) scaled down; a card-made player's position skills (`positionLevel`, onto
+ * the old club scale); otherwise (older saves) the even average of his outfield or goalkeeping
+ * attributes. Not the overall shown for a made-up player (`cardOverall`, on the draft's scale):
+ * kept as it was so every pick, and so every match, plays as before.
  */
 export function ability(def: PlayerDef): number {
   if (def.overall) return def.overall / 5

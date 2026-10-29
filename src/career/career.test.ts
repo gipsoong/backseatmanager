@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { Rng, groupRatings, makePlayerAt } from '../engine/index.ts'
-import { type Season, createSeason, playerRating, squadOf } from '../season/season.ts'
+import { Rng, ability, groupRatings, makePlayerAt } from '../engine/index.ts'
+import { type Season, autoPick, createSeason, playerRating, squadOf } from '../season/season.ts'
 import { upgradeSave } from '../season/store.ts'
 import { SQUAD_MAX, aimFor, aimMet, development, leagueLevel, nextSeason, shiftTo, startCareer } from './career.ts'
 import { fakePlayed } from './fake.ts'
@@ -11,10 +11,10 @@ const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length
 describe('made-up players', () => {
   it('have their archetype\'s card at their overall, and differ from one another', () => {
     const rng = new Rng(3)
-    const strikers = Array.from({ length: 40 }, (_, i) => makePlayerAt(rng, `s${i}`, 'x', 9, 'ST', 60))
+    const strikers = Array.from({ length: 40 }, (_, i) => makePlayerAt(rng, `s${i}`, 'x', 9, 'ST', 76))
     for (const p of strikers) {
       expect(p.card).toBe(true)
-      expect(Math.abs(playerRating(p) - 60)).toBeLessThanOrEqual(2)
+      expect(Math.abs(playerRating(p) - 76)).toBeLessThanOrEqual(2)
       const [pac, sho, , , def] = groupRatings(p.attrs, p.role).map((g) => g.value)
       // A forward shoots, and defends like one.
       expect(sho - def).toBeGreaterThan(25)
@@ -23,7 +23,7 @@ describe('made-up players', () => {
     // Quick ones and strong ones.
     const pace = strikers.map((p) => groupRatings(p.attrs, p.role)[0].value)
     expect(Math.max(...pace) - Math.min(...pace)).toBeGreaterThan(20)
-    const cb = makePlayerAt(rng, 'c', 'x', 4, 'CB', 60)
+    const cb = makePlayerAt(rng, 'c', 'x', 4, 'CB', 76)
     const [, cbSho, , , cbDef] = groupRatings(cb.attrs, cb.role).map((g) => g.value)
     expect(cbDef - cbSho).toBeGreaterThan(25)
   })
@@ -160,12 +160,31 @@ describe('saves', () => {
     const { career: _c, ...rest } = start(11)
     const old = { ...rest, version: 2 } as unknown as Season
     const up = upgradeSave(old)
-    expect(up.version).toBe(3)
+    expect(up.version).toBe(4)
     expect(up.career!.number).toBe(1)
     for (const p of up.teams.flatMap(squadOf)) expect(up.career!.people[p.id].age).toBeGreaterThanOrEqual(17)
     expect(upgradeSave(up)).toEqual(up)
     const draft = upgradeSave({ ...old, mode: 'draft' })
     expect(draft.career).toBeUndefined()
-    expect(draft.version).toBe(3)
+    expect(draft.version).toBe(4)
+  })
+
+  it('moves a version 3 career (old club scale) onto the draft scale', () => {
+    const s = start(12)
+    const c = s.career!
+    const all = s.teams.flatMap(squadOf)
+    const old = (p: (typeof all)[number]): number => Math.round(ability(p) * 5)
+    // The same career as version 3 kept it: potentials and levels on the old scale.
+    const people = Object.fromEntries(all.map((p) => [p.id, { ...c.people[p.id], potential: Math.round(old(p) + (c.people[p.id].potential - playerRating(p)) / 0.8) }]))
+    const levels = s.teams.map((_, club) => {
+      const xi = autoPick(s, club).map((id) => all.find((p) => p.id === id)!)
+      return xi.reduce((n, p) => n + old(p), 0) / 11
+    })
+    const v3 = { ...s, version: 3, career: { ...c, people, levels } } as unknown as Season
+    const up = upgradeSave(v3)
+    expect(up.version).toBe(4)
+    for (const p of all) expect(Math.abs(up.career!.people[p.id].potential - c.people[p.id].potential)).toBeLessThanOrEqual(1.5)
+    up.career!.levels.forEach((l, i) => expect(Math.abs(l - c.levels[i])).toBeLessThan(0.5))
+    expect(upgradeSave(up)).toEqual(up)
   })
 })

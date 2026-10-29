@@ -327,6 +327,23 @@ export function positionLevel(a: Attributes, role: Role): number {
  */
 export const OVERALL_SHIFT: Record<Role, number> = { GK: 0, CB: -2.55, FB: -0.9, DM: -1.4, CM: -1.38, WM: -1.53, W: -1.44, ST: -1.35 }
 
+/** A sub-attribute level (1-20) as a card rating, unrounded (`toRating` rounds and clamps). */
+export const ratingAt = (v: number): number => (v <= 15 ? 80 + (v - 13.5) * 4 : 86 + (v - 15) * 6)
+
+/**
+ * How far a real player's overall sits above his position's weighted skills read as a rating
+ * (`ratingAt(positionLevel)`), measured over every draft player (sd ~1, slope ~1): a full-back's
+ * overall counts things the weights leave out. Added for made-up players so their overall is on
+ * the draft's FIFA-like scale.
+ */
+export const CARD_GAP: Record<Role, number> = { GK: 2.3, CB: 1.9, FB: 4.25, DM: 2.65, CM: 3.5, WM: 3.3, W: 2.2, ST: -0.2 }
+
+/**
+ * A made-up player's overall on the draft's FIFA-like scale (1-99, unrounded): his position's
+ * weighted skills as a rating, as a real player of those skills would be rated.
+ */
+export const cardOverall = (a: Attributes, role: Role): number => Math.max(1, Math.min(99, ratingAt(positionLevel(a, role)) + CARD_GAP[role]))
+
 /** Sub-attributes that come from knowing a position: technique and reading the game, not the body. */
 export const POSITIONAL: Sub[] = [
   'finishing',

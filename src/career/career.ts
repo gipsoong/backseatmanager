@@ -4,8 +4,8 @@
  * retirements, the board's target, and the history of seasons gone. Pure and deterministic, like
  * the season: `nextSeason` turns a finished season into the next one.
  */
-import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, freshName, makePlayerAt } from '../engine/index.ts'
-import { type Finance, settle, startFinance } from './money.ts'
+import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, ability, freshName, makePlayerAt } from '../engine/index.ts'
+import { type Finance, ROLE_OFFSET, settle, startFinance } from './money.ts'
 import { type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 
 /** What the game knows about a player beyond his attributes. */
@@ -79,13 +79,19 @@ export interface Career {
 /** A squad's largest size: the eleven, nine on the bench and a few reserves. */
 export const SQUAD_MAX = 24
 const TITLE_PLACES = 2
-/** A signing's overall against his club's level; an academy player's potential against the league's. */
-const SIGNING_LEVEL = -4
-const GEM_FLOOR = -12
-const GEM_RANGE = 24
+/**
+ * A signing's overall against his club's level; an academy player's against it (from, and a range
+ * up), and his potential against the league's (overalls on the draft's FIFA-like scale, session 22:
+ * a point is 0.8 of the old club scale's, so these are 0.8 of what they were).
+ */
+const SIGNING_LEVEL = -3
+const ACADEMY_FROM = -11
+const ACADEMY_RANGE = 8
+const GEM_FLOOR = -10
+const GEM_RANGE = 19
 const DRIFT_PULL = 6
 /** The most a player improves in one summer. */
-const MAX_GROWTH = 6
+const MAX_GROWTH = 5
 /** The bottom places a side must stay out of: three of twenty, two of ten. */
 export const relegationPlaces = (n: number): number => Math.round(n * 0.15)
 
@@ -108,7 +114,7 @@ export function startCareer(s: Season): Season {
 function firstPerson(rng: Rng, p: PlayerDef, mean: number, sd: number): Person {
   const age = Math.round(Math.max(17, Math.min(35, mean + rng.gauss() * sd)))
   const now = playerRating(p)
-  const room = age < 26 ? Math.max(0, (26 - age) * 1.0 + rng.gauss() * 2.5) : 0
+  const room = age < 26 ? Math.max(0, (26 - age) * 0.8 + rng.gauss() * 2) : 0
   return { age, potential: Math.round(now + room) }
 }
 
@@ -205,16 +211,16 @@ export interface Played {
  */
 export function development(age: number, now: number, potential: number, played: Played, keeper: boolean, rng: Rng): number {
   const a = keeper ? age - 2 : age
-  const noise = rng.gauss() * 0.8
+  const noise = rng.gauss() * 0.65
   if (a <= 26) {
     const gap = Math.max(0, potential - now)
     const rate = a <= 20 ? 0.32 : a <= 23 ? 0.26 : 0.18
     const form = played.rating === null ? 0 : Math.max(-0.15, Math.min(0.2, (played.rating - 6.75) * 0.4))
     const minutes = 0.5 + 0.6 * Math.min(1, played.share) + form
-    return Math.min(gap + 1, MAX_GROWTH, gap * rate * minutes + noise)
+    return Math.min(gap + 0.8, MAX_GROWTH, gap * rate * minutes + noise)
   }
-  if (a <= 30) return noise * 0.8 - (a === 30 ? 0.3 : 0)
-  const fall = a === 31 ? 1 : a === 32 ? 1.6 : a === 33 ? 2.3 : a === 34 ? 3 : 3.6
+  if (a <= 30) return noise * 0.8 - (a === 30 ? 0.25 : 0)
+  const fall = a === 31 ? 0.8 : a === 32 ? 1.3 : a === 33 ? 1.85 : a === 34 ? 2.4 : 2.9
   return -Math.max(0, fall + noise)
 }
 
@@ -314,7 +320,7 @@ export function nextSeason(s: Season): Season {
     // manager signs his own, in the market).
     left.forEach((p, i) => {
       if (mine) return
-      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + rng.gauss() * 2.5)
+      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + ROLE_OFFSET[p.role] + rng.gauss() * 2)
       const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squad), shirt(), p.role, overall)
       squad.push(q)
       people[q.id] = { age: rng.int(24, 29), potential: overall }
@@ -323,10 +329,12 @@ export function nextSeason(s: Season): Season {
     const intake = rng.int(2, 3)
     for (let i = 0; i < intake; i++) {
       // Below the club's own first team (a weak club's kids are weaker), however high they may go.
-      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift - 14 + rng.next() * 10)
-      const potential = Math.max(overall + 3, Math.round(level + GEM_FLOOR + GEM_RANGE * rng.next() ** 2))
+      const lift = ACADEMY_FROM + rng.next() * ACADEMY_RANGE
+      const potential0 = level + GEM_FLOOR + GEM_RANGE * rng.next() ** 2
       // A keeper if the club is short of them, otherwise any position.
       const role = squad.filter((p) => p.role === 'GK').length < 2 ? 'GK' : rng.pick(ACADEMY_ROLES)
+      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + lift + ROLE_OFFSET[role])
+      const potential = Math.max(overall + 2, Math.round(potential0 + ROLE_OFFSET[role]))
       const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(squad), shirt(), role, overall)
       squad.push(q)
       people[q.id] = { age: rng.int(16, 18), potential, academy: true }
@@ -409,10 +417,46 @@ export function pastSeason(s: Season): PastSeason {
 // ---------------------------------------------------------------------------
 // Saves
 
-/** A save from before careers (version 2): club mode becomes a career's first season. */
+/**
+ * An older save brought up to version 4. Version 2 (before careers): club mode becomes a career's
+ * first season. Version 3: club players' overalls were on the old club scale (~45-65, an even
+ * average); they're now on the draft's (`cardOverall`), so what was kept on the old scale (each
+ * man's potential and last change, the clubs' starting levels, past seasons' overalls) is moved
+ * across: a point of the old scale is 0.8 of the new, from where he (or the league) reads now.
+ */
 export function upgradeCareer(s: Season): Season {
-  const v3 = { ...s, version: 3 as const }
-  if (v3.mode === 'draft') return v3
-  if (!v3.career) return startCareer(v3)
-  return v3.career.finance ? v3 : { ...v3, career: { ...v3.career, finance: startFinance(v3) } }
+  const v4 = { ...s, version: 4 as const }
+  if (v4.mode === 'draft') return v4
+  if (!v4.career) return startCareer(v4)
+  const c = (s.version as number) === 3 ? rescaled(v4, v4.career) : v4.career
+  return { ...v4, career: c.finance ? c : { ...c, finance: startFinance({ ...v4, career: c }) } }
+}
+
+/** A version 3 club player's overall: his `ability` (the staff's 1-20 view) times 5. */
+const oldRating = (p: PlayerDef): number => p.overall ?? Math.round(ability(p) * 5)
+
+/** A version 3 career's old-scale numbers on the new scale. */
+function rescaled(s: Season, c: Career): Career {
+  const all = s.teams.flatMap(squadOf)
+  const byId = new Map(all.map((p) => [p.id, p]))
+  // Where the old scale's 0 sits on the new: his own, or the league's on average.
+  const zero = (p: PlayerDef): number => playerRating(p) - 0.8 * oldRating(p)
+  const league = all.reduce((n, p) => n + zero(p), 0) / all.length
+  const at = (id: string, old: number): number => Math.round(0.8 * old + (byId.has(id) ? zero(byId.get(id)!) : league))
+  const people = Object.fromEntries(
+    Object.entries(c.people).map(([id, who]) => {
+      const p = byId.get(id)
+      const potential = p ? Math.round(playerRating(p) + 0.8 * (who.potential - oldRating(p))) : at(id, who.potential)
+      return [id, { ...who, potential, ...(who.change === undefined ? {} : { change: Math.round(who.change * 0.8) }) }]
+    }),
+  )
+  const levels = c.levels.map((l, club) => {
+    const xi = autoPick({ ...s, matchday: 1, condition: Object.fromEntries(squadOf(s.teams[club]).map((p) => [p.id, { fitness: 1, injuredUntil: 0 }])) }, club)
+    const ps = xi.map((id) => byId.get(id)!)
+    const now = ps.reduce((n, p) => n + playerRating(p), 0) / ps.length
+    const was = ps.reduce((n, p) => n + oldRating(p), 0) / ps.length
+    return 0.8 * l + now - 0.8 * was
+  })
+  const history = c.history.map((h) => ({ ...h, lines: Object.fromEntries(Object.entries(h.lines).map(([id, l]) => [id, { ...l, overall: at(id, l.overall) }])) }))
+  return { ...c, people, levels, history }
 }

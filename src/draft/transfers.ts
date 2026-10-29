@@ -317,8 +317,11 @@ export function judge(s: Season, deal: Deal): Verdict {
   return { ok: interest === "yes", interest, them, you, reason };
 }
 
-/** A point of a side's value (sideOf's curve) in £m, as a club weighs what a player does for it. */
-export const POINT_VALUE = 0.6;
+/**
+ * A point of a side's value (sideOf's curve) in £m, as a club weighs what a player does for it
+ * (0.6 when club overalls were on the old scale, where a player's point was 0.8 of one now).
+ */
+export const POINT_VALUE = 0.75;
 
 /**
  * Career mode's verdict: what the deal is worth to them in money. The players' market values, what

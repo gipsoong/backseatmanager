@@ -4,7 +4,7 @@
  * each fixture has its own match seed, so a match plays out the same whether it's watched or not.
  * No React, no storage: the app keeps a Season and replaces it with the updated one.
  */
-import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, ability, fitFor, leagueTeams } from '../engine/index.ts'
+import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, ability, cardOverall, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
 import type { Career } from '../career/career.ts'
 
@@ -132,8 +132,11 @@ export function avgRating(st: SeasonStats | undefined): number | null {
 }
 
 export interface Season {
-  /** 3 since careers (version 2 saves are upgraded on load). */
-  version: 3
+  /**
+   * 3 since careers, 4 since club overalls are on the draft's scale (session 22); older saves are
+   * upgraded on load.
+   */
+  version: 4
   seed: number
   teams: TeamDef[]
   /** The manager's team (index into teams). */
@@ -247,7 +250,7 @@ export function createSeason(seed: number, userTeam: number, today = new Date(),
     condition[p.id] = { fitness: 1, injuredUntil: 0 }
     stats[p.id] = { apps: 0, goals: 0, assists: 0, ratings: 0 }
   }
-  return { version: 3, seed, teams, userTeam, fixtures, matchday: 1, startDate: firstSaturdayOfAugust(today), condition, stats, lineup: null }
+  return { version: 4, seed, teams, userTeam, fixtures, matchday: 1, startDate: firstSaturdayOfAugust(today), condition, stats, lineup: null }
 }
 
 // ---------------------------------------------------------------------------
@@ -500,8 +503,11 @@ export function table(s: Season): TableRow[] {
   )
 }
 
-/** A player's overall, 1-100: a real player's own, otherwise from his attributes. */
-export const playerRating = (p: PlayerDef): number => p.overall ?? Math.round(ability(p) * 5)
+/**
+ * A player's overall, 1-99, on one FIFA-like scale: a real player's own, otherwise his position's
+ * weighted skills as a real player of those skills would be rated (`cardOverall`).
+ */
+export const playerRating = (p: PlayerDef): number => p.overall ?? Math.round(cardOverall(p.attrs, p.role))
 
 /** A squad's overall strength, 1-100: its first eleven's average. */
 export function squadRating(t: TeamDef): number {

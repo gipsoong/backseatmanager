@@ -76,7 +76,7 @@ function findDeal(
       if (fitFor(p, slot) < 0.9 || (people[p.id]?.age ?? 26) > 31) continue
       if (p.role === 'GK' && theirs.filter((q) => q.role === 'GK').length <= 2) continue
       const gain = playerRating(p) * fitFor(p, slot) - weak.fitted
-      if (gain < 2) continue
+      if (gain < 1.5) continue
       // The top sides don't take a rival's best players.
       if (rank(buyer) < 4 && theirBest.includes(p)) continue
       const value = valueOf(s, p)

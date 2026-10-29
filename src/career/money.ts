@@ -3,7 +3,7 @@
  * season brings in. Pure. Amounts are in £m (wages in £k a week).
  *
  * A player's value comes from his overall, his age and his room to grow: a 19-year-old who could
- * become an 80 is worth far more than a 30-year-old of the same overall today.
+ * become an 85 is worth far more than a 30-year-old of the same overall today.
  */
 import type { PlayerDef, Role } from '../engine/index.ts'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
@@ -17,11 +17,11 @@ export interface Finance {
 }
 
 /**
- * How far a position's overalls sit from the league's (made-up players' overalls average their
- * sub-attributes, so a keeper reads ~7 high and a centre-back ~4 low): a keeper of 62 is priced like
- * an average player, not a star.
+ * How far a position's overalls sit from the league's (made-up players on the draft's scale: a
+ * centre-midfielder reads ~2 high, a striker ~4 low), so a striker of 76 is priced like an average
+ * player, not a poor one. Signings and academy players are made at it too.
  */
-const ROLE_OFFSET: Record<Role, number> = { GK: 7, CB: -4, FB: 2, DM: 0, CM: 1, WM: -1, W: -3, ST: -1 }
+export const ROLE_OFFSET: Record<Role, number> = { GK: 0, CB: 0, FB: 1, DM: 1, CM: 2, WM: 1, W: -2, ST: -4 }
 
 /** The overall his value is priced at: today's, plus some of what he could become while he's young. */
 function pricedAt(overall: number, who: Person | undefined): number {
@@ -35,7 +35,8 @@ function pricedAt(overall: number, who: Person | undefined): number {
 export function marketValue(p: PlayerDef, who: Person | undefined): number {
   const age = who?.age ?? 26
   const ageing = age <= 29 ? 1 : Math.max(0.25, 1 - 0.17 * (age - 29))
-  const v = 2 * 1.16 ** (pricedAt(playerRating(p), who) - ROLE_OFFSET[p.role] - 55) * ageing
+  // An average player of the league (~78) is worth £2m, and a point of overall ~20% more.
+  const v = 2 * 1.2 ** (pricedAt(playerRating(p), who) - ROLE_OFFSET[p.role] - 78) * ageing
   return Math.max(0.1, Math.round(v * 10) / 10)
 }
 

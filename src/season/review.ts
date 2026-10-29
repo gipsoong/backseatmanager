@@ -4,7 +4,7 @@
  */
 import { FORMATIONS, type PlayerDef, type Role } from '../engine/index.ts'
 import { ratingGroup } from '../viewer/players.ts'
-import { type Fixture, type Season, type SeasonStats, avgRating, squadOf, squadRating, table } from './season.ts'
+import { type Fixture, type Season, type SeasonStats, avgRating, playerRating, squadOf, squadRating, table } from './season.ts'
 import { count, goalsPrevented, onTargetRate } from './stats.ts'
 import { ordinal } from '../screens/format.ts'
 
@@ -115,7 +115,7 @@ export function review(s: Season): Review {
   if (everPresent && everPresent !== star && everPresent !== unsung)
     yours.push({ title: 'Ever-present', who: { ...everPresent, line: `${count(everPresent.st, 'minutes')} minutes · ${everPresent.line}` } })
   // Below par: the regular furthest under what his overall promised.
-  const expected = (x: Standout): number => 6.75 + ((x.player.overall ?? 75) - 80) * 0.03
+  const expected = (x: Standout): number => 6.75 + (playerRating(x.player) - 80) * 0.03
   const belowPar = [...mine].sort((a, b) => a.avg - expected(a) - (b.avg - expected(b)))[0]
   if (belowPar && belowPar.avg < expected(belowPar) - 0.1 && !yours.some((y) => y.who.player === belowPar.player))
     yours.push({ title: 'Below par', who: belowPar })
