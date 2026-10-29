@@ -76,6 +76,9 @@ const OWN_GOALS = [
   [vec(PITCH_LENGTH - 0, PITCH_WIDTH - CENTER.y), vec(0, CENTER.y)],
 ]
 const ownGoalOf = (s: MatchState, team: Side): Vec => OWN_GOALS[team][s.half - 1]
+/** `wf(s, team, vec(x, y))`, making only the one point. */
+const wfXY = (s: MatchState, team: Side, x: number, y: number): Vec =>
+  (team === 0) === (s.half === 1) ? { x, y } : { x: PITCH_LENGTH - x, y: PITCH_WIDTH - y }
 /** Just the x of `af`, without making the point. */
 const afX = (s: MatchState, team: Side, p: Vec): number => ((team === 0) === (s.half === 1) ? p.x : PITCH_LENGTH - p.x)
 const afY = (s: MatchState, team: Side, p: Vec): number => ((team === 0) === (s.half === 1) ? p.y : PITCH_WIDTH - p.y)
@@ -974,7 +977,7 @@ const HOLD_PATIENCE = 0.0015
 export function backToGoal(s: MatchState, p: PlayerState): boolean {
   const speed = len(p.vel)
   if (speed < BACK_TO_GOAL_SPEED) return false
-  const goal = wf(s, p.team, vec(PITCH_LENGTH, CENTER.y))
+  const goal = wfXY(s, p.team, PITCH_LENGTH, CENTER.y)
   const toGoal = norm(sub(goal, p.pos))
   if ((p.vel.x * toGoal.x + p.vel.y * toGoal.y) / speed > -0.17) return false
   const pa = afX(s, p.team, p.pos)
@@ -1024,7 +1027,7 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const aim = CENTER.y + side * (GOAL_HALF_WIDTH - 0.5) * (finesse ? rng.range(0.8, 1) : rng.range(0.5, 1))
   const curl = finesse ? 1.05 - (attrs.curve / 20) * 0.4 : 1
   const sigma = finishingError(skill) * (1.5 + dGoal * 0.28) * curl * (1 + (1 - footQ) * 2.5)
-  const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
+  const target = wfXY(s, p.team, PITCH_LENGTH, aim + rng.gauss() * sigma)
   // Height as it reaches the line: aimed under the bar, with error growing with distance.
   const height = Math.max(0.1, rng.range(0.2, 1.6) + Math.abs(rng.gauss()) * sigma * 0.45)
   return { kind: 'shot', target, xg: q, height, finesse, foot, footQ }
@@ -1072,7 +1075,7 @@ function penaltyKick(d: Decision): Action {
   // In a shootout the nerves tell: about a quarter are missed or saved there, a fifth in a match.
   const nerve = s.shootout ? 1.6 : 1
   const sigma = ((26 - attrs.penalties) / 20) * (1.15 - attrs.composure / 40) * nerve
-  const target = wf(s, p.team, vec(PITCH_LENGTH, aim + rng.gauss() * sigma))
+  const target = wfXY(s, p.team, PITCH_LENGTH, aim + rng.gauss() * sigma)
   const height = Math.max(0.1, rng.range(0.2, 1.9) + Math.abs(rng.gauss()) * sigma * 0.35)
   return { kind: 'shot', target, xg: 0, height, finesse: false, foot: p.def.foot ?? 'right', footQ: 1 }
 }
@@ -1089,7 +1092,7 @@ function clearanceTarget(d: Decision): Vec {
   // Out wide, a defender under pressure (not the keeper) puts it out of play if he can.
   const touchSide = Math.sign(a.y - CENTER.y)
   const angles = !keeper && Math.abs(a.y - CENTER.y) > 18 ? [touchSide * 1.3, 0, 0.35 * touchSide, 0.7 * touchSide] : [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]
-  const candidates = angles.map((angle) => wf(s, p.team, vec(a.x + Math.cos(angle) * len, a.y + Math.sin(angle) * len)))
+  const candidates = angles.map((angle) => wfXY(s, p.team, a.x + Math.cos(angle) * len, a.y + Math.sin(angle) * len))
   const clearance = (target: Vec): number => {
     const near = lerp(ball, target, Math.min(1, 6 / Math.max(dist(ball, target), 1)))
     let gap = Infinity
@@ -1365,7 +1368,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
       for (const q of teammatesOf(s, team)) if (q.slot.role !== 'GK') deepest = Math.min(deepest, afX(s, team, q.pos))
       // A sweeper keeper covers higher; a shot-stopper stays nearer his line.
       const sweep = clamp(deepest - (p.archetype === 'sweeperKeeper' ? 16 : 24), 0, BOX_DEPTH - 3)
-      if (sweep > spot.x) return wf(s, team, vec(sweep, lerp(spot, vec(0, CENTER.y), 0.5).y))
+      if (sweep > spot.x) return wfXY(s, team, sweep, lerp(spot, vec(0, CENTER.y), 0.5).y)
     }
     return wf(s, team, spot)
   }
@@ -1497,7 +1500,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
       target = vec(Math.min(target.x, line - 0.5 + drift), target.y)
     }
   }
-  return wf(s, team, vec(clamp(target.x, 3, PITCH_LENGTH - 3), clamp(target.y, 2, PITCH_WIDTH - 2)))
+  return wfXY(s, team, clamp(target.x, 3, PITCH_LENGTH - 3), clamp(target.y, 2, PITCH_WIDTH - 2))
 }
 
 const BUILD_UP_TO = 40
@@ -1738,7 +1741,7 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
       const offsideNow = afX(s, mark.team, mark.pos) > offsideLine(s, mark.team, s.ball.pos) + 0.3
       const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
       const holds = (p.slot.role === 'CB' || p.slot.role === 'FB') && owner?.team === mark.team && !ballUnpressured(s, p.team) && ma.x > ta.x - 3
-      if (ta.x > ma.x - 1 && !offsideNow && !holds) target = wf(s, p.team, vec(ma.x - 1, ta.y))
+      if (ta.x > ma.x - 1 && !offsideNow && !holds) target = wfXY(s, p.team, ma.x - 1, ta.y)
     }
   }
   // Out of position, he sprints back; how hard he gets back into shape otherwise is down to him.
@@ -1763,7 +1766,7 @@ function keeperShotTarget(s: MatchState, gk: PlayerState): Vec | null {
     }
   }
   const ba = af(s, gk.team, best)
-  return wf(s, gk.team, vec(Math.max(0.3, ga.x), clamp(ba.y, CENTER.y - GOAL_HALF_WIDTH - 0.5, CENTER.y + GOAL_HALF_WIDTH + 0.5)))
+  return wfXY(s, gk.team, Math.max(0.3, ga.x), clamp(ba.y, CENTER.y - GOAL_HALF_WIDTH - 0.5, CENTER.y + GOAL_HALF_WIDTH + 0.5))
 }
 
 /**
@@ -2030,7 +2033,7 @@ export function giveAndGo(s: MatchState, p: PlayerState, to: PlayerState): Vec |
   const aim = add(add(a, scale(vec(1, 0), 10)), scale(toGoal, 5))
   // Go round the side of the receiver away from where the pass came from.
   const x = Math.min(Math.max(aim.x, ta.x + 6), line + 5, PITCH_LENGTH - 12)
-  return wf(s, p.team, vec(x, clamp(aim.y, 5, PITCH_WIDTH - 5)))
+  return wfXY(s, p.team, x, clamp(aim.y, 5, PITCH_WIDTH - 5))
 }
 
 // ---------------------------------------------------------------------------
@@ -2085,16 +2088,16 @@ export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIn
 
   if (r.type === 'penalty') {
     const defTeam = (1 - r.team) as Side
-    if (!attacking && p.slot.role === 'GK') return { target: wf(s, defTeam, vec(0.3, CENTER.y)), urgency: 0.8 }
+    if (!attacking && p.slot.role === 'GK') return { target: wfXY(s, defTeam, 0.3, CENTER.y), urgency: 0.8 }
     // Everyone else outside the box and the arc (in the defending team's frame).
     const d = af(s, defTeam, target)
-    if (d.x < BOX_DEPTH + 5) target = wf(s, defTeam, vec(BOX_DEPTH + 5, d.y))
+    if (d.x < BOX_DEPTH + 5) target = wfXY(s, defTeam, BOX_DEPTH + 5, d.y)
     return { target, urgency: 0.8 }
   }
 
   if (r.type === 'goalKick' && !attacking) {
     const d = af(s, r.team, target)
-    if (d.x < BOX_DEPTH + 2) target = wf(s, r.team, vec(BOX_DEPTH + 2, d.y))
+    if (d.x < BOX_DEPTH + 2) target = wfXY(s, r.team, BOX_DEPTH + 2, d.y)
   }
 
   if (r.type === 'corner') {
@@ -2102,7 +2105,7 @@ export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIn
     if (planned) return { target: planned, urgency: 0.8 }
     if (!attacking && p.slot.role !== 'GK') {
       const d = af(s, p.team, target)
-      target = wf(s, p.team, vec(Math.min(d.x, 8 + p.slot.depth * 12), d.y))
+      target = wfXY(s, p.team, Math.min(d.x, 8 + p.slot.depth * 12), d.y)
     }
   }
 
@@ -2158,22 +2161,22 @@ function makeCornerPlan(s: MatchState, r: Restart): Map<number, Vec> {
   const threats = attackers.slice(0, spots.length)
   threats.forEach((q, i) => plan.set(q.idx, wf(s, att, spots[i])))
   const edge = attackers[spots.length]
-  if (edge) plan.set(edge.idx, wf(s, att, vec(PITCH_LENGTH - BOX_DEPTH - 2, CENTER.y - side * 4)))
+  if (edge) plan.set(edge.idx, wfXY(s, att, PITCH_LENGTH - BOX_DEPTH - 2, CENTER.y - side * 4))
 
   const keeper = goalkeeperOf(s, def)
-  if (keeper) plan.set(keeper.idx, wf(s, att, vec(PITCH_LENGTH - 0.5, CENTER.y + side * 0.5)))
+  if (keeper) plan.set(keeper.idx, wfXY(s, att, PITCH_LENGTH - 0.5, CENTER.y + side * 0.5))
   const defenders = byOrder(def, CORNER_DEFEND_ORDER, -1)
-  const ownGoal = wf(s, att, vec(PITCH_LENGTH, CENTER.y))
+  const ownGoal = wfXY(s, att, PITCH_LENGTH, CENTER.y)
   // Each marker stands between his man and the goal, a yard off him.
   for (const [i, q] of threats.entries()) {
     const m = defenders[i]
     if (m) plan.set(m.idx, add(q.pos, scale(norm(sub(ownGoal, q.pos)), 1)))
   }
   const post = defenders[threats.length]
-  if (post) plan.set(post.idx, wf(s, att, vec(PITCH_LENGTH - 0.8, CENTER.y + side * (GOAL_HALF_WIDTH - 0.3))))
+  if (post) plan.set(post.idx, wfXY(s, att, PITCH_LENGTH - 0.8, CENTER.y + side * (GOAL_HALF_WIDTH - 0.3)))
   // One more holds the middle of the six-yard box, zonal: first to the ball dropping in front of goal.
   const zonal = defenders[threats.length + 1]
-  if (zonal) plan.set(zonal.idx, wf(s, att, vec(PITCH_LENGTH - 3.5, CENTER.y + side * 0.5)))
+  if (zonal) plan.set(zonal.idx, wfXY(s, att, PITCH_LENGTH - 3.5, CENTER.y + side * 0.5))
   return plan
 }
 
@@ -2184,16 +2187,16 @@ export function cornerSetUp(s: MatchState, r: Restart): boolean {
 }
 
 export function takerSpot(s: MatchState, r: Restart): Vec {
-  if (r.type === 'kickoff') return wf(s, r.team, vec(HALFWAY_X - 0.3, CENTER.y))
+  if (r.type === 'kickoff') return wfXY(s, r.team, HALFWAY_X - 0.3, CENTER.y)
   return r.spot
 }
 
 /** Own half, opponents outside the centre circle. */
 export function kickoffPosition(s: MatchState, p: PlayerState): Vec {
-  if (p.slot.role === 'GK') return wf(s, p.team, vec(4, CENTER.y))
+  if (p.slot.role === 'GK') return wfXY(s, p.team, 4, CENTER.y)
   const x = 18 + p.slot.depth * 24
   const y = CENTER.y + (p.slot.y - CENTER.y) * 0.85
-  return wf(s, p.team, vec(clamp(x, 5, HALFWAY_X - CENTER_CIRCLE_RADIUS - 1.5), y))
+  return wfXY(s, p.team, clamp(x, 5, HALFWAY_X - CENTER_CIRCLE_RADIUS - 1.5), y)
 }
 
 /** Taker for a restart: the player best placed (or suited) to take it. */
