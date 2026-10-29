@@ -6,8 +6,48 @@ Updated at the end of each session. Keep this short — current state, not a ful
 
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
-(session 13); single-season draft squads and fair attributes (session 14). Next: transfers for the club mode; in-match management (on hold at the owner's
-request).
+(session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
+seasons that carry on (session 19). Next: career stage 2, the summer and January market (reusing
+draft/transfers.ts); in-match management (on hold at the owner's request).
+
+## Done (session 19): career mode, stage 1
+
+Club mode is a career: after the last matchday and the review, "Next season" plays on with the same
+clubs and squads (fresh fixtures and table, a year on). On branch `wip/career`, self-contained.
+
+- `src/career/career.ts` (pure, tested in `career.test.ts`): ages and hidden potential
+  (`Career.people`), `development` and `shiftTo` (sub-attributes a point at a time; pace, agility
+  and stamina first in decline), retirements from 34 (keepers 36), a signing for each retirement,
+  2-3 academy players a club a summer, squads capped at 24 (least promising 19+ released, never the
+  second keeper), the board's target (`aimFor`) judged in the review, `history` of past seasons
+  with every player's season line. Save version 3; old club saves become season 1 (`upgradeCareer`).
+- Screens (`screens/Career.tsx`): "Season 2 · 2027–28" on the hub, the board's line on the next-match
+  card and the review ("Met" / "Missed"), "Over the summer" before the first match (retired, signed,
+  academy, released), a History tab, Age and "+3" / "−2" next to Rtg in the squad table and on the
+  player card, with his career's seasons under it. Start says "New career".
+- Not engine changes: `makePlayer` / `madeUpName` exported from teams.ts (no RNG change).
+
+Checks (`scripts/sim-career.ts`, seeds 1-3, 5 seasons, every match played; club mode has 18
+matchdays, so the top scorer and best side are also shown scaled to 38):
+
+| | season 1 (no career yet) | seasons 2-5 | target |
+|---|---|---|---|
+| Goals a match (3-seed mean) | 2.48 | 2.47 / 2.58 / 2.68 / 2.52 | 2.5-2.9 |
+| Top scorer (raw, x38/18) | 12-15 (25-32) | 10-21 (21-44) | 22-35 |
+| Best side (raw, x38/18) | 41-42 (87-89) | 40-50 (84-106) | 80-100 |
+| League eleven overall, change over 5 seasons | | +0.2, +0.1, +0.2 | ±1 |
+| Per 90, regulars: DEF goals / shots | 0.03-0.04 / 0.39-0.43 | 0.02-0.05 / 0.35-0.54 | |
+| MID shots, FWD goals / shots | 0.9-1.6, 0.32-0.37 / 2.5-2.9 | 0.7-1.7, 0.28-0.49 / 2.2-3.2 | |
+
+Regulars of 21 and under shoot less (0.4-1.3 a 90) and score 0.03-0.18; 32 and over in line with
+everyone. calibrate 80 1 / 201: 30/31 and 31/31, zero violations (engine untouched); vitest 79 and `tsc -b` pass. Without the drift pull the league rose
+~0.3 a season (squads deepening, release of the weakest); with it ±0.2 over five.
+
+- **Open:** club mode's goals a match sits at ~2.5 before any career (the band's bottom); club mode's
+  rating scale is lower than the FIFA-like one (league elevens ~57), so academy players come in at
+  the club's level −14 to −4 and potential runs up to the league's +12; the staff also sign a
+  replacement for the manager's own retirees (no transfers yet); pace of regulars drifts down ~0.3
+  over five seasons on one seed.
 
 ## Done (session 18, round 3): shooting spread, strong sides, what a viewer sees
 

@@ -81,6 +81,8 @@ const SIGNING_LEVEL = -4
 const GEM_FLOOR = -12
 const GEM_RANGE = 24
 const DRIFT_PULL = 6
+/** The most a player improves in one summer. */
+const MAX_GROWTH = 6
 const RELEGATION_PLACES = 2
 
 // ---------------------------------------------------------------------------
@@ -179,7 +181,7 @@ export function development(age: number, now: number, potential: number, played:
     const rate = a <= 20 ? 0.32 : a <= 23 ? 0.26 : 0.18
     const form = played.rating === null ? 0 : Math.max(-0.15, Math.min(0.2, (played.rating - 6.75) * 0.4))
     const minutes = 0.5 + 0.6 * Math.min(1, played.share) + form
-    return Math.min(gap + 1, gap * rate * minutes + noise)
+    return Math.min(gap + 1, MAX_GROWTH, gap * rate * minutes + noise)
   }
   if (a <= 30) return noise * 0.8 - (a === 30 ? 0.3 : 0)
   const fall = a === 31 ? 1 : a === 32 ? 1.6 : a === 33 ? 2.3 : a === 34 ? 3 : 3.6

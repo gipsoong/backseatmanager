@@ -175,7 +175,8 @@ pulling the repo.
   archetype's shape at his overall, with a little noise. Not seeded at random per name: that made
   a 91 anything from a 16 to a 20 finisher and decided who was "overpowered". No transfers in
   this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
-- `src/screens/` — Start, PickTeam, Draft, Hub (next fixture; tabs: review at season's end,
+- `src/screens/` — Start, PickTeam, Draft, Career (summer news, board line, History tab, a player's
+  change and career lines), Hub (next fixture; tabs: review at season's end,
   table, fixtures, squad, stats), Squad (shape, the eleven on a pitch with tap-to-swap, fitness,
   injuries, season stats), Stats (leaderboards, clubs, season review), Match. `pitchLayout.ts`
   places a formation on the small pitch. `src/names.ts`: how players are named on screen
@@ -335,5 +336,24 @@ pulling the repo.
   need `minmax(0, 1fr)` / `min-width: 0` or a long name pushes the page sideways. Touch targets
   ≥ 40px. Check with a Playwright pass at 390x844 and 1280x800: no horizontal scroll, no console
   errors.
+
+- Career mode (session 19, `src/career/career.ts`, pure TS): club mode is now a career (`Season.career`,
+  save version 3; `upgradeCareer` makes an old club save season 1). `Career.people` holds each player's
+  age and hidden potential (on the overall scale) and his last summer's `change`; `history` keeps each
+  finished season (place, points, board target met, top scorers, trophies, every player's season
+  line); `levels` is each club's strength when the career began. `nextSeason` runs the summer:
+  `development` (closing a share of the gap to potential to 26, faster with minutes and rating; 27-30
+  hold; decline from 31, faster each year; keepers two years later), applied by `shiftTo`, which moves
+  sub-attributes a point at a time until the overall is the target (pace, agility and stamina first
+  on the way down); retirements from 34 (keepers 36); a made-up signing for each retirement at the
+  club's level; two or three academy players (16-18, below the club's eleven, potential against the
+  league's level, now and then a gem); squads capped at `SQUAD_MAX` 24 by releasing the least promising
+  of 19+. Newcomers are pulled against the league's drift (`DRIFT_PULL`) so the league neither
+  inflates nor drains. Then a fresh `createSeason` with the same clubs a year on, elevens re-picked.
+  Board target (`aimFor`, by `elevenRating` rank: top 20% title, top half, else avoid the bottom two).
+  Club strength in career code is `elevenRating` (the staff's eleven), not `squadRating` (formation
+  order). Check the long run with `node scripts/sim-career.ts <seed> 5` (every match played, ~3.5 min
+  a season; run seeds in parallel): goals a match, top scorer, best side, league level, per-90 by line
+  and age. `career/fake.ts` plays a season without the engine, for tests of the long run.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
