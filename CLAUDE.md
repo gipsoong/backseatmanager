@@ -389,8 +389,13 @@ pulling the repo.
   whose reference is the league's level, `curveRef`); offers are bids for your players
   (`moneyOffers`). `career/market.ts` `marketDay`: the other clubs' deals among themselves, called
   after each matchday and at a season's start (≤ 2 a matchday, ≤ 5 a window; one per club a window;
-  never from the strongest side; the top four don't take a rival's two best). AI clubs still get a
+  never from the strongest side, which doesn't buy either, nor does the table's leader (session 22);
+  the top four don't take a rival's two best). AI clubs still get a
   signing for each retirement; the manager's club doesn't. No contracts yet.
+  Session 22: retirement signings and academy players are made at the club's level plus their
+  position's `ROLE_OFFSET` (strikers read ~4 low, centre-midfielders ~2 high on the card scale).
+  Squads' average overall falls ~1 over five seasons only because squads fill from 20 to 24 with
+  academy kids; sim-career prints the best twenty of each squad, which holds.
 
 - Performance (session 21). A match is ~41k ticks, ~1.3 s on one desktop core (was ~2.4 s). Hot,
   in order: the per-tick movement intents (`playIntent` → `shapeTarget`, `defendIntent`, ~40%),

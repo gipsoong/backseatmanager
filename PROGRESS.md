@@ -7,8 +7,60 @@ Updated at the end of each session. Keep this short — current state, not a ful
 **3. Season loop** — league, fixtures, table, saves (session 8); squads, fitness, subs, injuries,
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
 (session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
-seasons that carry on (session 19); career stage 2, the market (session 19). Next: contracts,
+seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
+every mode (session 22). Next: contracts,
 in-match management (on hold at the owner's request).
+
+## Done (session 22): one overall scale, career outliers
+
+On branch `wip/career-scale`.
+
+- **One scale.** Made-up players' overall (`playerRating`) is now on the draft's FIFA-like scale:
+  `cardOverall` = `ratingAt(positionLevel)` + `CARD_GAP` per position, the gap measured over every
+  draft player (their overall sits that far above their weighted skills; slope ~1, sd ~1). A 51
+  striker with SHO 73 now reads ~75; club leagues read 67-87, elevens ~80 (draft leagues ~78).
+  `ability()` (the staff's picks and substitutions) is unchanged, so matches are byte-identical:
+  fingerprint 24/24 hashes the same, calibrate 80 1 / 201 31/31 and 30/31, zero violations.
+- Everything in overall points moved with it (an old point is 0.8 of a new one): potentials
+  (`firstPerson`), development (`MAX_GROWTH` 5, noise, decline), signings (`SIGNING_LEVEL` -3),
+  academy (-11 + 0..8, gems -10 + 19 u^2), market `gain` 1.5. Money: `ROLE_OFFSET` re-measured
+  (GK 0, CB 0, FB 1, DM 1, CM 2, WM 1, W -2, ST -4), value `2 x 1.2^(priced - offset - 78)` (same
+  prices as before: median £2.4m, the dearest ~£10m, fees up to ~£20m), `POINT_VALUE` 0.75. Signings
+  and academy players are now made at their position's offset (on the old scale a centre-back
+  signing at the club's level was a strong one, a keeper a weak one). The review's expected rating
+  uses `playerRating` for made-up players (was a flat 75).
+- Saves: version 4. `upgradeCareer` moves a v3 career's potentials, last changes, the clubs'
+  starting levels and the history's overalls onto the new scale (from where each man reads now).
+  Tested round trip; pre-card players (old profiles) read 70-76 by position, like card ones.
+- **Outliers.** Market, development and signings aren't what makes the best sides: across 300
+  club-seasons the eleven's overall predicts points equally on both scales (r 0.58); under-24s
+  don't develop faster at strong clubs; the market didn't feed the champions. What's left is a
+  club that over-performs its overall year after year (seed 1's 4-4-2 Ashford: 2nd-4th strongest
+  eleven, champions five times, 8-21 conceded a season, 100 points in season 1 before any career)
+  and shapes (points beyond strength: 3-4-3 -9 a season, 4-3-3 +5, 4-2-3-1 -4). Keepers correlate
+  strongly with goals against but a mirror (a keeper 6 worse, 240 matches) costs only ~0.05 goals a
+  match, so that's club quality, not keepers. Fix kept modest: the strongest eleven no longer buys
+  (it already couldn't sell), nor does the table's leader. Squads' average falls ~1 over five
+  seasons because squads fill from 20 to 24 with academy kids; the best twenty of each squad holds
+  (+0.1 to +0.3), so it doesn't matter.
+
+Career sims (seeds 1-3, five seasons, every match played; session 21's gaps were on the old scale,
+where a point is 0.8 of one now, so 10.8 -> 13.3 then is ~8.6 -> 10.6 now):
+
+| | session 21 | scale only | scale + market fix | target |
+|---|---|---|---|---|
+| Goals a match | 2.47-2.77, mean 2.63 | 2.47-2.74, mean 2.61 | 2.40-2.78, mean 2.60 | 2.5-2.9 |
+| Top scorer | 20-32, one 45 | 21-31 | 23-37 (one 37, one 34) | 22-35 |
+| Best side | 84-106 | 79-109 | 85-103 (one 103) | 80-100 |
+| League eleven, S1 -> S5 | +0.1, +0.2, +0.5 | -0.1, -0.1, +0.1 | -0.3, 0.0, +0.2 | ±1 |
+| Strongest - weakest eleven | 9.9-13.3 old (seed 2 10.8 -> 13.3) | 8.0-11.3 (seed 2 9.3 -> 11.3) | 7.5-11.0 (seed 2 9.3 -> 11.0) | 8-15 old, not widening |
+| Per 90 regulars DEF / MID / FWD goals | 0.02-0.05 / 0.11-0.15 / 0.29-0.39 | 0.02-0.05 / 0.12-0.15 / 0.30-0.37 | 0.03-0.05 / 0.11-0.14 / 0.29-0.38 | |
+
+- **Still off:** seed 1's Ashford (94-103 points every season, from the start) and shape balance
+  (3-4-3 about 9 points a season short of its eleven) are the engine's, for a later session; seed
+  2's gap still widens a little (its strongest side's young core develops: 84.7 -> 86.2); two
+  seasons of 2.40-2.43 goals a match; club strikers and wingers read ~4 and ~2 below their league
+  on the card scale (their attributes were set to play as the old profiles did).
 
 ## Done (session 21): club and career players get cards too
 
