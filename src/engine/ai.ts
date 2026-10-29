@@ -31,6 +31,9 @@ import {
 } from './geometry.ts'
 import {
   AERIAL_HEIGHT,
+  BOUNCE,
+  GRAVITY,
+  MIN_BOUNCE_SPEED,
   BALL_FRICTION,
   CELEBRATION_TICKS,
   CHARGE_DOWN_CHANCE,
@@ -57,7 +60,7 @@ import {
   SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
 } from './constants.ts'
-import { type BallMotion, advanceBall, loftTime, shotVz } from './physics.ts'
+import { type BallMotion, loftTime, shotVz } from './physics.ts'
 import type { Archetype } from './archetypes.ts'
 import type { Foot, MatchState, PlayerState, Restart, Role, Side } from './types.ts'
 
@@ -206,7 +209,7 @@ interface Snapshot {
   lines: (number | undefined)[]
   sides?: PlayerState[][]
   unpressured?: (boolean | undefined)[]
-  path?: BallPoint[]
+  path?: BallPath
   arrivals?: Map<number, { ticks: number; point: BallPoint }>
 }
 // One match steps at a time (a tick runs start to finish), so the snapshot is a module variable
@@ -239,7 +242,7 @@ function ballUnpressured(s: MatchState, team: Side): boolean {
 }
 
 /** The loose ball's path over the next 40 ticks. */
-function loosePath(s: MatchState): BallPoint[] {
+function loosePath(s: MatchState): BallPath {
   const snap = snapOf(s)
   if (snap?.path) return snap.path
   const path = ballPath(s.ball)
@@ -259,17 +262,65 @@ export function offsidePositions(s: MatchState, kicker: PlayerState, ballPos: Ve
 
 export type BallPoint = Vec & { z: number }
 
-/** Future ball positions (with height), one per tick, using the same physics as the match loop. */
-export function ballPath(b: BallMotion, ticks = 40): BallPoint[] {
-  const out: BallPoint[] = [{ ...b.pos, z: b.z }]
-  let m = b
+/**
+ * A predicted path, and the furthest the ball goes in one tick along it (lets `arrivalOf` jump
+ * over stretches nobody can reach).
+ */
+export type BallPath = BallPoint[] & { maxStep?: number }
+
+const AIR_DROP = 0.5 * GRAVITY * DT * DT
+const AIR_DV = GRAVITY * DT
+const ROLL_DV = BALL_FRICTION * DT
+
+/**
+ * Future ball positions (with height), one per tick, using the same physics as the match loop:
+ * `advanceBall` written out without its intermediate objects, the same arithmetic in the same order.
+ */
+export function ballPath(b: BallMotion, ticks = 40): BallPath {
+  const out: BallPath = [{ x: b.pos.x, y: b.pos.y, z: b.z }]
+  let x = b.pos.x
+  let y = b.pos.y
+  let vx = b.vel.x
+  let vy = b.vel.y
+  let z = b.z
+  let vz = b.vz
+  let maxStep = 0
   for (let k = 1; k <= ticks; k++) {
-    m = advanceBall(m)
-    out.push({ ...m.pos, z: m.z })
+    const nx = x + vx * DT
+    const ny = y + vy * DT
+    if (z > 0 || vz > 0) {
+      const rawZ = z + vz * DT - AIR_DROP
+      vz = vz - AIR_DV
+      z = rawZ
+      if (z <= 0) {
+        z = 0
+        if (-vz > MIN_BOUNCE_SPEED) {
+          vz = -vz * BOUNCE
+          vx = vx * 0.8
+          vy = vy * 0.8
+        } else vz = 0
+      }
+    } else {
+      const sp = Math.sqrt(vx * vx + vy * vy)
+      if (sp > 0) {
+        const f = Math.max(0, sp - ROLL_DV) / sp
+        vx = vx * f
+        vy = vy * f
+      }
+      z = 0
+      vz = 0
+    }
+    const sx = nx - x
+    const sy = ny - y
+    const st = Math.sqrt(sx * sx + sy * sy)
+    if (st > maxStep) maxStep = st
+    x = nx
+    y = ny
+    out.push({ x, y, z })
   }
+  out.maxStep = maxStep
   return out
 }
-
 
 /**
  * Time (s) for `pl` to get within `reach` of `point`, accelerating from how he's moving now (as
@@ -294,26 +345,46 @@ export function reachTime(pl: PlayerState, point: Vec, reach: number): number {
  * Earliest tick at which `pl` could reach the ball along `path` (low enough to play), and where,
  * accelerating as `reachTime` has it.
  */
-export function arrivalOf(pl: PlayerState, path: BallPoint[], reach: number, reachHeight: number): { ticks: number; point: BallPoint } {
-  // Hot (every loose-ball tick, every player, every point): a point he can't reach even at top
-  // speed all the way (reachTime is never less than (distance - reach) / maxSpeed) is passed over
-  // on squared distances, with a margin so rounding can't skip one reachTime would accept.
+export function arrivalOf(pl: PlayerState, path: BallPath, reach: number, reachHeight: number): { ticks: number; point: BallPoint } {
+  const k = firstReach(pl, path, reach, reachHeight, path.length)
+  if (k >= 0) return { ticks: k, point: path[k] }
+  const end = path[path.length - 1]
+  return { ticks: path.length + reachTime(pl, end, reach) / DT, point: end }
+}
+
+/**
+ * The first of the first `n` points of `path` he can reach in time (low enough to play), or -1.
+ * Hot (every loose-ball tick, every player, every point): a point he can't reach even at top
+ * speed all the way (reachTime is never less than (distance - reach) / maxSpeed) is passed over
+ * on squared distances, with margins so rounding can't skip one reachTime would accept. Far off,
+ * the gap can only close by the ball's longest step plus his top speed a tick, so the points
+ * until it could have closed are skipped too.
+ */
+function firstReach(pl: PlayerState, path: BallPath, reach: number, reachHeight: number, n: number): number {
   const px = pl.pos.x
   const py = pl.pos.y
   const ms = pl.maxSpeed
-  for (let k = 0; k < path.length; k++) {
+  const closing = path.maxStep === undefined ? 0 : path.maxStep * 1.000001 + 1e-9 + ms * DT * 1.000001
+  const last = Math.min(n, path.length)
+  for (let k = 0; k < last; k++) {
     const b = path[k]
-    if (b.z > reachHeight) continue
     if (ms > 0) {
       const r = reach + ms * k * DT * 1.000001 + 1e-6
       const dx = b.x - px
       const dy = b.y - py
-      if (dx * dx + dy * dy > r * r) continue
+      const d2 = dx * dx + dy * dy
+      if (d2 > r * r) {
+        if (closing > 0) {
+          const j = Math.floor((Math.sqrt(d2) - r - 1e-6) / closing)
+          if (j > 1) k += j - 1
+        }
+        continue
+      }
     }
-    if (reachTime(pl, b, reach) <= k * DT) return { ticks: k, point: b }
+    if (b.z > reachHeight) continue
+    if (reachTime(pl, b, reach) <= k * DT) return k
   }
-  const end = path[path.length - 1]
-  return { ticks: path.length + reachTime(pl, end, reach) / DT, point: end }
+  return -1
 }
 
 /** Time (s) for a ground pass of length d to arrive, and its launch speed. */
@@ -525,7 +596,16 @@ interface Decision {
   backMult: number
   /** How keen his side is to go forward (the underdog more). */
   dir: number
+  /**
+   * The best option's utility so far (what `consider` has kept). An option whose utility can be
+   * bounded below it is skipped before its costly part (a race, a lane): it couldn't have been
+   * chosen, and its random draw is still made, so nothing else changes.
+   */
+  bestU: number
 }
+
+/** Slack on those bounds, far above rounding and far below anything that separates two options. */
+const BOUND_SLACK = 1e-9
 
 /** A candidate action and what it's worth to the side. */
 type Option = { action: Action; u: number }
@@ -555,7 +635,10 @@ function choose(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
   const consider = (o: Option): void => {
     // However he'd play it (lofted, through, crossed), never a fifth swap between the same two men.
     if (o.action.kind === 'pass' && exchanges(s, p.idx, o.action.toIdx) > MAX_SWAPS) return
-    if (o.u > best.u) best = o
+    if (o.u > best.u) {
+      best = o
+      d.bestU = o.u
+    }
   }
   passOptions(d, consider)
   if (d.a.x > 35) throughBallOptions(d, consider)
@@ -596,7 +679,7 @@ function decisionFor(s: MatchState, p: PlayerState, opts: ChooseOpts): Decision 
   )
   return { s, p, opts, rng, ball, a, opps: opponentsOf(s, p.team), attrs, loss: lossCost(a), offside, hurried: pressureOn(s, p),
     // Whether he sees the ambitious ball this time: a through ball, a long pass.
-    sees: rng.chance(clamp(0.2 + attrs.vision * 0.045, 0, 1)), backMult: backMultFor(s, p), dir: keenness(s, p.team) }
+    sees: rng.chance(clamp(0.2 + attrs.vision * 0.045, 0, 1)), backMult: backMultFor(s, p), dir: keenness(s, p.team), bestU: -Infinity }
 }
 
 /**
@@ -662,11 +745,18 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
     const misplace = judgedLooseness(len > LONG_PASS ? attrs.longPassing : attrs.shortPassing) * (len / 40) ** 2 * 0.1 * (1 + d.hurried)
 
     // Along the ground: can an opponent get to the ball's path before the ball does?
-    const risk = clamp(groundPassLost(s, opps, ball, target, len) + misplace, 0, 1)
-    consider({
-      action: { kind: 'pass', toIdx: q.idx, target, lofted: false },
-      u: (1 - risk) * value - risk * loss + forwardLean(p, a, ta, d.backMult, d.dir) - giveBack(d, q, ta) + rng.gauss() * 0.002,
-    })
+    const lean = forwardLean(p, a, ta, d.backMult, d.dir)
+    const back = giveBack(d, q, ta)
+    const g = rng.gauss() * 0.002
+    // The lane can only add risk, and risk only lowers utility: bounded by none, it can't win.
+    const riskLo = clamp(misplace, 0, 1)
+    if ((1 - riskLo) * value - riskLo * loss + lean - back + g >= d.bestU - BOUND_SLACK) {
+      const risk = clamp(groundPassLost(s, opps, ball, target, len) + misplace, 0, 1)
+      consider({
+        action: { kind: 'pass', toIdx: q.idx, target, lofted: false },
+        u: (1 - risk) * value - risk * loss + lean - back + g,
+      })
+    }
 
     // In the air: a race on the ball's actual flight between him and the first opponent who can get
     // to it low enough to play (the keeper can reach higher in his box). A cross is aimed at head height.
@@ -674,15 +764,21 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
     // lofts it backwards at all: an overhit ball over a teammate's head runs on towards our goal.
     if (len >= 18 && q.slot.role !== 'GK' && ta.x > a.x - 5) {
       const path = ballPath(passMotion(ball, target, true, isCross(ta) ? CROSS_HEIGHT : LOFTED_PASS_HEIGHT), 45)
-      const race = raceFor(s, q, path, ball, target)
-      if (race) {
-        const riskAir = clamp(race.lost + misplace * 1.5, 0, 1)
+      const mine = receiverArrival(s, q, path)
+      if (mine) {
         // A ball into the box is worth a little more than the header alone: knock-downs, second balls.
         const intoBox = ta.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(ta.y - CENTER.y) < BOX_HALF_WIDTH
-        consider({
-          action: { kind: 'pass', toIdx: q.idx, target, lofted: true },
-          u: (1 - riskAir) * value * (intoBox ? SECOND_BALLS : 1) - riskAir * loss + forwardLean(p, a, ta, d.backMult, d.dir) + rng.gauss() * 0.002,
-        })
+        const mult = intoBox ? SECOND_BALLS : 1
+        const g = rng.gauss() * 0.002
+        const riskLo = clamp(misplace * 1.5, 0, 1)
+        if ((1 - riskLo) * value * mult - riskLo * loss + lean + g >= d.bestU - BOUND_SLACK) {
+          const race = raceAgainst(s, q, path, ball, target, mine)
+          const riskAir = clamp(race.lost + misplace * 1.5, 0, 1)
+          consider({
+            action: { kind: 'pass', toIdx: q.idx, target, lofted: true },
+            u: (1 - riskAir) * value * mult - riskAir * loss + lean + g,
+          })
+        }
       }
     }
   }
@@ -731,9 +827,7 @@ function throughBallOptions(d: Decision, consider: (o: Option) => void): void {
     if (opts.passFilter && !opts.passFilter(q)) continue
     const qa = af(s, p.team, q.pos)
     if (qa.x < 50 || qa.x < a.x - 8 || dist(q.pos, ball) < 8) continue
-    for (const o of throughBalls(s, p, q, qa, opts.maxPass)) {
-      consider({ action: { kind: 'pass', toIdx: q.idx, target: o.target, lofted: o.lofted, through: true }, u: o.u })
-    }
+    throughBalls(d, q, qa, consider)
   }
 }
 
@@ -983,8 +1077,9 @@ export function passMotion(from: Vec, target: Vec, lofted: boolean, arrivalHeigh
  * Passes into space ahead of `q`, each valued by a race run on the ball's actual path: when does he
  * get to it, and when does the first defender (or the keeper, off his line)?
  */
-function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, maxPass: number): { target: Vec; lofted: boolean; u: number }[] {
-  const out: { target: Vec; lofted: boolean; u: number }[] = []
+function throughBalls(d0: Decision, q: PlayerState, qa: Vec, consider: (o: Option) => void): void {
+  const { s, p } = d0
+  const maxPass = d0.opts.maxPass
   const ball = s.ball.pos
   const attrs = p.attrs
   const loss = lossCost(af(s, p.team, ball))
@@ -1004,18 +1099,24 @@ function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, ma
     const canLoft = d >= 18 && spotA.x < PITCH_LENGTH - BOX_DEPTH - 2 && Math.abs(spotA.y - CENTER.y) < CENTER.y - 10
     for (const lofted of canLoft ? [false, true] : [false]) {
       const path = ballPath(passMotion(ball, target, lofted, THROUGH_BALL_HEIGHT), 45)
-      const race = raceFor(s, q, path, ball, target)
-      if (!race) continue
+      const mine = receiverArrival(s, q, path)
+      if (!mine) continue
       const misplace = judgedLooseness(lofted || d > LONG_PASS ? attrs.longPassing : attrs.shortPassing) * (d / 40) * (lofted ? 0.4 : 0.3) * (1 + pressureOn(s, p))
+      const lean = forwardLean(p, af(s, p.team, ball), spotA)
+      const g = s.rng.gauss() * 0.002
+      const pa = af(s, p.team, mine.point)
+      // Bounded with nobody racing him (lost 0): the most space, the least risk.
+      const riskLo = clamp(misplace + (lofted ? 0.07 : 0) + 0.36, 0, 1)
+      if ((1 - riskLo) * (threat(pa) * (1.1 + BOUND_SLACK) + pv(pa)) - riskLo * loss + lean + g < d0.bestU - BOUND_SLACK) continue
+      const race = raceAgainst(s, q, path, ball, target, mine)
       // Weighting a ball into space is harder than playing it to feet.
       const risk = clamp(race.lost + misplace + (lofted ? 0.07 : 0) + 0.36, 0, 1)
       // Onto the ball in space: worth more the further clear of the defence he is.
       const space = clamp(0.7 + (1 - race.lost) * 0.4, 0.5, 1.3)
       const value = threat(af(s, p.team, race.point)) * space + pv(af(s, p.team, race.point))
-      out.push({ target, lofted, u: (1 - risk) * value - risk * loss + forwardLean(p, af(s, p.team, ball), spotA) + s.rng.gauss() * 0.002 })
+      consider({ action: { kind: 'pass', toIdx: q.idx, target, lofted, through: true }, u: (1 - risk) * value - risk * loss + lean + g })
     }
   }
-  return out
 }
 
 /**
@@ -1025,14 +1126,35 @@ function throughBalls(s: MatchState, p: PlayerState, q: PlayerState, qa: Vec, ma
 function raceFor(
   s: MatchState,
   q: PlayerState,
-  path: BallPoint[],
+  path: BallPath,
   from: Vec,
   target: Vec,
 ): { lost: number; chargedDown: number; point: BallPoint } | null {
+  const mine = receiverArrival(s, q, path)
+  return mine && raceAgainst(s, q, path, from, target, mine)
+}
+
+/** Where and when `q` meets a ball along `path`, or null if he can't (in time, or before it goes out). */
+function receiverArrival(s: MatchState, q: PlayerState, path: BallPath): { ticks: number; point: BallPoint } | null {
   const mine = arrivalOf(q, path, reachOf(s, q), reachHeightOf(s, q))
   if (mine.ticks >= path.length) return null
   // He has to get there well before it runs out of play (the pass won't be perfect).
-  if (path.slice(0, mine.ticks + 8).some((b) => b.x < 0 || b.x > PITCH_LENGTH || b.y < 0 || b.y > PITCH_WIDTH)) return null
+  for (let k = 0, n = Math.min(path.length, mine.ticks + 8); k < n; k++) {
+    const b = path[k]
+    if (b.x < 0 || b.x > PITCH_LENGTH || b.y < 0 || b.y > PITCH_WIDTH) return null
+  }
+  return mine
+}
+
+/** The rest of `raceFor`: the opponents, against his arrival `mine`. */
+function raceAgainst(
+  s: MatchState,
+  q: PlayerState,
+  path: BallPath,
+  from: Vec,
+  target: Vec,
+  mine: { ticks: number; point: BallPoint },
+): { lost: number; chargedDown: number; point: BallPoint } {
   let first = Infinity
   let chargedDown = 0
   const early = lerp(from, target, Math.min(1, 1.5 / Math.max(dist(from, target), 1)))
@@ -1045,7 +1167,12 @@ function raceFor(
       chargedDown = 1 - (1 - chargedDown) * (1 - CHARGE_DOWN_CHANCE)
       continue
     }
-    first = Math.min(first, arrivalOf(o, path, reachOf(s, o), reachHeightOf(s, o)).ticks)
+    // Only the first opponent there counts: nobody is looked for further along the path than him.
+    if (first > path.length) first = Math.min(first, arrivalOf(o, path, reachOf(s, o), reachHeightOf(s, o)).ticks)
+    else {
+      const k = firstReach(o, path, reachOf(s, o), reachHeightOf(s, o), Math.ceil(first))
+      if (k >= 0) first = Math.min(first, k)
+    }
   }
   // Taking it in the air (head or chest) is harder than at his feet.
   const inAir = mine.point.z > AERIAL_HEIGHT ? 0.17 : 0
