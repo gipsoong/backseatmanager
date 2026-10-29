@@ -70,6 +70,12 @@ export const af = (s: MatchState, team: Side, p: Vec): Vec =>
   (team === 0) === (s.half === 1) ? { x: p.x, y: p.y } : { x: PITCH_LENGTH - p.x, y: PITCH_WIDTH - p.y }
 /** Attacking-frame position back to world coordinates (the same transform). */
 export const wf = af
+/** The centre of the goal `team` defends, in world coordinates (`wf(s, team, vec(0, CENTER.y))`), made once. */
+const OWN_GOALS = [
+  [vec(0, CENTER.y), vec(PITCH_LENGTH - 0, PITCH_WIDTH - CENTER.y)],
+  [vec(PITCH_LENGTH - 0, PITCH_WIDTH - CENTER.y), vec(0, CENTER.y)],
+]
+const ownGoalOf = (s: MatchState, team: Side): Vec => OWN_GOALS[team][s.half - 1]
 /** Just the x of `af`, without making the point. */
 const afX = (s: MatchState, team: Side, p: Vec): number => ((team === 0) === (s.half === 1) ? p.x : PITCH_LENGTH - p.x)
 const afY = (s: MatchState, team: Side, p: Vec): number => ((team === 0) === (s.half === 1) ? p.y : PITCH_WIDTH - p.y)
@@ -176,6 +182,12 @@ export function readDelay(s: MatchState, p: PlayerState): number {
  * the second-last opponent, the ball and the halfway line.
  */
 export function offsideLine(s: MatchState, team: Side, ballPos: Vec): number {
+  const snap = snapOf(s)
+  if (snap && ballPos === s.ball.pos) {
+    const cached = snap.offside[team]
+    if (cached !== undefined) return cached
+    return (snap.offside[team] = Math.max(defensiveLine(s, team), afX(s, team, ballPos), HALFWAY_X))
+  }
   return Math.max(defensiveLine(s, team), afX(s, team, ballPos), HALFWAY_X)
 }
 
@@ -209,10 +221,14 @@ export function defensiveLine(s: MatchState, team: Side): number {
  */
 interface Snapshot {
   lines: (number | undefined)[]
+  /** Offside lines at the ball where it is now, and the ball in each side's frame. */
+  offside: (number | undefined)[]
+  ballA: (Vec | undefined)[]
   sides?: PlayerState[][]
   unpressured?: (boolean | undefined)[]
   path?: BallPath
   arrivals?: Map<number, { ticks: number; point: BallPoint }>
+  corner?: { r: Restart; plan: Map<number, Vec> }
   /** Marks this snapshot's entries in the pair-distance buffers. */
   stamp: number
 }
@@ -228,7 +244,7 @@ export function beginMovement(s: MatchState): void {
     pairStamp.fill(0)
     stampNow = 0
   }
-  snapData = { lines: [], stamp: ++stampNow }
+  snapData = { lines: [], offside: [], ballA: [], stamp: ++stampNow }
 }
 
 export function endMovement(s: MatchState): void {
@@ -1325,7 +1341,7 @@ const LINE_BASE = 6
 /** Where a player stands in the team's shape, given the ball and who has it. */
 export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean): Vec {
   const team = p.team
-  const b = af(s, team, s.ball.pos)
+  const b = snapOf(s) ? (snapData!.ballA[team] ??= af(s, team, s.ball.pos)) : af(s, team, s.ball.pos)
   if (p.slot.role === 'GK') {
     const spot = goalkeeperSpot(b)
     // Sweeping behind a high line: with the ball well away, he stands up to the edge of his box so
@@ -1350,7 +1366,9 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     length = 42 + Math.max(0, b.x - 70) * 0.4
     widthK = 1.05
   } else {
-    const [lo, hi] = BLOCK_LINES[s.teams[team].block]
+    const lines = BLOCK_LINES[s.teams[team].block]
+    const lo = lines[0]
+    const hi = lines[1]
     // No pressure on the ball: he has time to pick a pass in behind, so the line drops off.
     const unpressured = ballUnpressured(s, team)
     // Never hold a line further out than the ball: drop towards the six-yard box when it's deep.
@@ -1571,12 +1589,12 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
 
   // Out of possession: nearest player engages the carrier, the next covers behind him; others hold shape and mark.
   if (chasers.get(p.idx) === 1) {
-    const goalSide = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
+    const goalSide = norm(sub(ownGoalOf(s, p.team), owner.pos))
     return { target: add(owner.pos, scale(goalSide, 4)), urgency: 1 }
   }
   // A keeper holding the ball can't be challenged: forwards drop off and wait for the release.
   if (chasers.has(p.idx) && keeperHasItInHands(s, owner)) {
-    const away = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
+    const away = norm(sub(ownGoalOf(s, p.team), owner.pos))
     return { target: add(owner.pos, scale(away, KEEPER_STAND_OFF)), urgency: 0.7 }
   }
   if (chasers.get(p.idx) === 0) {
@@ -1584,7 +1602,7 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
     const block = s.teams[p.team].block
     // The better side presses higher, the weaker one sits off: the ball goes to the better side.
     const pressLine = PRESS_LINES[block] + PRESS_BY_EDGE * edgeOf(s, p.team)
-    const goalSide = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
+    const goalSide = norm(sub(ownGoalOf(s, p.team), owner.pos))
     const t = p.def.traits
     // A hard-working presser pushes the press a little higher up the pitch.
     // A ball-winner hunts it higher still, and gets tighter.
@@ -1630,7 +1648,7 @@ const MARKED = 4
 /** Hold the zone, but stay goal-side of any opponent who comes into it. Sprint back if out of position. */
 function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
   let target = zone
-  const ownGoal = wf(s, p.team, vec(0, CENTER.y))
+  const ownGoal = ownGoalOf(s, p.team)
   // A back-line defender with a forward already in behind him goes with him, goal-side. One still
   // making his run is left to the line: step up and he's offside.
   if (p.slot.role === 'CB' || p.slot.role === 'FB') {
@@ -1640,10 +1658,9 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
     const theirLine = offsideLine(s, (1 - p.team) as Side, s.ball.pos)
     for (const o of opponentsOf(s, p.team)) {
       if (o.slot.role === 'GK' || o.idx === s.ball.ownerIdx) continue
-      const oa = af(s, p.team, o.pos)
       // A good marker picks up a run before the man is past him, not after.
       const early = o.runUntil > s.tick ? Math.max(0, (p.attrs.marking - 8) * 0.4) : 0
-      if (oa.x >= pa.x - 0.5 + early || Math.abs(oa.y - pa.y) > 12) continue
+      if (afX(s, p.team, o.pos) >= pa.x - 0.5 + early || Math.abs(afY(s, p.team, o.pos) - pa.y) > 12) continue
       if (afX(s, o.team, o.pos) > theirLine + 0.3) continue
       // Unless a teammate is already closer to him.
       const mine = pairDist(s, p, o) - 1
@@ -1754,12 +1771,12 @@ export function pickChasers(s: MatchState): Map<number, number> {
     const gk = goalkeeperOf(s, (1 - owner.team) as Side)
     const oa = af(s, owner.team, owner.pos)
     const through = !opponentsOf(s, owner.team).some((o) => o.slot.role !== 'GK' && afX(s, owner.team, o.pos) > oa.x)
-    if (gk && through && dist(owner.pos, wf(s, gk.team, vec(0, CENTER.y))) < 16) out.set(gk.idx, 0)
+    if (gk && through && dist(owner.pos, ownGoalOf(s, gk.team)) < 16) out.set(gk.idx, 0)
     return out
   }
   const path = loosePath(s)
   const times = new Map<number, { ticks: number; point: BallPoint }>()
-  for (const p of onPitch(s)) times.set(p.idx, arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)))
+  for (const team of [0, 1] as const) for (const p of teammatesOf(s, team)) times.set(p.idx, arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)))
   const snap = snapOf(s)
   if (snap) snap.arrivals = times
   const firstOf = (team: Side): number => {
@@ -2055,7 +2072,7 @@ export function restartIntent(s: MatchState, p: PlayerState, r: Restart): MoveIn
   const minDist = r.type === 'throwIn' ? 2 : r.type === 'goalKick' ? 0 : CENTER_CIRCLE_RADIUS
   if (!attacking && minDist > 0 && dist(target, r.spot) < minDist + 1) {
     const away = norm(sub(target, r.spot))
-    const dir = len(away) > 0 ? away : norm(sub(wf(s, p.team, vec(0, CENTER.y)), r.spot))
+    const dir = len(away) > 0 ? away : norm(sub(ownGoalOf(s, p.team), r.spot))
     const inside = (v: Vec): Vec => vec(clamp(v.x, 0.5, PITCH_LENGTH - 0.5), clamp(v.y, 0.5, PITCH_WIDTH - 0.5))
     target = inside(add(r.spot, scale(dir, minDist + 1.5)))
     // Near a corner the straight-back spot can be off the pitch: retreat towards the middle instead.
@@ -2078,6 +2095,15 @@ const CORNER_DEFEND_ORDER: Role[] = ['CB', 'DM', 'CM', 'FB', 'ST', 'WM', 'W']
  * The corner is taken once they've all got there (see cornerSetUp).
  */
 export function cornerPlan(s: MatchState, r: Restart): Map<number, Vec> {
+  // Everyone asks for it while the corner is set up: worked out once per snapshot.
+  const snap = snapOf(s)
+  if (snap?.corner?.r === r) return snap.corner.plan
+  const plan = makeCornerPlan(s, r)
+  if (snap) snap.corner = { r, plan }
+  return plan
+}
+
+function makeCornerPlan(s: MatchState, r: Restart): Map<number, Vec> {
   const plan = new Map<number, Vec>()
   const att = r.team
   const def = (1 - att) as Side
