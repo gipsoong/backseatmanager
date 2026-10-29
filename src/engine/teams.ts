@@ -420,8 +420,9 @@ function makePositions(rng: Rng, role: Role): Role[] | undefined {
 }
 
 /**
- * A rough overall, 1-20: a real player's own overall (out of 100) scaled down, otherwise the
- * average of the attributes that matter in his position.
+ * A rough overall, 1-20: a real player's own overall (out of 100) scaled down; a card-made
+ * player's position skills (`positionLevel`, onto the old scale); otherwise (older saves) the
+ * even average of his outfield or goalkeeping attributes.
  */
 export function ability(def: PlayerDef): number {
   if (def.overall) return def.overall / 5

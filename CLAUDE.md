@@ -183,7 +183,13 @@ pulling the repo.
   `node scripts/check-cards.ts` prints table vs card (all within 2). A man under 6 interceptions
   (forwards) can let an opponent's ground pass by him (`readsPass`, match.ts). The `falseNine`
   archetype shows as "Deep-lying forward" (DLF). Saved players keep
-  their attributes. Club mode (`makeAttributes`) still uses the old broad-profile shapes. No transfers in
+  their attributes. Club and career players (session 21, `madeCard` in teams.ts) get their archetype's
+  card too, at the level that puts their position's skills where the old profiles' were (`CARD_LEVEL`),
+  varied by group and build (quick and slight vs slow and strong); `PlayerDef.card` marks them, and their
+  overall is `positionLevel` (FIFA-like `OVERALL_WEIGHTS`) plus `OVERALL_SHIFT` (onto the old even-average
+  scale, so old saves, which keep that average, rate alike). `makePlayerAt` makes one at an overall;
+  `shiftTo` moves a card player's position skills most, legs and physique at least `BODY_RELEVANCE`.
+  `makeAttributes` (old profiles) still reads unknown draft players' archetypes. No transfers in
   this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
 - `src/screens/` — Start, PickTeam, Draft, Career (summer news, board line, History tab, a player's
   change and career lines), Hub (next fixture; tabs: review at season's end,

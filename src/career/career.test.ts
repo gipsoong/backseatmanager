@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { Rng } from '../engine/index.ts'
+import { Rng, groupRatings, makePlayerAt } from '../engine/index.ts'
 import { type Season, createSeason, playerRating, squadOf } from '../season/season.ts'
 import { upgradeSave } from '../season/store.ts'
 import { SQUAD_MAX, aimFor, aimMet, development, leagueLevel, nextSeason, shiftTo, startCareer } from './career.ts'
@@ -7,6 +7,27 @@ import { fakePlayed } from './fake.ts'
 
 const start = (seed: number): Season => startCareer(createSeason(seed, 0, new Date(Date.UTC(2026, 5, 1))))
 const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length
+
+describe('made-up players', () => {
+  it('have their archetype\'s card at their overall, and differ from one another', () => {
+    const rng = new Rng(3)
+    const strikers = Array.from({ length: 40 }, (_, i) => makePlayerAt(rng, `s${i}`, 'x', 9, 'ST', 60))
+    for (const p of strikers) {
+      expect(p.card).toBe(true)
+      expect(Math.abs(playerRating(p) - 60)).toBeLessThanOrEqual(2)
+      const [pac, sho, , , def] = groupRatings(p.attrs, p.role).map((g) => g.value)
+      // A forward shoots, and defends like one.
+      expect(sho - def).toBeGreaterThan(25)
+      expect(pac).toBeGreaterThan(0)
+    }
+    // Quick ones and strong ones.
+    const pace = strikers.map((p) => groupRatings(p.attrs, p.role)[0].value)
+    expect(Math.max(...pace) - Math.min(...pace)).toBeGreaterThan(20)
+    const cb = makePlayerAt(rng, 'c', 'x', 4, 'CB', 60)
+    const [, cbSho, , , cbDef] = groupRatings(cb.attrs, cb.role).map((g) => g.value)
+    expect(cbDef - cbSho).toBeGreaterThan(25)
+  })
+})
 
 describe('ageing', () => {
   const rng = new Rng(1)
