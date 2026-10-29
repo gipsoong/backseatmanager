@@ -177,8 +177,12 @@ pulling the repo.
   `cardOf`), else his archetype's card at his overall (`cardFor`, `CARD_SHAPES` in archetypes.ts:
   forwards defend ~45 below their overall, centre-backs shoot ~40 below). `cardAttributes`
   (attributes.ts) fits sub-attributes to it: each group spread by position and archetype
-  (`IN_GROUP`, `ARCHETYPE_IN_GROUP`: a striker's defending is heading), shifted until its average is
-  the card's. `node scripts/check-cards.ts` prints table vs card (all within 2). Saved players keep
+  (`IN_GROUP`, `ARCHETYPE_IN_GROUP`: a striker's defending is heading), shifted until its weighted average
+  (FIFA's weights, `GROUPS`) is the card's; heading and stamina aren't fitted but set by level,
+  position, archetype and build (`HEADING`, `STAMINA`), so Ronaldo defends at 36 and heads at 15.
+  `node scripts/check-cards.ts` prints table vs card (all within 2). A man under 6 interceptions
+  (forwards) can let an opponent's ground pass by him (`readsPass`, match.ts). The `falseNine`
+  archetype shows as "Deep-lying forward" (DLF). Saved players keep
   their attributes. Club mode (`makeAttributes`) still uses the old broad-profile shapes. No transfers in
   this mode. `Season.mode === 'draft'`; season length is `matchdays(s)`.
 - `src/screens/` — Start, PickTeam, Draft, Career (summer news, board line, History tab, a player's

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ARCHETYPES, FORMATIONS, archetypeOf, fitFor, playingAttributes, runMatch } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, archetypeOf, fitFor, groupRatings, playingAttributes, runMatch } from '../engine/index.ts'
+import { cardOf } from './cards.ts'
 import { strikingFoot } from '../engine/ai.ts'
 import { autoPick, createSeason, matchdays, squadOf } from '../season/season.ts'
 import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
@@ -37,6 +38,26 @@ describe('draft pools', () => {
     // Enough clubs for a league of different clubs, and enough seasons for twenty rounds.
     expect(new Set(POOLS.map((p) => p.club)).size).toBeGreaterThanOrEqual(DRAFT_LEAGUE_SIZE)
     expect(POOLS.length).toBeGreaterThanOrEqual(DRAFT_ROUNDS)
+  })
+
+  it('shows a known player his own card, and a forward defends like a forward', () => {
+    const find = (name: string, overall: number) => {
+      const pi = POOLS.findIndex((p) => p.players.some(([n, , o]) => n === name && o === overall))
+      return { p: poolPlayer(pi, POOLS[pi].players.findIndex(([n, , o]) => n === name && o === overall)), year: Number(POOLS[pi].season.slice(0, 4)) }
+    }
+    for (const [name, overall] of [['Harry Kane', 90], ['Virgil van Dijk', 90], ['Sergio Busquets', 87], ['Manuel Neuer', 92]] as const) {
+      const { p, year } = find(name, overall)
+      const want = cardOf(name, year, overall, p.role === 'GK')!
+      groupRatings(p.attrs, p.role).forEach((g, k) => expect(Math.abs(g.value - want[k]), `${name} ${g.key}`).toBeLessThanOrEqual(2))
+    }
+    // Kane shoots like a 90 striker and defends like one, but still heads it.
+    const kane = find('Harry Kane', 90).p
+    const card = Object.fromEntries(groupRatings(kane.attrs, kane.role).map((g) => [g.key, g.value]))
+    expect(card.SHO).toBeGreaterThan(90)
+    expect(card.DEF).toBeLessThan(55)
+    expect(kane.attrs.heading).toBeGreaterThanOrEqual(13)
+    // Ronaldo is slower at 33 than at 26.
+    expect(find('Cristiano Ronaldo', 92).p.attrs.sprintSpeed).toBeGreaterThan(find('Cristiano Ronaldo', 91).p.attrs.sprintSpeed)
   })
 
   it('makes players of the same overall and archetype about as good as each other', () => {

@@ -10,6 +10,44 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19). Next: contracts,
 in-match management (on hold at the owner's request).
 
+## Done (session 20): player cards that look like the player
+
+The owner: Kane 90 showed PAC 86, SHO 80, DRI 92, DEF 72 (real ~70/93/83/47). Every draft player
+was his archetype's generic shape, forwards defended in the 70s, defenders shot in the 70s, stars
+had 99s, and a card's spread was ~25 (real ~40).
+
+- `draft/cards.ts`: own cards (six groups, recalled FIFA/FC) for 342 players: everyone 84+ and
+  clear profiles (Vardy, Giroud, Kanté, Busquets, Adama, Walcott, Carroll ...), [born, season,
+  overall, card]; other seasons move with overall and age (pace from 30, physique, passing).
+- `CARD_SHAPES` (archetypes.ts): a card per archetype for everyone else. `cardAttributes`
+  (attributes.ts) fits sub-attributes to the card; `GROUPS` now have FIFA's weights; heading and
+  stamina come from level, position and build. `scripts/check-cards.ts`: 903 player-seasons, all
+  within 2 of the table (a forward's DEF bottoms out at 33-36). Saves keep their attributes.
+- Engine: `readsPass` (match.ts): under 6 interceptions an opponent's ground pass can go by him.
+  Without it, forwards who no longer tackled hung about and intercepted more.
+- Club mode (`makeAttributes`) is unchanged; its cards still show the old shapes.
+
+| | before | after | real |
+|---|---|---|---|
+| Card by role (80+), DEF of W / ST | 65 / 70 | 38 / 39 | 30-45 |
+| SHO of CB | 67 | 45 | 40-60 |
+| Card spread best-worst (W / ST / CB) | 24 / 24 / 24 | 49 / 45 / 39 | ~40 |
+| Tackles / interceptions per 90, W | 1.06 / 1.10 | 0.46 / 1.02 | 0.7 / 0.4 |
+| ST | 0.54 / 0.71 | 0.41 / 0.66 | 0.4 / 0.2 |
+| WM | 1.02 / 1.85 | 0.50 / 1.19 | 1.0 / 0.7 |
+| Ronaldo 94, La Liga (seeds 1, 2, 5, 6) | 33, 43, 37, 35 | 24, 20, 20, 34 | 22-35 |
+| His goals / npxG | 1.35 | 1.15 | 1.15-1.2 |
+| Our side's goals; best side | 80-95; 80-95 | 67-80; 79-98 | 110-121 best |
+| League goals a match | 2.26-2.57 | 2.47-2.67 | 2.5-2.9 |
+| Goals per 90 regulars ST / W / CM | 0.44 / 0.26 / 0.11 | 0.42 / 0.32 / 0.12 | |
+
+calibrate 80 1 / 201 / 401: 30 / 31 / 31 (as before; miss won by 4+ 11% on seed 1). Zero
+violations; vitest 85 and `tsc -b` pass.
+
+- **Open:** the greedy drafted side is no longer always the best (its 75-80 fillers have archetype
+  cards, and slow real stars like Lewandowski 75 pace count for less than their overall); best side
+  still short of 110; strikers' blocks per 90 high (~5, was ~4); club mode still on the old shapes.
+
 ## Done (session 19, stage 2): the career market
 
 On branch `wip/career2`. Career leagues are 20 clubs and 38 matchdays.
