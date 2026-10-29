@@ -4,7 +4,8 @@
  * club-seasons, one per club. A player can be in several seasons' squads, but only ever turns up
  * once: in your side, or for one opponent.
  */
-import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, fitFor, makeAttributes, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, cardAttributes, cardFor, fitFor, makeAttributes, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
+import { cardOf } from './cards.ts'
 import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, SIDE, TIRELESS, WEAK_FOOT } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
@@ -71,9 +72,9 @@ function draftTraits(rng: Rng, name: string, archetype: Archetype): Traits {
 export const levelOf = (overall: number): number => 13.5 + (Math.min(overall, 86) - 80) / 4 + Math.max(0, overall - 86) / 6
 
 /**
- * A pool player as the engine sees him: attributes to match his overall (`levelOf`), shaped by
- * his archetype (a poacher finishes, a playmaker passes), so players of the same overall and type
- * are about as good as each other.
+ * A pool player as the engine sees him: his card (his own from `CARDS` for that season, otherwise
+ * his archetype's at his overall), made into sub-attributes spread by position and archetype.
+ * Anything off the card (a keeper's outfield skills) comes from his archetype's shape at his level.
  */
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
@@ -85,6 +86,7 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const known = ARCHETYPE[name]
   const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)
   const traits = draftTraits(rng, name, archetype)
+  const card = cardOf(name, Number(pool.season.slice(0, 4)), overall, role === 'GK') ?? cardFor(archetype, overall)
   return {
     id: `p${poolIdx}-${i}`,
     name,
@@ -95,7 +97,7 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
     foot: LEFT_FOOTED.has(name) ? 'left' : 'right',
     weakFoot: WEAK_FOOT[name] ?? 3,
     side: SIDE[name],
-    attrs: shapedAttributes(rng, role, archetype, quality),
+    attrs: cardAttributes(shapedAttributes(rng, role, archetype, quality), card, role, archetype, () => rng.gauss() * 0.7),
     traits,
     overall,
   }

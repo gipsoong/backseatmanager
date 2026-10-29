@@ -5,7 +5,7 @@
  * Played out of position he plays the new one the way his attributes suggest.
  */
 import type { Rng } from './rng.ts'
-import { broad, expandAttributes } from './attributes.ts'
+import { type Card, broad, expandAttributes } from './attributes.ts'
 import type { Attributes, LegacyAttributes, PlayerDef, Role, Traits } from './types.ts'
 
 export type Archetype =
@@ -57,7 +57,7 @@ export const ARCHETYPE_NAMES: Record<Archetype, { name: string; short: string }>
   insideForward: { name: 'Inside forward', short: 'IF' },
   poacher: { name: 'Poacher', short: 'P' },
   targetMan: { name: 'Target man', short: 'TM' },
-  falseNine: { name: 'False nine', short: 'F9' },
+  falseNine: { name: 'Deep-lying forward', short: 'DLF' },
 }
 
 /**
@@ -194,3 +194,33 @@ export function shapedAttributes(rng: Rng, role: Role, archetype: Archetype, lev
   const profile = { pace, passing, shooting, tackling, dribbling, positioning, composure, stamina, keeping: role === 'GK' ? at(1) : rng.int(1, 4) }
   return expandAttributes(profile, role, archetype, () => rng.gauss() * 0.5)
 }
+
+/**
+ * A typical card for each archetype, as offsets from his overall (FIFA's groups: PAC SHO PAS DRI
+ * DEF PHY; keepers DIV HAN KIC REF SPD POS), read off the cards of real players of the kind: a
+ * forward defends some 45-50 below his overall and a centre-back shoots 35-45 below his, a winger
+ * is quick and slight, a target man slow and strong, a deep-lying playmaker slow and a passer.
+ * For players without a card of their own (`CARDS`, draft/cards.ts).
+ */
+const CARD_SHAPES: Record<Archetype, Card> = {
+  shotStopper: [0, -1, -14, 2, -38, -1],
+  sweeperKeeper: [-1, -3, 0, 0, -32, 0],
+  stopper: [-16, -42, -30, -29, 1, -2],
+  ballPlayer: [-17, -36, -20, -21, 1, -3],
+  overlapping: [4, -20, -7, -5, -7, -8],
+  inverted: [-6, -18, -1, -4, -6, -14],
+  defensiveFullBack: [-10, -30, -14, -12, 0, -7],
+  anchor: [-20, -17, -10, -13, -1, -1],
+  deepPlaymaker: [-25, -16, -3, -7, -6, -9],
+  ballWinner: [-12, -22, -12, -7, -1, -4],
+  boxToBox: [-10, -8, -4, -5, -12, -4],
+  playmaker: [-14, -10, 1, 0, -26, -21],
+  winger: [6, -8, -8, 1, -52, -21],
+  insideForward: [3, -4, -9, 1, -50, -19],
+  poacher: [1, 1, -14, -6, -47, -6],
+  targetMan: [-14, 0, -12, -8, -40, 1],
+  falseNine: [-6, -2, -6, 0, -40, -12],
+}
+
+/** The card his archetype suggests at `overall`. */
+export const cardFor = (archetype: Archetype, overall: number): Card => CARD_SHAPES[archetype].map((d) => Math.max(30, Math.min(99, overall + d))) as Card

@@ -158,6 +158,119 @@ export function groupRatings(a: Attributes, role: Role): { key: string; label: s
   return GROUPS[role === 'GK' ? 'keeper' : 'outfield'].map((g) => ({ key: g.key, label: g.label, value: toRating(avg(...g.subs.map((k) => a[k]))) }))
 }
 
+/** A card rating (1-99) as a sub-attribute level: the inverse of `toRating`. */
+export const fromRating = (r: number): number => (r <= 86 ? 13.5 + (r - 80) / 4 : 15 + (r - 86) / 6)
+
+/** A card: the six group ratings in `GROUPS` order (outfield PAC SHO PAS DRI DEF PHY; keepers DIV HAN KIC REF SPD POS). */
+export type Card = [number, number, number, number, number, number]
+
+/**
+ * How a position spreads each group over its sub-attributes (sub-attribute points, about the
+ * group's level; only the differences count, as the group's average is the card's). A
+ * centre-back's shooting is shot power and no finishing, his dribbling reactions and composure,
+ * not agility; a striker's defending is heading and little else.
+ */
+const IN_GROUP: Record<Role, Partial<Record<Sub, number>>> = {
+  GK: { acceleration: 0.5 },
+  CB: {
+    acceleration: -0.5, finishing: -2, longShots: 0.5, shotPower: 4, positioning: -2.5,
+    shortPassing: 2.5, longPassing: 1.5, crossing: -2, vision: -0.5, curve: -1, freeKicks: -0.5,
+    dribbling: -2.5, ballControl: -0.5, agility: -3, reactions: 3, composure: 3,
+    heading: 1, slidingTackle: -0.5, strength: 1.5, jumping: 1, stamina: -2.5,
+  },
+  FB: {
+    acceleration: 0.5, finishing: -1.5, shotPower: 2, positioning: -0.5,
+    shortPassing: 0.5, crossing: 2.5, vision: -1, freeKicks: -2,
+    agility: 0.5, composure: -0.5,
+    interceptions: 0.5, marking: 0.5, standingTackle: 1, slidingTackle: 0.5, heading: -2.5, strength: -1.5, jumping: -1, stamina: 2.5,
+  },
+  DM: {
+    finishing: -1.5, longShots: 1.5, shotPower: 1.5, positioning: -1,
+    shortPassing: 2, longPassing: 2, crossing: -2, vision: 0.5, curve: -1, freeKicks: -1.5,
+    dribbling: -1.5, ballControl: 0.5, agility: -1.5, reactions: 1.5, composure: 1,
+    interceptions: 0.5, heading: -1, slidingTackle: -0.5, strength: 1, jumping: -1.5, stamina: 0.5,
+  },
+  CM: {
+    finishing: -1.5, longShots: 1.5, shotPower: 1.5, positioning: -1,
+    shortPassing: 1, longPassing: 0.5, crossing: -1, vision: 1, curve: -0.5, freeKicks: -1,
+    ballControl: 0.5, agility: -0.5, reactions: 0.5,
+    interceptions: 1, standingTackle: 0.5, heading: -1.5, strength: -1, jumping: -1, stamina: 2,
+  },
+  WM: {
+    acceleration: 0.5, positioning: 0.5, shotPower: -0.5,
+    shortPassing: 0.5, longPassing: -1.5, crossing: 1.5, curve: 1, freeKicks: -1.5,
+    dribbling: 1, agility: 1, reactions: -1, composure: -1,
+    interceptions: 1, marking: -1.5, standingTackle: -1, slidingTackle: -1.5, heading: 3, strength: -2, jumping: 0.5, stamina: 1.5,
+  },
+  W: {
+    acceleration: 0.5, positioning: 0.5, shotPower: -0.5,
+    shortPassing: 0.5, longPassing: -1.5, crossing: 1.5, curve: 1, freeKicks: -1.5,
+    dribbling: 1, agility: 1, reactions: -1, composure: -1,
+    interceptions: 1, marking: -1.5, standingTackle: -1, slidingTackle: -1.5, heading: 3, strength: -2, jumping: 0.5, stamina: 1.5,
+  },
+  ST: {
+    finishing: 1, longShots: -1, positioning: 1.5, penalties: -1.5,
+    shortPassing: 2, longPassing: -1, crossing: -0.5, vision: 1, curve: -0.5, freeKicks: -1,
+    dribbling: -0.5, ballControl: 0.5, agility: -1.5, reactions: 1, composure: 0.5,
+    interceptions: -1, marking: -2.5, standingTackle: -2, slidingTackle: -2.5, heading: 8, strength: 1, jumping: 1, stamina: -2,
+  },
+}
+
+/** And how his way of playing spreads them, on top. */
+const ARCHETYPE_IN_GROUP: Record<Archetype, Partial<Record<Sub, number>>> = {
+  shotStopper: {},
+  sweeperKeeper: { acceleration: 0.5 },
+  stopper: { heading: 1.5, marking: 0.5, interceptions: -1, standingTackle: 0.5, slidingTackle: -1.5, strength: 1.5, jumping: 0.5, stamina: -2 },
+  ballPlayer: { longPassing: 1.5, shortPassing: 1, vision: 0.5, crossing: -1.5, curve: -0.5, freeKicks: -1, interceptions: 1, heading: -0.5, marking: -0.5 },
+  overlapping: { crossing: 1.5, vision: -0.5, longPassing: -0.5, freeKicks: -0.5, stamina: 1, strength: -1 },
+  inverted: { shortPassing: 1.5, vision: 1, crossing: -1.5, longPassing: -0.5, freeKicks: -0.5 },
+  defensiveFullBack: { marking: 1, standingTackle: 0.5, heading: 1, interceptions: -1.5, slidingTackle: -1, crossing: -1.5, shortPassing: 1, longPassing: 0.5 },
+  anchor: { interceptions: 0.5, marking: 1, heading: 1, slidingTackle: -1, standingTackle: -1.5, strength: 1.5, stamina: -0.5, jumping: -1 },
+  deepPlaymaker: { longPassing: 1.5, vision: 1, crossing: -1.5, curve: -0.5, freeKicks: -0.5 },
+  ballWinner: { interceptions: 1, standingTackle: 1, slidingTackle: 1, heading: -2.5, marking: -0.5, stamina: 1.5, jumping: -1.5 },
+  boxToBox: { longShots: 1, shotPower: 0.5, positioning: 0.5, penalties: -2, stamina: 1.5, strength: -0.5, jumping: -1 },
+  playmaker: { vision: 1.5, freeKicks: 0.5, crossing: -1, longPassing: -1, ballControl: 0.5, agility: 0.5, reactions: -1 },
+  winger: { crossing: 1.5, curve: 0.5, longPassing: -1, vision: -1, agility: 1, dribbling: 0.5, reactions: -1.5 },
+  insideForward: { curve: 1, crossing: -1.5, vision: 0.5, finishing: 0.5, longShots: 0.5, positioning: -1 },
+  poacher: { finishing: 1, positioning: 1, longShots: -2, reactions: 1.5, composure: 0.5, agility: -0.5, dribbling: -1.5 },
+  targetMan: { heading: 3, jumping: 2, strength: 2, stamina: -4, acceleration: -1.5, sprintSpeed: 1.5 },
+  falseNine: { vision: 1.5, shortPassing: 1, crossing: -1, freeKicks: -1.5, ballControl: 1, reactions: -1 },
+}
+
+/**
+ * Sub-attributes that show `card`: each group's sub-attributes spread about its level by his
+ * position and archetype (and `jitter`), then moved together until their average is the card's
+ * (clamped to 1-20) and rounded keeping the group's total. Anything not on the card (a keeper's
+ * outfield skills, an outfield player's goalkeeping) stays as in `base`.
+ */
+export function cardAttributes(base: Attributes, card: Card, role: Role, archetype: Archetype, jitter: () => number): Attributes {
+  const out = { ...base }
+  GROUPS[role === 'GK' ? 'keeper' : 'outfield'].forEach((g, gi) => {
+    const want = Math.max(1, Math.min(20, fromRating(card[gi])))
+    const raw = g.subs.map((k) => (IN_GROUP[role][k] ?? 0) + (ARCHETYPE_IN_GROUP[archetype][k] ?? 0) + jitter())
+    const at = (c: number): number[] => raw.map((t) => Math.max(1, Math.min(20, want + t + c)))
+    // The shift that brings the clamped average to the card's: bisection (the average only rises with it).
+    let lo = -25
+    let hi = 25
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2
+      if (avg(...at(mid)) < want) lo = mid
+      else hi = mid
+    }
+    // Round keeping the group's total (the largest remainders round up): to whole points, or
+    // quarters in a group of one or two, too few to average out (a point is 6 on the card at the top).
+    const step = g.subs.length <= 2 ? 4 : 1
+    const vs = at((lo + hi) / 2).map((v) => v * step)
+    const total = Math.round(vs.reduce((a, b) => a + b, 0))
+    const floors = vs.map(Math.floor)
+    let left = total - floors.reduce((a, b) => a + b, 0)
+    const order = vs.map((v, i) => [v - Math.floor(v), i] as const).sort((a, b) => b[0] - a[0])
+    for (const [, i] of order) if (left-- > 0) floors[i]++
+    g.subs.forEach((k, i) => (out[k] = Math.max(1, Math.min(20, floors[i] / step))))
+  })
+  return out
+}
+
 /** Sub-attributes that come from knowing a position: technique and reading the game, not the body. */
 export const POSITIONAL: Sub[] = [
   'finishing',
