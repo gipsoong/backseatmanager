@@ -258,10 +258,6 @@ export const squadOf = (t: TeamDef): PlayerDef[] => [...t.players, ...t.bench]
 
 export const isAvailable = (s: Season, p: PlayerDef): boolean => s.condition[p.id].injuredUntil <= s.matchday
 
-/** How much a player's freshness counts when picking: a tired star can still get the nod. */
-const selectionScore = (s: Season, p: PlayerDef, slot: Slot): number =>
-  fitFor(p, slot) * ability(p) * (0.55 + 0.45 * s.condition[p.id].fitness)
-
 /**
  * The staff's eleven: the best available fits, fitness counted. Best pairings first across the
  * whole formation, so a centre-back plays centre-back rather than the first slot he'd fit.
@@ -272,8 +268,16 @@ export function autoPick(s: Season, club: number): string[] {
   const picked: (string | null)[] = slots.map(() => null)
   const used = new Set<string>()
   // An injury crisis: if nobody fit is left, someone carrying a knock plays.
+  // How well he fits the slot, his ability, and his freshness (a tired star can still get the nod);
+  // ability and freshness worked out once a man, not once a slot (the market asks for many elevens a day).
+  const own = new Map<PlayerDef, { ab: number; fresh: number }>()
+  const scoreOf = (p: PlayerDef, slot: Slot): number => {
+    let o = own.get(p)
+    if (!o) own.set(p, (o = { ab: ability(p), fresh: 0.55 + 0.45 * s.condition[p.id].fitness }))
+    return fitFor(p, slot) * o.ab * o.fresh
+  }
   for (const pool of [squadOf(t).filter((p) => isAvailable(s, p)), squadOf(t)]) {
-    const pairs = pool.flatMap((p) => slots.map((slot, i) => ({ p, i, score: selectionScore(s, p, slot) })))
+    const pairs = pool.flatMap((p) => slots.map((slot, i) => ({ p, i, score: scoreOf(p, slot) })))
     pairs.sort((a, b) => b.score - a.score)
     for (const { p, i } of pairs) {
       if (picked[i] || used.has(p.id)) continue
