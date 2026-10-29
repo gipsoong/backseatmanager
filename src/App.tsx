@@ -19,7 +19,7 @@ import {
   resultOf,
   userFixture,
 } from "./season/season.ts";
-import { simulate, simulateMatches } from "./season/simulate.ts";
+import { prefetch, simulate, simulateMatches } from "./season/simulate.ts";
 import {
   advanceCup,
   completeCupMatchday,
@@ -143,6 +143,7 @@ export default function App() {
           await simulateMatches(
             cupMatches(s, cupFixturesToday(s)),
             fitnessFor(s),
+            { foreground: true },
           ),
         ),
       );
@@ -150,7 +151,10 @@ export default function App() {
       await commit(
         advanceCup(
           marketDay(
-            completeMatchday(s, await simulate(s, fixturesOn(s, s.matchday))),
+            completeMatchday(
+              s,
+              await simulate(s, fixturesOn(s, s.matchday), { foreground: true }),
+            ),
           ),
         ),
       );
@@ -170,6 +174,14 @@ export default function App() {
     screen.kind === "hub" && season?.cup && season.cupEntered
       ? "cup"
       : screen.kind;
+  // On the hub, the day's matches start playing in the background: "Just the result" (or the rest
+  // of the day, while he watches his) is then mostly done. A result is only used for the very
+  // same match, so changing the side first just plays that one again.
+  useEffect(() => {
+    if ((screen.kind === "hub" || screen.kind === "league") && season && !busy)
+      prefetch(season);
+  }, [screen.kind, season, busy]);
+
   // A new screen starts at the top, not wherever the last one was scrolled to.
   useEffect(() => {
     window.scrollTo(0, 0);
