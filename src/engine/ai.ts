@@ -1782,13 +1782,29 @@ export function pickChasers(s: MatchState): Map<number, number> {
     return out
   }
   const path = loosePath(s)
+  // Each man's arrival, worked out only as far as it can matter: once a side has its two quickest,
+  // the rest are only looked for along the path up to the second of them (a later arrival changes
+  // nothing). `times` holds every arrival worked out in full, the chasers' among them.
   const times = new Map<number, { ticks: number; point: BallPoint }>()
-  for (const team of [0, 1] as const) for (const p of teammatesOf(s, team)) times.set(p.idx, arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)))
-  const snap = snapOf(s)
-  if (snap) snap.arrivals = times
+  const full = (p: PlayerState): { ticks: number; point: BallPoint } => {
+    let a = times.get(p.idx)
+    if (!a) times.set(p.idx, (a = arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p))))
+    return a
+  }
+  /** His arrival if it's before tick `limit`, else null (it's at `limit` or later). */
+  const before = (p: PlayerState, limit: number): { ticks: number; point: BallPoint } | null => {
+    if (limit > path.length) return full(p)
+    const known = times.get(p.idx)
+    if (known) return known.ticks < limit ? known : null
+    const k = firstReach(p, path, reachOf(s, p), reachHeightOf(s, p), Math.ceil(limit))
+    return k < 0 ? null : { ticks: k, point: path[k] }
+  }
   const firstOf = (team: Side): number => {
     let first = Infinity
-    for (const p of teammatesOf(s, team)) first = Math.min(first, times.get(p.idx)!.ticks)
+    for (const p of teammatesOf(s, team)) {
+      const a = before(p, first)
+      if (a) first = Math.min(first, a.ticks)
+    }
     return first
   }
   for (const team of [0, 1] as const) {
@@ -1797,18 +1813,24 @@ export function pickChasers(s: MatchState): Map<number, number> {
     let second: PlayerState | null = null
     let secondT = Infinity
     for (const p of teammatesOf(s, team)) {
-      const ic = times.get(p.idx)!
       // Still reading it (an opponent's pass) or reacting (a rebound): he hasn't moved for it yet.
       if (readDelay(s, p) > 0) continue
+      // Intended receiver of a pass gets priority unless someone is clearly closer.
+      const head = ball.kick?.kind === 'pass' && ball.kick.targetIdx === p.idx && !ball.touchedSinceKick ? 5 : 0
+      let ic: { ticks: number; point: BallPoint } | null
       if (p.slot.role === 'GK') {
+        ic = full(p)
         const ia = af(s, team, ic.point)
         if (ia.x > BOX_DEPTH || Math.abs(ia.y - CENTER.y) > BOX_HALF_WIDTH) continue
         // He only leaves his line for a ball he'll get to first; otherwise he's left stranded.
         if (ic.ticks > firstOf((1 - team) as Side) - 2) continue
+      } else {
+        ic = before(p, secondT + head)
+        if (!ic) continue
+        times.set(p.idx, ic)
       }
       let t = ic.ticks
-      // Intended receiver of a pass gets priority unless someone is clearly closer.
-      if (ball.kick?.kind === 'pass' && ball.kick.targetIdx === p.idx && !ball.touchedSinceKick) t -= 5
+      if (head) t -= 5
       if (t < bestT) {
         second = best
         secondT = bestT
@@ -1824,6 +1846,8 @@ export function pickChasers(s: MatchState): Map<number, number> {
     const theirs = ball.lastTouchIdx !== null && s.players[ball.lastTouchIdx].team !== team
     if (best && second && theirs && af(s, team, times.get(best.idx)!.point).x < 45) out.set(second.idx, 1)
   }
+  const snap = snapOf(s)
+  if (snap) snap.arrivals = times
   return out
 }
 
