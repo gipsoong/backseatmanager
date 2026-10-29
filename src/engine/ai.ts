@@ -406,8 +406,8 @@ export function arrivalOf(pl: PlayerState, path: BallPath, reach: number, reachH
 
 /**
  * The first of the first `n` points of `path` he can reach in time (low enough to play), or -1.
- * Hot (every loose-ball tick, every player, every point): a point he can't reach even at top
- * speed all the way (reachTime is never less than (distance - reach) / maxSpeed) is passed over
+ * Hot (every loose-ball tick, every player, every point): a point he can't reach even flat out
+ * (reachTime is never less than the time to cover it accelerating from his current speed) is passed over
  * on squared distances, with margins so rounding can't skip one reachTime would accept. Far off,
  * the gap can only close by the ball's longest step plus his top speed a tick, so the points
  * until it could have closed are skipped too.
@@ -417,11 +417,18 @@ function firstReach(pl: PlayerState, path: BallPath, reach: number, reachHeight:
   const py = pl.pos.y
   const ms = pl.maxSpeed
   const closing = path.maxStep === undefined ? 0 : path.maxStep * 1.000001 + 1e-9 + ms * DT * 1.000001
+  // The furthest he could get in t, from no faster than he's going now (reachTime starts him at
+  // his speed towards the point, never more), getting up to top speed.
+  const acc = accelOf(pl)
+  const u = Math.min(Math.sqrt(pl.vel.x * pl.vel.x + pl.vel.y * pl.vel.y) * (1 + 1e-9) + 1e-9, ms)
+  const tUp = (ms - u) / acc
+  const dUp = (ms * ms - u * u) / (2 * acc)
   const last = Math.min(n, path.length)
   for (let k = 0; k < last; k++) {
     const b = path[k]
     if (ms > 0) {
-      const r = reach + ms * k * DT * 1.000001 + 1e-6
+      const t = k * DT
+      const r = reach + (t <= tUp ? u * t + 0.5 * acc * t * t : dUp + ms * (t - tUp)) * 1.000001 + 1e-6
       const dx = b.x - px
       const dy = b.y - py
       const d2 = dx * dx + dy * dy
