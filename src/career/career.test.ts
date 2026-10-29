@@ -81,6 +81,10 @@ describe('the summer', () => {
       expect(squadOf(t).filter((p) => p.role === 'GK').length).toBeGreaterThanOrEqual(2)
       expect(t.players).toHaveLength(11)
     }
+    for (const t of next.teams) {
+      const surnames = squadOf(t).map((p) => p.name.split(' ').at(-1))
+      expect(new Set(surnames).size).toBe(surnames.length)
+    }
     const ids = next.teams.flatMap(squadOf).map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
@@ -108,13 +112,15 @@ describe('the board', () => {
   it('sets a target by squad rank and judges the finish against it', () => {
     const s = start(7)
     const aims = s.teams.map((_, i) => aimFor(s, i))
-    expect(aims.filter((a) => a === 'title')).toHaveLength(2)
-    expect(aims.filter((a) => a === 'topHalf')).toHaveLength(3)
+    expect(aims.filter((a) => a === 'title')).toHaveLength(3)
+    expect(aims.filter((a) => a === 'topHalf')).toHaveLength(7)
     expect(aimMet('title', 2, 10)).toBe(true)
     expect(aimMet('title', 3, 10)).toBe(false)
     expect(aimMet('topHalf', 5, 10)).toBe(true)
     expect(aimMet('survive', 8, 10)).toBe(true)
     expect(aimMet('survive', 9, 10)).toBe(false)
+    expect(aimMet('survive', 17, 20)).toBe(true)
+    expect(aimMet('survive', 18, 20)).toBe(false)
   })
 })
 

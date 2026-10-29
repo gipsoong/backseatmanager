@@ -15,7 +15,12 @@ export function CountUp({ value, ms = 900, format = (v: number) => String(Math.r
       if (t < 1) raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    // Frames stop in a hidden tab: land on the number regardless.
+    const land = setTimeout(() => setShown(value), ms + 50)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(land)
+    }
   }, [value, ms])
   return <span className="count">{format(reducedMotion() ? value : shown)}</span>
 }

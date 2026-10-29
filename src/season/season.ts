@@ -8,7 +8,7 @@ import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, a
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
 import type { Career } from '../career/career.ts'
 
-export const LEAGUE_SIZE = 10
+export const LEAGUE_SIZE = 20
 /** Named substitutes per match, as in the Premier League. */
 export const BENCH_SIZE = 9
 

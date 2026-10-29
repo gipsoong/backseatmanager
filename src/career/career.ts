@@ -4,7 +4,7 @@
  * retirements, the board's target, and the history of seasons gone. Pure and deterministic, like
  * the season: `nextSeason` turns a finished season into the next one.
  */
-import { type Attributes, type PlayerDef, type Role, type TeamDef, Rng, madeUpName, makePlayer } from '../engine/index.ts'
+import { type Attributes, type PlayerDef, type Role, type TeamDef, Rng, freshName, makePlayer } from '../engine/index.ts'
 import { type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 
 /** What the game knows about a player beyond his attributes. */
@@ -83,7 +83,8 @@ const GEM_RANGE = 24
 const DRIFT_PULL = 6
 /** The most a player improves in one summer. */
 const MAX_GROWTH = 6
-const RELEGATION_PLACES = 2
+/** The bottom places a side must stay out of: three of twenty, two of ten. */
+export const relegationPlaces = (n: number): number => Math.round(n * 0.15)
 
 // ---------------------------------------------------------------------------
 // Starting out
@@ -112,12 +113,12 @@ export function aimFor(s: Season, club: number): Aim {
   const ratings = s.teams.map((_, i) => elevenRating(s, i))
   const rank = 1 + ratings.filter((r, i) => r > ratings[club] || (r === ratings[club] && i < club)).length
   const n = s.teams.length
-  return rank <= Math.max(1, Math.round(n * 0.2)) ? 'title' : rank <= n / 2 ? 'topHalf' : 'survive'
+  return rank <= Math.max(1, Math.round(n * 0.15)) ? 'title' : rank <= n / 2 ? 'topHalf' : 'survive'
 }
 
 /** Whether a finish meets the target. */
 export function aimMet(aim: Aim, place: number, n: number): boolean {
-  return aim === 'title' ? place <= TITLE_PLACES : aim === 'topHalf' ? place <= n / 2 : place <= n - RELEGATION_PLACES
+  return aim === 'title' ? place <= TITLE_PLACES : aim === 'topHalf' ? place <= n / 2 : place <= n - relegationPlaces(n)
 }
 
 // ---------------------------------------------------------------------------
@@ -135,8 +136,21 @@ const DECLINE_WEIGHT: Partial<Record<keyof Attributes, number>> = {
   diving: 2,
 }
 
-/** His attributes moved a point at a time until his overall is `target` (or as near as 1-20 allows). */
-export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boolean): PlayerDef {
+/** A young player fills out: his pace and physique come on more than the rest, as decline takes them first. */
+const YOUNG_GROWTH_WEIGHT: Partial<Record<keyof Attributes, number>> = {
+  sprintSpeed: 2.5,
+  acceleration: 2.5,
+  agility: 1.5,
+  stamina: 2,
+  strength: 2,
+  jumping: 1.5,
+}
+
+/**
+ * His attributes moved a point at a time until his overall is `target` (or as near as 1-20 allows):
+ * the legs first on the way down, and for a young player (`young`) on the way up too.
+ */
+export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boolean, young = false): PlayerDef {
   const attrs = { ...p.attrs }
   const subs = p.role === 'GK' ? KEEPER_SUBS : (Object.keys(attrs) as (keyof Attributes)[]).filter((k) => !KEEPER_SUBS.includes(k))
   const def = { ...p, attrs }
@@ -145,7 +159,7 @@ export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boole
     if (dir === 0) break
     const open = subs.filter((k) => (dir > 0 ? attrs[k] < 20 : attrs[k] > 1))
     if (!open.length) break
-    const w = open.map((k) => (declining && dir < 0 ? (DECLINE_WEIGHT[k] ?? 0.6) : 1))
+    const w = open.map((k) => (declining && dir < 0 ? (DECLINE_WEIGHT[k] ?? 0.6) : young && dir > 0 ? (YOUNG_GROWTH_WEIGHT[k] ?? 1) : 1))
     let r = rng.next() * w.reduce((a, b) => a + b, 0)
     let k = open[open.length - 1]
     for (let j = 0; j < open.length; j++) if ((r -= w[j]) < 0) {
@@ -234,9 +248,10 @@ export function nextSeason(s: Season): Season {
   const people: Record<string, Person> = {}
   const summer: Summer = { retired: [], academy: [], signed: [], released: [] }
   const names = new Set(s.teams.flatMap(squadOf).map((p) => p.name))
-  const fresh = (): string => {
-    let n = madeUpName(rng)
-    while (names.has(n)) n = madeUpName(rng)
+  /** A new name: nobody in the league has it, nobody at his club shares the surname. */
+  const fresh = (squad: PlayerDef[]): string => {
+    let n = freshName(rng, squad.map((p) => p.name))
+    while (names.has(n)) n = freshName(rng, squad.map((p) => p.name))
     names.add(n)
     return n
   }
@@ -259,7 +274,7 @@ export function nextSeason(s: Season): Season {
       const age = who.age + 1
       const keeper = p.role === 'GK'
       const delta = development(who.age, now, who.potential, played, keeper, rng)
-      const next = shiftTo(p, Math.max(1, Math.round(now + delta)), rng, delta < 0)
+      const next = shiftTo(p, Math.max(1, Math.round(now + delta)), rng, delta < 0, who.age <= 23)
       if (retires(age, keeper, played, rng)) {
         left.push(p)
         if (mine) summer.retired.push({ name: p.name, age })
@@ -275,13 +290,14 @@ export function nextSeason(s: Season): Season {
       shirts.add(n)
       return n
     }
-    // A signing for each retirement, at about the club's own level, in the same position.
+    // A signing for each retirement, at about the club's own level, in the same position (the
+    // manager signs his own, in the market).
     left.forEach((p, i) => {
+      if (mine) return
       const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + rng.gauss() * 2.5)
-      const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(), shirt(), p.role, overall)
+      const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squad), shirt(), p.role, overall)
       squad.push(q)
       people[q.id] = { age: rng.int(24, 29), potential: overall }
-      if (mine) summer.signed.push(q.name)
     })
     // The academy: two or three a summer, 16 to 18, a long way off the first team, now and then a gem.
     const intake = rng.int(2, 3)
@@ -289,7 +305,9 @@ export function nextSeason(s: Season): Season {
       // Below the club's own first team (a weak club's kids are weaker), however high they may go.
       const overall = Math.round(c.levels[club] - DRIFT_PULL * drift - 14 + rng.next() * 10)
       const potential = Math.max(overall + 3, Math.round(level + GEM_FLOOR + GEM_RANGE * rng.next() ** 2))
-      const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(), shirt(), rng.pick(ACADEMY_ROLES), overall)
+      // A keeper if the club is short of them, otherwise any position.
+      const role = squad.filter((p) => p.role === 'GK').length < 2 ? 'GK' : rng.pick(ACADEMY_ROLES)
+      const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(squad), shirt(), role, overall)
       squad.push(q)
       people[q.id] = { age: rng.int(16, 18), potential, academy: true }
       if (mine) summer.academy.push(q.id)

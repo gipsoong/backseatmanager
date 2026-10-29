@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FORMATIONS, runMatch } from '../engine/index.ts'
+import { FORMATIONS, leagueTeams, runMatch } from '../engine/index.ts'
 import { clubRecords, leaderboards } from './stats.ts'
 import { BENCH_SIZE, LEAGUE_SIZE, type Result, autoPick, completeMatchday, createSeason, fitnessFor, matchdays, fixturesOn, isOver, matchTeam, matchdayDate, resultOf, roundRobin, squadOf, table, userFixture } from './season.ts'
 
@@ -109,14 +109,15 @@ describe('squads, fitness and injuries', () => {
   })
 
   it('adds up the season: leaderboards and every club\'s record', () => {
-    let s = createSeason(9, 0, new Date('2026-03-01'))
+    // A league of ten, to keep the test quick.
+    let s = createSeason(9, 0, new Date('2026-03-01'), leagueTeams(9, 10))
     for (let md = 0; md < 2; md++) {
       const today = fixturesOn(s, s.matchday)
       const results = new Map(today.map((f) => [f.id, resultOf(runMatch(matchTeam(s, f.home), matchTeam(s, f.away), { seed: f.seed, fitness: fitnessFor(s) }))] as const))
       s = completeMatchday(s, results)
     }
     const records = clubRecords(s)
-    expect(records).toHaveLength(LEAGUE_SIZE)
+    expect(records).toHaveLength(10)
     for (const [i, row] of table(s).entries()) {
       const c = records[row.team]
       expect(c.played).toBe(2)
@@ -132,7 +133,7 @@ describe('squads, fitness and injuries', () => {
   })
 
   it('carries tiredness and injuries into the next matchdays', () => {
-    let s = createSeason(9, 0, new Date('2026-03-01'))
+    let s = createSeason(9, 0, new Date('2026-03-01'), leagueTeams(9, 10))
     const today = fixturesOn(s, 1)
     const results = new Map(
       today.map((f) => {

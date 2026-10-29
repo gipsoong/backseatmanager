@@ -113,6 +113,18 @@ export const KITS: Kit[] = [
 
 const FIRST = ['Alex', 'Ben', 'Carlos', 'Dani', 'Emre', 'Felix', 'Gabi', 'Hugo', 'Ivan', 'Jonas', 'Kofi', 'Luca', 'Marco', 'Nico', 'Omar', 'Pau', 'Rui', 'Sami', 'Theo', 'Yann']
 const LAST = ['Adler', 'Baptiste', 'Costa', 'Doyle', 'Eriksen', 'Ferreira', 'Grant', 'Haas', 'Iversen', 'Jansen', 'Keane', 'Lindqvist', 'Moreau', 'Novak', 'Okafor', 'Pereira', 'Quinn', 'Rossi', 'Silva', 'Varga', 'Walsh', 'Young']
+/**
+ * More surnames, for league clubs (randomTeam keeps to LAST so friendlies and calibration play the
+ * same): enough that nobody in a squad shares a surname.
+ */
+const MORE_LAST = [
+  'Ahmed', 'Barros', 'Bauer', 'Brennan', 'Castro', 'Dahl', 'Diallo', 'Duarte', 'Engel', 'Fischer',
+  'Fontaine', 'Garcia', 'Hansen', 'Holm', 'Ibarra', 'Jovic', 'Kaya', 'Kovac', 'Lambert', 'Larsen',
+  'Lopez', 'Mendes', 'Meyer', 'Murphy', 'Nash', 'Nilsson', 'Olsen', 'Ortiz', 'Petit', 'Ramos',
+  'Reyes', 'Sandoval', 'Schmidt', 'Sorensen', 'Torres', 'Unal', 'Vidal', 'Weber', 'Yilmaz', 'Zielinski',
+]
+const ALL_LAST = [...LAST, ...MORE_LAST]
+
 /** Club names: no two share their first three letters, which are their short name. */
 const CLUBS = [
   'Ashford',
@@ -204,7 +216,26 @@ export function makePlayer(rng: Rng, id: string, name: string, shirt: number, ro
 }
 
 /** A made-up name, from the same lists as the clubs' players. */
-export const madeUpName = (rng: Rng): string => `${rng.pick(FIRST)} ${rng.pick(LAST)}`
+export const madeUpName = (rng: Rng): string => `${rng.pick(FIRST)} ${rng.pick(ALL_LAST)}`
+
+/** A made-up name whose surname nobody in `taken` (names) has. */
+export function freshName(rng: Rng, taken: Iterable<string>): string {
+  const surnames = new Set([...taken].map((n) => n.split(' ').at(-1)))
+  let name = madeUpName(rng)
+  for (let i = 0; i < 200 && surnames.has(name.split(' ').at(-1)); i++) name = madeUpName(rng)
+  return name
+}
+
+/** A squad where no two players share a surname: the later ones renamed. */
+function distinctSurnames(t: TeamDef, rng: Rng): TeamDef {
+  const seen: string[] = []
+  const rename = (p: PlayerDef): PlayerDef => {
+    const name = seen.some((n) => n.split(' ').at(-1) === p.name.split(' ').at(-1)) ? freshName(rng, seen) : p.name
+    seen.push(name)
+    return name === p.name ? p : { ...p, name }
+  }
+  return { ...t, players: t.players.map(rename), bench: t.bench.map(rename) }
+}
 
 export function randomTeam(seed: number, block?: Block, formation?: Formation): TeamDef {
   const rng = new Rng(seed)
@@ -259,8 +290,9 @@ export function leagueTeams(seed: number, n: number): TeamDef[] {
   const rng = new Rng(seed)
   const names = rng.shuffle([...CLUBS]).slice(0, n)
   const kits = rng.shuffle([...KITS])
+  const renaming = new Rng(seed * 7 + 3)
   return names.map((name, i) => ({
-    ...randomTeam(seed * 1000 + i + 1),
+    ...distinctSurnames(randomTeam(seed * 1000 + i + 1), renaming),
     name,
     shortName: name.slice(0, 3).toUpperCase(),
     kit: kits[i % kits.length],
