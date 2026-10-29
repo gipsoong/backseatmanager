@@ -2,10 +2,10 @@
  * The other clubs' business in a window: a few deals among themselves, never with the manager
  * (their offers to him are in draft/transfers.ts). A club buys for its weakest place, from a club
  * that can spare the player at his price; the strongest sides don't take rivals' best players, and
- * nobody strips the league's best side.
+ * the league's best side neither sells nor buys, and its leaders don't buy.
  */
 import { FORMATIONS, Rng, fitFor } from '../engine/index.ts'
-import { type Season, isOver, playerRating, squadOf } from '../season/season.ts'
+import { type Season, isOver, playerRating, squadOf, table } from '../season/season.ts'
 import { POINT_VALUE, movePlayers, needs, sideOf, thisWindow, windowOpen } from '../draft/transfers.ts'
 import { elevenRating } from './career.ts'
 import { round1, valueOf } from './money.ts'
@@ -27,13 +27,17 @@ export function marketDay(s: Season): Season {
   const strength = s.teams.map((_, i) => elevenRating(s, i))
   const rank = (club: number): number => strength.filter((r) => r > strength[club]).length
   const best = strength.indexOf(Math.max(...strength))
+  // Nor does the side top of the table once games are played (the eleven's overall doesn't see
+  // everything that wins matches).
+  const leader = s.matchday > 1 ? table(s)[0].team : best
   let out = s
   let deals = 0
   const busy = new Set(done.flatMap((t) => [...t.from, ...t.to]))
   const clubs = rng.shuffle(s.teams.map((_, i) => i).filter((i) => i !== s.userTeam))
   for (const buyer of clubs) {
     if (deals >= AI_DEALS_PER_MATCHDAY || done.length + deals >= AI_DEALS_PER_WINDOW) break
-    if (busy.has(buyer) || !rng.chance(0.6)) continue
+    // The strongest side neither sells nor buys: it can't be stripped, nor pull further away.
+    if (busy.has(buyer) || !rng.chance(0.6) || buyer === best || buyer === leader) continue
     const deal = findDeal(out, buyer, rank, best, busy)
     if (!deal) continue
     const seller = deal.seller
