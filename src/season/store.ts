@@ -2,6 +2,7 @@
 import { openDB } from 'idb'
 import { type Attributes, type LegacyAttributes, type PlayerDef, archetypeFrom, upgradeAttributes } from '../engine/index.ts'
 import type { Season } from './season.ts'
+import { upgradeCareer } from '../career/career.ts'
 
 const db = () =>
   openDB('matchday', 1, {
@@ -13,7 +14,12 @@ const db = () =>
 export async function loadSeason(): Promise<Season | null> {
   const s = (await (await db()).get('saves', 'season')) as Season | undefined
   // An older save (from before squads and fitness) can't be carried on.
-  return s?.version === 2 ? upgraded(s) : null
+  return s && ((s.version as number) === 2 || s.version === 3) ? upgradeSave(s) : null
+}
+
+/** Any save we can carry on, brought up to date: sub-attributes, then a career for club mode. */
+export function upgradeSave(s: Season): Season {
+  return upgradeCareer(upgraded(s))
 }
 
 /** A save from before sub-attributes (17 Oct 2026): each player expanded from his old attributes. */

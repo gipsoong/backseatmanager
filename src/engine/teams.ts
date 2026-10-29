@@ -195,6 +195,17 @@ function madeUp(rng: Rng, role: Role, quality: number): Pick<PlayerDef, 'attrs' 
   return { attrs: makeAttributes(rng, role, quality, traits), traits }
 }
 
+/**
+ * One made-up player, as randomTeam makes them (a youth player or a signing between seasons): his
+ * attributes, traits, positions and feet. Draws from `rng` only; teams already made are untouched.
+ */
+export function makePlayer(rng: Rng, id: string, name: string, shirt: number, role: Role, quality: number): PlayerDef {
+  return { id, name, shirt, role, ...madeUp(rng, role, quality), positions: makePositions(rng, role), ...makeFeet(rng) }
+}
+
+/** A made-up name, from the same lists as the clubs' players. */
+export const madeUpName = (rng: Rng): string => `${rng.pick(FIRST)} ${rng.pick(LAST)}`
+
 export function randomTeam(seed: number, block?: Block, formation?: Formation): TeamDef {
   const rng = new Rng(seed)
   const f = formation ?? rng.pick(FORMATION_NAMES)

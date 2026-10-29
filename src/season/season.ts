@@ -6,6 +6,7 @@
  */
 import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, ability, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
+import type { Career } from '../career/career.ts'
 
 export const LEAGUE_SIZE = 10
 /** Named substitutes per match, as in the Premier League. */
@@ -131,7 +132,8 @@ export function avgRating(st: SeasonStats | undefined): number | null {
 }
 
 export interface Season {
-  version: 2
+  /** 3 since careers (version 2 saves are upgraded on load). */
+  version: 3
   seed: number
   teams: TeamDef[]
   /** The manager's team (index into teams). */
@@ -158,6 +160,8 @@ export interface Season {
   cup?: Cup
   /** The manager has moved on from the league's review to the cup's own screen. */
   cupEntered?: boolean
+  /** Club mode: the career this season is part of (ages, potential, the board, past seasons). */
+  career?: Career
 }
 
 /**
@@ -241,7 +245,7 @@ export function createSeason(seed: number, userTeam: number, today = new Date(),
     condition[p.id] = { fitness: 1, injuredUntil: 0 }
     stats[p.id] = { apps: 0, goals: 0, assists: 0, ratings: 0 }
   }
-  return { version: 2, seed, teams, userTeam, fixtures, matchday: 1, startDate: firstSaturdayOfAugust(today), condition, stats, lineup: null }
+  return { version: 3, seed, teams, userTeam, fixtures, matchday: 1, startDate: firstSaturdayOfAugust(today), condition, stats, lineup: null }
 }
 
 // ---------------------------------------------------------------------------
