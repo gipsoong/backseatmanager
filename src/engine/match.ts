@@ -357,21 +357,40 @@ export function frameOf(s: MatchState): Frame {
 // Movement
 
 function movePlayer(p: PlayerState, intent: MoveIntent): void {
-  const d = sub(intent.target, p.pos)
-  const L = len(d)
+  // Every player, every tick: written out on numbers (the same arithmetic, in the same order, as
+  // sub/len/norm/scale/add would do), making only the new velocity and position.
+  const dx = intent.target.x - p.pos.x
+  const dy = intent.target.y - p.pos.y
+  const L = Math.sqrt(dx * dx + dy * dy)
   const wanted = Math.min(p.maxSpeed * intent.urgency, L / 0.4)
-  const desired = scale(norm(d), wanted)
-  let dv = sub(desired, p.vel)
+  const desiredX = L < 1e-9 ? 0 : (dx / L) * wanted
+  const desiredY = L < 1e-9 ? 0 : (dy / L) * wanted
+  const vx = p.vel.x
+  const vy = p.vel.y
+  let dvx = desiredX - vx
+  let dvy = desiredY - vy
   // Slowing down or turning uses only part of his acceleration, by his agility.
-  const v = len(p.vel)
-  const braking = v > 0.1 && len(dv) > 0 ? Math.max(0, -(dv.x * p.vel.x + dv.y * p.vel.y) / (len(dv) * v)) : 0
+  const v = Math.sqrt(vx * vx + vy * vy)
+  const ldv = Math.sqrt(dvx * dvx + dvy * dvy)
+  const braking = v > 0.1 && ldv > 0 ? Math.max(0, -(dvx * vx + dvy * vy) / (ldv * v)) : 0
   const maxDv = accelOf(p) * (1 - (1 - turnOf(p)) * braking) * DT
-  if (len(dv) > maxDv) dv = scale(norm(dv), maxDv)
-  p.vel = add(p.vel, dv)
-  if (len(p.vel) > p.maxSpeed) p.vel = scale(norm(p.vel), p.maxSpeed)
-  if (L < 0.05 && len(p.vel) < 0.3) p.vel = vec(0, 0)
-  const next = add(p.pos, scale(p.vel, DT))
-  p.pos = vec(clamp(next.x, 0, PITCH_LENGTH), clamp(next.y, 0, PITCH_WIDTH))
+  if (ldv > maxDv) {
+    dvx = ldv < 1e-9 ? 0 : (dvx / ldv) * maxDv
+    dvy = ldv < 1e-9 ? 0 : (dvy / ldv) * maxDv
+  }
+  let nvx = vx + dvx
+  let nvy = vy + dvy
+  const nv = Math.sqrt(nvx * nvx + nvy * nvy)
+  if (nv > p.maxSpeed) {
+    nvx = nv < 1e-9 ? 0 : (nvx / nv) * p.maxSpeed
+    nvy = nv < 1e-9 ? 0 : (nvy / nv) * p.maxSpeed
+  }
+  if (L < 0.05 && Math.sqrt(nvx * nvx + nvy * nvy) < 0.3) {
+    nvx = 0
+    nvy = 0
+  }
+  p.vel = { x: nvx, y: nvy }
+  p.pos = { x: clamp(p.pos.x + nvx * DT, 0, PITCH_LENGTH), y: clamp(p.pos.y + nvy * DT, 0, PITCH_WIDTH) }
 }
 
 function facing(s: MatchState, p: PlayerState): Vec {

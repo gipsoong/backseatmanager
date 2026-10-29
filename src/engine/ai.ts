@@ -25,8 +25,6 @@ import {
   norm,
   scale,
   sub,
-  toAttackFrame,
-  toWorld,
   vec,
 } from './geometry.ts'
 import {
@@ -67,10 +65,14 @@ import type { Foot, MatchState, PlayerState, Restart, Role, Side } from './types
 // ---------------------------------------------------------------------------
 // Frames and lookups
 
-/** Position in `team`'s attacking frame (x = metres from own goal line). */
-export const af = (s: MatchState, team: Side, p: Vec): Vec => toAttackFrame(p, team, s.half)
-/** Attacking-frame position back to world coordinates. */
-export const wf = (s: MatchState, team: Side, p: Vec): Vec => toWorld(p, team, s.half)
+/** Position in `team`'s attacking frame (x = metres from own goal line): `toAttackFrame`, written out (it's everywhere). */
+export const af = (s: MatchState, team: Side, p: Vec): Vec =>
+  (team === 0) === (s.half === 1) ? { x: p.x, y: p.y } : { x: PITCH_LENGTH - p.x, y: PITCH_WIDTH - p.y }
+/** Attacking-frame position back to world coordinates (the same transform). */
+export const wf = af
+/** Just the x of `af`, without making the point. */
+const afX = (s: MatchState, team: Side, p: Vec): number => ((team === 0) === (s.half === 1) ? p.x : PITCH_LENGTH - p.x)
+const afY = (s: MatchState, team: Side, p: Vec): number => ((team === 0) === (s.half === 1) ? p.y : PITCH_WIDTH - p.y)
 /**
  * How much better this side is than the other, -1 (far worse) to 1 (far better), from its outfield
  * players' attributes at kick-off (EDGE_SCALE attribute points apart is 1, about sixteen overall).
@@ -174,7 +176,7 @@ export function readDelay(s: MatchState, p: PlayerState): number {
  * the second-last opponent, the ball and the halfway line.
  */
 export function offsideLine(s: MatchState, team: Side, ballPos: Vec): number {
-  return Math.max(defensiveLine(s, team), af(s, team, ballPos).x, HALFWAY_X)
+  return Math.max(defensiveLine(s, team), afX(s, team, ballPos), HALFWAY_X)
 }
 
 /** Where `team`'s opponents' second-last player stands, in `team`'s attacking frame. */
@@ -186,7 +188,7 @@ export function defensiveLine(s: MatchState, team: Side): number {
   let second = -Infinity
   for (const o of s.players) {
     if (!o.onPitch || o.team === team) continue
-    const x = af(s, team, o.pos).x
+    const x = afX(s, team, o.pos)
     if (x > first) {
       second = first
       first = x
@@ -211,6 +213,8 @@ interface Snapshot {
   unpressured?: (boolean | undefined)[]
   path?: BallPath
   arrivals?: Map<number, { ticks: number; point: BallPoint }>
+  /** Marks this snapshot's entries in the pair-distance buffers. */
+  stamp: number
 }
 // One match steps at a time (a tick runs start to finish), so the snapshot is a module variable
 // rather than a WeakMap lookup on every call.
@@ -220,7 +224,11 @@ const snapOf = (s: MatchState): Snapshot | undefined => (snapState === s && snap
 
 export function beginMovement(s: MatchState): void {
   snapState = s
-  snapData = { lines: [] }
+  if (stampNow >= 0x7ffffff0) {
+    pairStamp.fill(0)
+    stampNow = 0
+  }
+  snapData = { lines: [], stamp: ++stampNow }
 }
 
 export function endMovement(s: MatchState): void {
@@ -228,6 +236,34 @@ export function endMovement(s: MatchState): void {
     snapState = null
     snapData = null
   }
+}
+
+/**
+ * Distance between two players, remembered for the snapshot (nobody moves while it lasts):
+ * `dist(a.pos, b.pos)`, which is the same number either way round. A stamp per pair says whether
+ * the value is this snapshot's, so the buffers are reused, never cleared.
+ */
+let pairStamp = new Int32Array(0)
+let pairValue = new Float64Array(0)
+let pairWidth = 0
+let stampNow = 0
+export function pairDist(s: MatchState, a: PlayerState, b: PlayerState): number {
+  if (!snapOf(s)) return dist(a.pos, b.pos)
+  const n = s.players.length
+  if (n !== pairWidth) {
+    pairWidth = n
+    pairStamp = new Int32Array(n * n)
+    pairValue = new Float64Array(n * n)
+    stampNow = 0
+    snapData!.stamp = ++stampNow
+  }
+  const i = a.idx * n + b.idx
+  if (pairStamp[i] === snapData!.stamp) return pairValue[i]
+  const v = dist(a.pos, b.pos)
+  const j = b.idx * n + a.idx
+  pairStamp[i] = pairStamp[j] = snapData!.stamp
+  pairValue[i] = pairValue[j] = v
+  return v
 }
 
 /** An opponent has the ball and none of `team` is within 4m of him. */
@@ -253,7 +289,7 @@ function loosePath(s: MatchState): BallPath {
 export function offsidePositions(s: MatchState, kicker: PlayerState, ballPos: Vec): number[] {
   const line = offsideLine(s, kicker.team, ballPos)
   return teammatesOf(s, kicker.team)
-    .filter((q) => q.idx !== kicker.idx && af(s, q.team, q.pos).x > line)
+    .filter((q) => q.idx !== kicker.idx && afX(s, q.team, q.pos) > line)
     .map((q) => q.idx)
 }
 
@@ -870,7 +906,7 @@ function dribbleOptions(d: Decision, consider: (o: Option) => void): void {
 
   // Clean through, nobody but the keeper goal-side of him: run at goal. Chasers behind him have
   // to catch him first; value it at where he'll be in a couple of seconds.
-  const goalSide = opps.some((o) => o.slot.role !== 'GK' && af(s, p.team, o.pos).x > a.x - 0.5)
+  const goalSide = opps.some((o) => o.slot.role !== 'GK' && afX(s, p.team, o.pos) > a.x - 0.5)
   if (!goalSide && a.x > 55) {
     const goal = vec(PITCH_LENGTH, CENTER.y)
     const ahead = add(a, scale(norm(sub(goal, a)), Math.min(12, Math.max(0, dist(a, goal) - 8))))
@@ -911,8 +947,8 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
   const goal = wf(s, p.team, vec(PITCH_LENGTH, CENTER.y))
   const toGoal = norm(sub(goal, p.pos))
   if ((p.vel.x * toGoal.x + p.vel.y * toGoal.y) / speed > -0.17) return false
-  const pa = af(s, p.team, p.pos).x
-  return opponentsOf(s, p.team).some((o) => o.slot.role !== 'GK' && dist(o.pos, p.pos) < TIGHT_MARK && af(s, p.team, o.pos).x > pa)
+  const pa = afX(s, p.team, p.pos)
+  return opponentsOf(s, p.team).some((o) => o.slot.role !== 'GK' && dist(o.pos, p.pos) < TIGHT_MARK && afX(s, p.team, o.pos) > pa)
 }
 
 /** How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone else is to try it from distance. */
@@ -949,7 +985,7 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const easing = 1 - LEAD_SHOTS * clamp(leadOf(s, p.team) - 1, 0, 2) / 2
   if (q <= 0.021 || q * eagerness * easing <= bestU - (pv(a) - POSSESSION_VALUE) * KEEP_FORGONE) return null
   const gk = goalkeeperOf(s, (1 - p.team) as Side)
-  const gy = gk ? af(s, p.team, gk.pos).y : CENTER.y
+  const gy = gk ? afY(s, p.team, gk.pos) : CENTER.y
   const side = gy > CENTER.y ? -1 : 1
   // From the edge of the box a player with flair and curve may bend it rather than drive it: placed
   // right into the far corner, more accurately the better he curls it, but with less pace on it
@@ -1295,7 +1331,8 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     // Sweeping behind a high line: with the ball well away, he stands up to the edge of his box so
     // the space in behind is his, not the forwards'.
     if (b.x > 40) {
-      const deepest = Math.min(...teammatesOf(s, team).filter((q) => q.slot.role !== 'GK').map((q) => af(s, team, q.pos).x))
+      let deepest = Infinity
+      for (const q of teammatesOf(s, team)) if (q.slot.role !== 'GK') deepest = Math.min(deepest, afX(s, team, q.pos))
       // A sweeper keeper covers higher; a shot-stopper stays nearer his line.
       const sweep = clamp(deepest - (p.archetype === 'sweeperKeeper' ? 16 : 24), 0, BOX_DEPTH - 3)
       if (sweep > spot.x) return wf(s, team, vec(sweep, lerp(spot, vec(0, CENTER.y), 0.5).y))
@@ -1546,7 +1583,7 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
     const oa = af(s, p.team, owner.pos)
     const block = s.teams[p.team].block
     // The better side presses higher, the weaker one sits off: the ball goes to the better side.
-    const pressLine = { low: 38, mid: 55, high: 105 }[block] + PRESS_BY_EDGE * edgeOf(s, p.team)
+    const pressLine = PRESS_LINES[block] + PRESS_BY_EDGE * edgeOf(s, p.team)
     const goalSide = norm(sub(wf(s, p.team, vec(0, CENTER.y)), owner.pos))
     const t = p.def.traits
     // A hard-working presser pushes the press a little higher up the pitch.
@@ -1565,6 +1602,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   return defendIntent(s, p, shapeTarget(s, p, false))
 }
 
+const PRESS_LINES = { low: 38, mid: 55, high: 105 }
+
 /** In possession, a man keeps this far from a teammate (m): two on one spot offer one pass, not two. */
 const SPACING = 4
 
@@ -1573,7 +1612,7 @@ function spaced(s: MatchState, p: PlayerState, target: Vec): Vec {
   for (const q of teammatesOf(s, p.team)) {
     if (q.idx === p.idx || q.slot.role === 'GK') continue
     const d = dist(q.pos, target)
-    if (d >= SPACING || dist(q.pos, target) > dist(p.pos, target)) continue
+    if (d >= SPACING || d > dist(p.pos, target)) continue
     const away = d > 0.1 ? norm(sub(target, q.pos)) : norm(sub(p.pos, q.pos))
     return add(target, scale(away, SPACING - d))
   }
@@ -1605,11 +1644,18 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
       // A good marker picks up a run before the man is past him, not after.
       const early = o.runUntil > s.tick ? Math.max(0, (p.attrs.marking - 8) * 0.4) : 0
       if (oa.x >= pa.x - 0.5 + early || Math.abs(oa.y - pa.y) > 12) continue
-      if (af(s, o.team, o.pos).x > theirLine + 0.3) continue
+      if (afX(s, o.team, o.pos) > theirLine + 0.3) continue
       // Unless a teammate is already closer to him.
-      const closer = teammatesOf(s, p.team).some((q) => q.idx !== p.idx && q.slot.role !== 'GK' && dist(q.pos, o.pos) < dist(p.pos, o.pos) - 1)
+      const mine = pairDist(s, p, o) - 1
+      let closer = false
+      for (const q of teammatesOf(s, p.team)) {
+        if (q.idx !== p.idx && q.slot.role !== 'GK' && pairDist(s, q, o) < mine) {
+          closer = true
+          break
+        }
+      }
       if (closer) continue
-      if (!runner || dist(o.pos, p.pos) < dist(runner.pos, p.pos)) runner = o
+      if (!runner || pairDist(s, o, p) < pairDist(s, runner, p)) runner = o
     }
     if (runner) {
       const ahead = add(runner.pos, scale(runner.vel, 0.5))
@@ -1618,21 +1664,35 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
   }
   if (p.slot.role !== 'GK') {
     let mark: PlayerState | null = null
+    let markZone = 0
     const back = p.slot.role === 'CB' || p.slot.role === 'FB'
-    const zoneX = af(s, p.team, zone).x
+    const zoneX = afX(s, p.team, zone)
     for (const o of opponentsOf(s, p.team)) {
-      if (o.slot.role === 'GK' || o.idx === s.ball.ownerIdx || dist(o.pos, zone) > 10) continue
+      if (o.slot.role === 'GK' || o.idx === s.ball.ownerIdx) continue
+      const oz = dist(o.pos, zone)
+      if (oz > 10) continue
       // A man arriving late from deep is easy to lose, watching the ball: he's picked up only once
       // he's close, sooner by a good marker.
-      if (o.runKind === 'late' && o.runUntil > s.tick && dist(o.pos, p.pos) > 3 + p.attrs.marking * 0.25) continue
+      if (o.runKind === 'late' && o.runUntil > s.tick && pairDist(s, o, p) > 3 + p.attrs.marking * 0.25) continue
       // One man to a man: if a teammate is clearly nearer him, he's that teammate's (two on one
       // forward leaves a centre-back and the holding midfielder standing on each other).
       // A midfielder leaves a man who has gone in behind him to the back line, rather than
       // dropping in among it.
-      if (!back && af(s, p.team, o.pos).x < zoneX - 4) continue
-      const od = dist(o.pos, p.pos)
-      if (teammatesOf(s, p.team).some((q) => q.idx !== p.idx && q.slot.role !== 'GK' && dist(q.pos, o.pos) < Math.min(od - MARK_SHARE, MARKED))) continue
-      if (!mark || dist(o.pos, zone) < dist(mark.pos, zone)) mark = o
+      if (!back && afX(s, p.team, o.pos) < zoneX - 4) continue
+      const od = pairDist(s, o, p)
+      const nearer = Math.min(od - MARK_SHARE, MARKED)
+      let taken = false
+      for (const q of teammatesOf(s, p.team)) {
+        if (q.idx !== p.idx && q.slot.role !== 'GK' && pairDist(s, q, o) < nearer) {
+          taken = true
+          break
+        }
+      }
+      if (taken) continue
+      if (!mark || oz < markZone) {
+        mark = o
+        markZone = oz
+      }
     }
     if (mark) {
       // Tighter in our own box, and the better a marker he is.
@@ -1644,7 +1704,7 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
       // he can't be picked out in time, and if he goes early he's offside.
       const ta = af(s, p.team, target)
       const ma = af(s, p.team, mark.pos)
-      const offsideNow = af(s, mark.team, mark.pos).x > offsideLine(s, mark.team, s.ball.pos) + 0.3
+      const offsideNow = afX(s, mark.team, mark.pos) > offsideLine(s, mark.team, s.ball.pos) + 0.3
       const owner = s.ball.ownerIdx === null ? null : s.players[s.ball.ownerIdx]
       const holds = (p.slot.role === 'CB' || p.slot.role === 'FB') && owner?.team === mark.team && !ballUnpressured(s, p.team) && ma.x > ta.x - 3
       if (ta.x > ma.x - 1 && !offsideNow && !holds) target = wf(s, p.team, vec(ma.x - 1, ta.y))
@@ -1686,14 +1746,14 @@ export function pickChasers(s: MatchState): Map<number, number> {
     const owner = s.players[ball.ownerIdx]
     const near = opponentsOf(s, owner.team)
       .filter((o) => o.slot.role !== 'GK')
-      .sort((x, y) => dist(x.pos, owner.pos) - dist(y.pos, owner.pos))
+      .sort((x, y) => pairDist(s, x, owner) - pairDist(s, y, owner))
     if (near[0]) out.set(near[0].idx, 0)
-    if (near[1] && af(s, near[1].team, owner.pos).x < 35) out.set(near[1].idx, 1)
+    if (near[1] && afX(s, near[1].team, owner.pos) < 35) out.set(near[1].idx, 1)
     // Keeper comes off his line to confront a carrier bearing down on goal, clean through: with a
     // defender still goal-side of him, the keeper stays to guard the goal.
     const gk = goalkeeperOf(s, (1 - owner.team) as Side)
     const oa = af(s, owner.team, owner.pos)
-    const through = !opponentsOf(s, owner.team).some((o) => o.slot.role !== 'GK' && af(s, owner.team, o.pos).x > oa.x)
+    const through = !opponentsOf(s, owner.team).some((o) => o.slot.role !== 'GK' && afX(s, owner.team, o.pos) > oa.x)
     if (gk && through && dist(owner.pos, wf(s, gk.team, vec(0, CENTER.y))) < 16) out.set(gk.idx, 0)
     return out
   }
@@ -1702,7 +1762,11 @@ export function pickChasers(s: MatchState): Map<number, number> {
   for (const p of onPitch(s)) times.set(p.idx, arrivalOf(p, path, reachOf(s, p), reachHeightOf(s, p)))
   const snap = snapOf(s)
   if (snap) snap.arrivals = times
-  const firstOf = (team: Side): number => Math.min(...teammatesOf(s, team).map((p) => times.get(p.idx)!.ticks))
+  const firstOf = (team: Side): number => {
+    let first = Infinity
+    for (const p of teammatesOf(s, team)) first = Math.min(first, times.get(p.idx)!.ticks)
+    return first
+  }
   for (const team of [0, 1] as const) {
     let best: PlayerState | null = null
     let bestT = Infinity
@@ -1765,7 +1829,7 @@ function runsInBehind(s: MatchState, owner: PlayerState, started: PlayerState[])
     if (p.idx === owner.idx || p.runUntil > s.tick) continue
     if (p.slot.role !== 'ST' && p.slot.role !== 'W' && p.slot.role !== 'WM') continue
     // From on (or near) the line: a run from deep is just getting forward.
-    if (af(s, p.team, p.pos).x < line - 12) continue
+    if (afX(s, p.team, p.pos) < line - 12) continue
     const marked = nearestDist(opps, p.pos) < 3 ? 1.6 : 1
     const style = p.archetype === 'poacher' ? 1.5 : p.archetype === 'targetMan' || p.archetype === 'falseNine' ? 0.4 : 1
     const chance = (0.002 + (p.attrs.positioning / 20) * 0.002) * time * marked * (0.5 + p.def.traits.workRate) * style
@@ -2018,7 +2082,7 @@ export function cornerPlan(s: MatchState, r: Restart): Map<number, Vec> {
   const att = r.team
   const def = (1 - att) as Side
   // Near post is the one on the corner's side (in the attacking frame).
-  const side = Math.sign(af(s, att, r.spot).y - CENTER.y) || 1
+  const side = Math.sign(afY(s, att, r.spot) - CENTER.y) || 1
   // The two best in the air attack the penalty spot and the far post; the next the near post; one
   // arrives between them.
   const spots = [vec(94.5, CENTER.y + side * 1), vec(97, CENTER.y - side * 4.5), vec(99, CENTER.y + side * 3), vec(92, CENTER.y - side * 2)]
@@ -2075,7 +2139,7 @@ export function chooseTaker(s: MatchState, type: Restart['type'], team: Side, sp
   if (type === 'goalKick') return goalkeeperOf(s, team) ?? outfield[0]
   if (type === 'penalty') return outfield.reduce((a, b) => (b.attrs.penalties > a.attrs.penalties ? b : a))
   // Within shooting range, the free-kick specialist.
-  if (type === 'freeKick' && af(s, team, spot).x > PITCH_LENGTH - 32) return outfield.reduce((a, b) => (b.attrs.freeKicks > a.attrs.freeKicks ? b : a))
+  if (type === 'freeKick' && afX(s, team, spot) > PITCH_LENGTH - 32) return outfield.reduce((a, b) => (b.attrs.freeKicks > a.attrs.freeKicks ? b : a))
   if (type === 'kickoff') {
     const fwd = outfield.reduce((a, b) => (b.slot.depth > a.slot.depth ? b : a))
     return fwd
