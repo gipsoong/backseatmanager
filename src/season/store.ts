@@ -14,7 +14,7 @@ const db = () =>
 export async function loadSeason(): Promise<Season | null> {
   const s = (await (await db()).get('saves', 'season')) as Season | undefined
   // An older save (from before squads and fitness) can't be carried on.
-  return s && [2, 3, 4].includes(s.version as number) ? upgradeSave(s) : null
+  return s && [2, 3, 4, 5].includes(s.version as number) ? upgradeSave(s) : null
 }
 
 /** Any save we can carry on, brought up to date: sub-attributes, then a career for club mode. */

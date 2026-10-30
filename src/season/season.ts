@@ -133,10 +133,11 @@ export function avgRating(st: SeasonStats | undefined): number | null {
 
 export interface Season {
   /**
-   * 3 since careers, 4 since club overalls are on the draft's scale (session 22); older saves are
+   * 3 since careers, 4 since club overalls are on the draft's scale (session 22), 5 since contracts,
+   * free agents and the domestic cup (session 25); older saves are
    * upgraded on load.
    */
-  version: 4
+  version: 5
   seed: number
   teams: TeamDef[]
   /** The manager's team (index into teams). */
@@ -250,7 +251,7 @@ export function createSeason(seed: number, userTeam: number, today = new Date(),
     condition[p.id] = { fitness: 1, injuredUntil: 0 }
     stats[p.id] = { apps: 0, goals: 0, assists: 0, ratings: 0 }
   }
-  return { version: 4, seed, teams, userTeam, fixtures, matchday: 1, startDate: firstSaturdayOfAugust(today), condition, stats, lineup: null }
+  return { version: 5, seed, teams, userTeam, fixtures, matchday: 1, startDate: firstSaturdayOfAugust(today), condition, stats, lineup: null }
 }
 
 // ---------------------------------------------------------------------------

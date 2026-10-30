@@ -46,11 +46,32 @@ export function wage(p: PlayerDef, who: Person | undefined): number {
   return Math.round(3 + now * 2.5)
 }
 
-export const valueOf = (s: Season, p: PlayerDef): number => marketValue(p, s.career?.people[p.id])
+/**
+ * What his contract does to his price: a club selling a man in his last year gets less for him (he
+ * could walk away for nothing in the summer), a little less with two years left.
+ */
+export const CONTRACT_FACTOR = [0.6, 0.85, 1] as const
+
+/** Seasons left on his deal, this one included (1 in his last year), or null without a contract. */
+export function yearsLeft(s: Season, who: Person | undefined): number | null {
+  return who?.contract ? who.contract.until - Number(s.startDate.slice(0, 4)) : null
+}
+
+/** His transfer value: his market value, less if his contract is running down. */
+export function valueOf(s: Season, p: PlayerDef): number {
+  const who = s.career?.people[p.id]
+  const left = yearsLeft(s, who)
+  const v = marketValue(p, who)
+  if (left === null) return v
+  return Math.max(0.1, Math.round(v * CONTRACT_FACTOR[Math.max(0, Math.min(2, left - 1))] * 10) / 10)
+}
+
+/** What he's paid, £k a week: his contract's wage, or what he'd be worth without one. */
+export const wageOf = (p: PlayerDef, who: Person | undefined): number => who?.contract?.wage ?? wage(p, who)
 
 /** A club's wage bill for a season, £m. */
 export function wageBill(s: Season, club: number): number {
-  const weekly = squadOf(s.teams[club]).reduce((n, p) => n + wage(p, s.career?.people[p.id]), 0)
+  const weekly = squadOf(s.teams[club]).reduce((n, p) => n + wageOf(p, s.career?.people[p.id]), 0)
   return Math.round(weekly * 52) / 1000
 }
 

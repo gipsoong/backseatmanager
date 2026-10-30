@@ -9,6 +9,10 @@ import { runMatch } from '../src/engine/index.ts'
 import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, isOver, matchTeam, matchdays, playerRating, resultOf, squadOf, table } from '../src/season/season.ts'
 import { elevenRating, leagueLevel, nextSeason, squadsLevel, startCareer } from '../src/career/career.ts'
 import { marketDay } from '../src/career/market.ts'
+import { Rng } from '../src/engine/index.ts'
+import { completeCupDay, cupRun, domesticCupMatches, domesticWinner, isDomesticCupDay } from '../src/career/cup.ts'
+import { staffRenewals } from '../src/career/contracts.ts'
+import { wageBill } from '../src/career/money.ts'
 
 const seed = Number(process.argv[2] ?? 1)
 const seasons = Number(process.argv[3] ?? 5)
@@ -48,6 +52,17 @@ function report(s: Season): void {
   console.log(
     `    champions' eleven ${strength[rows[0].team].toFixed(1)}, bottom ${strength[rows.at(-1)!.team].toFixed(1)}; strongest - weakest ${(Math.max(...strength) - Math.min(...strength)).toFixed(1)} | top-20 players at one club ${hoard} | AI deals ${deals} | cash ${Math.min(...cash).toFixed(0)}..${Math.max(...cash).toFixed(0)}`,
   )
+  const c = s.career!
+  const cup = c.cup
+  const winner = cup ? domesticWinner(cup) : null
+  const sizes = s.teams.map((t) => squadOf(t).length)
+  const bills = s.teams.map((_, i) => wageBill(s, i))
+  const income = c.finance?.income ?? []
+  const left = all.map((x) => c.people[x.p.id].contract!.until - Number(s.startDate.slice(0, 4)))
+  console.log(
+    `    cup: ${winner === null ? 'NO WINNER' : `${s.teams[winner].name} (league ${rows.findIndex((r) => r.team === winner) + 1})`}, user ${cup ? cupRun(cup, s.userTeam) : '-'} | squads ${Math.min(...sizes)}..${Math.max(...sizes)} | free agents ${c.freeAgents?.length ?? 0} | contracts 1y ${left.filter((y) => y <= 1).length} 2y ${left.filter((y) => y === 2).length} 3y+ ${left.filter((y) => y >= 3).length} | wages/income ${(bills.reduce((a, b) => a + b, 0) / income.reduce((a, b) => a + b, 0)).toFixed(2)}`,
+  )
+  if (c.summer) console.log(`    summer (user): expired ${c.summer.expired?.length ?? 0}, retired ${c.summer.retired.length}, signed ${c.summer.signed.length}, released ${c.summer.released.length}`)
   console.log(`    regulars <=21: n${young.length} ovr ${avg(young)} (${line('', young)}) | >=32: n${old.length} ovr ${avg(old)} (${line('', old)})`)
 }
 
@@ -57,6 +72,13 @@ const history: Season[] = []
 const mdTime: number[] = []
 for (let n = 1; n <= seasons; n++) {
   while (!isOver(s)) {
+    if (isDomesticCupDay(s)) {
+      const fitness = fitnessFor(s)
+      const cupResults = new Map<number, Result>()
+      for (const m of domesticCupMatches(s)) cupResults.set(m.id, resultOf(runMatch(m.home, m.away, { seed: m.seed, fitness, knockout: m.knockout })))
+      s = completeCupDay(s, cupResults)
+      continue
+    }
     const results = new Map<number, Result>()
     const fitness = fitnessFor(s)
     const m0 = Date.now()
@@ -67,6 +89,7 @@ for (let n = 1; n <= seasons; n++) {
   report(s)
   process.stderr.write(`season ${n} (${Math.round((Date.now() - t0) / 1000)}s, a matchday ${(mdTime.reduce((a, b) => a + b, 0) / mdTime.length / 1000).toFixed(1)}s on one core)\n`)
   history.push(s)
-  if (n < seasons) s = marketDay(nextSeason(s))
+  // The staff handle the manager's contracts as at any other club.
+  if (n < seasons) s = marketDay(nextSeason(staffRenewals(s, new Rng(seed * 17 + n))))
 }
 if (out) writeFileSync(out, JSON.stringify(history))

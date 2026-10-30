@@ -160,13 +160,13 @@ describe('saves', () => {
     const { career: _c, ...rest } = start(11)
     const old = { ...rest, version: 2 } as unknown as Season
     const up = upgradeSave(old)
-    expect(up.version).toBe(4)
+    expect(up.version).toBe(5)
     expect(up.career!.number).toBe(1)
     for (const p of up.teams.flatMap(squadOf)) expect(up.career!.people[p.id].age).toBeGreaterThanOrEqual(17)
     expect(upgradeSave(up)).toEqual(up)
     const draft = upgradeSave({ ...old, mode: 'draft' })
     expect(draft.career).toBeUndefined()
-    expect(draft.version).toBe(4)
+    expect(draft.version).toBe(5)
   })
 
   it('moves a version 3 career (old club scale) onto the draft scale', () => {
@@ -182,7 +182,7 @@ describe('saves', () => {
     })
     const v3 = { ...s, version: 3, career: { ...c, people, levels } } as unknown as Season
     const up = upgradeSave(v3)
-    expect(up.version).toBe(4)
+    expect(up.version).toBe(5)
     for (const p of all) expect(Math.abs(up.career!.people[p.id].potential - c.people[p.id].potential)).toBeLessThanOrEqual(1.5)
     up.career!.levels.forEach((l, i) => expect(Math.abs(l - c.levels[i])).toBeLessThan(0.5))
     expect(upgradeSave(up)).toEqual(up)
