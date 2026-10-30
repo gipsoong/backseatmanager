@@ -108,6 +108,8 @@ import {
   accelOf,
   turnOf,
   slideReach,
+  qualityGap,
+  COUNTER_PRESS_SPAN,
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
@@ -1133,8 +1135,11 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const pFoul = clamp(FOUL_BASE + traits.temper * 0.1 + traits.aggression * 0.06 + ((evade - skill) / 20) * 0.08, 0.04, 0.3) * care
   // However poor a tackler, a man who does go in wins some (often from behind, on a carrier facing away).
   const won = rng.chance(clamp(0.58 + (Math.max(skill, TACKLE_FLOOR) - evade) * 0.035 + (o.def.attrs.strength - c.def.attrs.strength) * 0.012, 0.2, 0.9))
-  // Beaten outside his own box, a hot-headed defender may just pull him back.
-  const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care)
+  // Beaten outside his own box, a hot-headed defender may just pull him back; a side outclassed,
+  // which drops off rather than counter-pressing (see `counterPressFor`), stops the break that way
+  // more often (up to twice at COUNTER_PRESS_SPAN worse).
+  const outclassed = 1 + clamp(-qualityGap(s, o.team) / COUNTER_PRESS_SPAN, 0, 1)
+  const cynical = !won && !inOwnBox && rng.chance((0.1 + traits.temper * 0.3) * care * outclassed)
   // A poor slide tackle is a foul waiting to happen.
   if (cynical || rng.chance(pFoul * (style === 'slide' ? 1.8 - (oa.slidingTackle / 20) * 0.8 : 1))) {
     commitFoul(s, o, c, style, (cynical ? 0.35 : 0.08) + traits.temper * 0.12, false, out)

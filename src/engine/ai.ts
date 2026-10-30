@@ -1398,7 +1398,7 @@ const COUNTER_PRESS = 5
  * points. (By the overall, not `edgeOf`'s raw attribute mean, which reads a shape with more
  * attackers as a better side: by that, formations drifted ~0.3 xGD apart at equal strength.)
  */
-const COUNTER_PRESS_SPAN = 6
+export const COUNTER_PRESS_SPAN = 6
 const counterPressFor = (s: MatchState, team: Side): number => COUNTER_PRESS * clamp(1 + qualityGap(s, team) / COUNTER_PRESS_SPAN, 0, 2)
 
 /**
