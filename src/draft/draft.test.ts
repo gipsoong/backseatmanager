@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { ARCHETYPES, FORMATIONS, archetypeOf, fitFor, groupRatings, playingAttributes, runMatch } from '../engine/index.ts'
 import { cardOf } from './cards.ts'
 import { strikingFoot } from '../engine/ai.ts'
-import { autoPick, createSeason, matchdays, squadOf } from '../season/season.ts'
-import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
-import { POOLS } from './pools.ts'
+import { autoPick, createSeason, matchdays, playerRating, squadOf } from '../season/season.ts'
+import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, LEAGUES, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
+import { type League, POOLS } from './pools.ts'
 
 /** Draft greedily: each round, the best player who fits an open starting place, else a sub. */
-function autoDraft(seed: number): Draft {
-  let d = newDraft(seed, '4-3-3')
+function autoDraft(seed: number, league?: League): Draft {
+  let d = newDraft(seed, '4-3-3', league)
   const slots = FORMATIONS['4-3-3']
   while (!isComplete(d)) {
     const players = offer(d).players.sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
@@ -104,6 +104,26 @@ describe('draft', () => {
     const s = createSeason(9, 0, new Date(Date.UTC(2026, 5, 1)), teams)
     expect(matchdays(s)).toBe(38)
     expect(s.fixtures).toHaveLength(380)
+  })
+
+  it('gives every side a full bench of nine, a keeper among them, in every league', () => {
+    for (const league of LEAGUES)
+      for (const seed of [1, 2, 3, 4]) {
+        const teams = draftLeague(autoDraft(seed, league), 'Backseat FC')
+        const names = teams.flatMap(squadOf).map((p) => p.name)
+        expect(new Set(names).size).toBe(names.length)
+        const ids = teams.flatMap(squadOf).map((p) => p.id)
+        expect(new Set(ids).size).toBe(ids.length)
+        for (const t of teams.slice(1)) {
+          expect(t.bench).toHaveLength(9)
+          expect(t.bench.some((p) => p.role === 'GK')).toBe(true)
+          expect(t.bench.map((p) => p.shirt)).toEqual([12, 13, 14, 15, 16, 17, 18, 19, 20])
+          // Fill-ins come in no better than the side's weakest starter: the club-season stays itself.
+          const weakest = Math.min(...t.players.map(playerRating))
+          const own = new Set(POOLS.find((p) => `${p.club} ${p.season}` === t.name)!.players.map(([n]) => n))
+          for (const p of t.bench) if (!own.has(p.name)) expect(playerRating(p)).toBeLessThanOrEqual(weakest + 2)
+        }
+      }
   })
 
   it('plays a match between two club-seasons', () => {

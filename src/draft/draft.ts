@@ -4,7 +4,7 @@
  * club-seasons, one per club. A player can be in several seasons' squads, but only ever turns up
  * once: in your side, or for one opponent.
  */
-import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, cardAttributes, cardFor, fitFor, makeAttributes, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, cardAttributes, cardFor, fitFor, freshName, makeAttributes, makePlayerAt, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
 import { cardOf } from './cards.ts'
 import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, SIDE, TIRELESS, WEAK_FOOT } from './pools.ts'
 
@@ -318,9 +318,9 @@ export function draftTeam(d: Draft, name: string): TeamDef {
 /**
  * A club-season as an opponent: for each position in its formation, its best remaining fit;
  * the next nine on the bench. Players in `taken` (by name: drafted, or already playing for
- * another side in the league) are gone.
+ * another side in the league) are gone. With `fill` a short bench is made up to nine (`fillBench`).
  */
-export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[poolIdx].formation, theme?: string): TeamDef {
+export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[poolIdx].formation, theme?: string, fill = true): TeamDef {
   const pool = POOLS[poolIdx]
   const t = themeOf(theme)
   const left = pool.players.map((_, i) => poolPlayer(poolIdx, i)).filter((p) => !taken.has(p.name) && inTheme(t, p.overall ?? 0))
@@ -333,7 +333,7 @@ export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[
     .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
     .slice(0, DRAFT_SUBS)
     .map((p, i) => ({ ...p, shirt: 12 + i }))
-  return {
+  const team: TeamDef = {
     name: poolName(pool),
     shortName: `${pool.shortName}${pool.season.slice(-2)}`,
     kit: pool.kit,
@@ -342,6 +342,58 @@ export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[
     players,
     bench,
   }
+  return fill ? fillBench(team, poolIdx, new Set([...taken, ...players.map((p) => p.name), ...bench.map((p) => p.name)]), theme) : team
+}
+
+/**
+ * What a short bench is made up with (a squad file is ~20 men, and anyone drafted or already playing
+ * for another side is gone, so most club-seasons are short): men of the same club in its other
+ * seasons, nearest first, no better than its weakest starter (fringe players, so the side stays that
+ * season's), then made-up ones a little below that, for what the bench lacks (a keeper first).
+ */
+const BENCH_NEEDS: Role[] = ['GK', 'CB', 'FB', 'CM', 'ST', 'CB', 'W', 'DM', 'FB']
+const MADE_UP_BELOW = 2
+
+/** A club-season's bench made up to nine, with a keeper on it; `taken` (names) gets the newcomers. */
+export function fillBench(team: TeamDef, poolIdx: number, taken: Set<string>, theme?: string): TeamDef {
+  const pool = POOLS[poolIdx]
+  const t = themeOf(theme)
+  const bench = [...team.bench]
+  const weakest = Math.min(...team.players.map((p) => p.overall ?? 0))
+  const hasKeeper = (): boolean => bench.some((p) => p.role === 'GK')
+  if (bench.length >= DRAFT_SUBS && hasKeeper()) return team
+  // The same club's other seasons, nearest first (a name once, at his nearest season).
+  const year = Number(pool.season.slice(0, 4))
+  const seen = new Set<string>()
+  const others: PlayerDef[] = []
+  POOLS.flatMap((q, qi) => (q.club === pool.club && leagueOf(q) === leagueOf(pool) && qi !== poolIdx ? [qi] : []))
+    .sort((a, b) => Math.abs(Number(POOLS[a].season.slice(0, 4)) - year) - Math.abs(Number(POOLS[b].season.slice(0, 4)) - year) || a - b)
+    .forEach((qi) =>
+      POOLS[qi].players.forEach(([name, , overall], i) => {
+        if (taken.has(name) || seen.has(name) || !inTheme(t, overall) || overall > weakest) return
+        seen.add(name)
+        others.push(poolPlayer(qi, i))
+      }),
+    )
+  const rng = new Rng(hash(poolName(pool)) + 7)
+  let made = 0
+  const madeUp = (role: Role): PlayerDef => makePlayerAt(rng, `m${poolIdx}-${made++}`, freshName(rng, taken), 0, role, weakest - MADE_UP_BELOW)
+  const add = (p: PlayerDef): void => {
+    taken.add(p.name)
+    bench.push(p)
+  }
+  if (!hasKeeper()) {
+    // No keeper among the subs: the weakest outfield sub makes way for one.
+    if (bench.length >= DRAFT_SUBS) bench.splice(bench.length - 1, 1)
+    const gk = others.find((p) => p.role === 'GK')
+    if (gk) others.splice(others.indexOf(gk), 1)
+    add(gk ?? madeUp('GK'))
+  }
+  while (bench.length < DRAFT_SUBS && others.length) add(others.shift()!)
+  const need = [...BENCH_NEEDS]
+  for (const p of bench) if (need.includes(p.role)) need.splice(need.indexOf(p.role), 1)
+  while (bench.length < DRAFT_SUBS) add(madeUp(need.shift() ?? 'CM'))
+  return { ...team, bench: bench.map((p, i) => ({ ...p, shirt: 12 + i })) }
 }
 
 /**
@@ -353,10 +405,12 @@ export function draftLeague(d: Draft, name: string): TeamDef[] {
   const rng = new Rng(d.seed + 1)
   const clubs = new Set<string>()
   const pools = rng.shuffle(draftPools(d)).filter((i) => !clubs.has(POOLS[i].club) && clubs.add(POOLS[i].club))
-  const teams = pools.slice(0, DRAFT_LEAGUE_SIZE - 1).map((i) => {
-    const team = poolTeam(i, taken, POOLS[i].formation, d.theme)
+  const chosen = pools.slice(0, DRAFT_LEAGUE_SIZE - 1)
+  const teams = chosen.map((i) => {
+    const team = poolTeam(i, taken, POOLS[i].formation, d.theme, false)
     for (const p of [...team.players, ...team.bench]) taken.add(p.name)
     return team
   })
-  return [draftTeam(d, name), ...teams]
+  // Then short benches are made up, once every side has its own men (fill-ins take nobody's).
+  return [draftTeam(d, name), ...teams.map((t, k) => fillBench(t, chosen[k], taken, d.theme))]
 }

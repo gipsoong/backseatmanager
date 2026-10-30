@@ -1,7 +1,7 @@
 /** Draft variety: budget drafts, themed drafts, daily drafts, and saves that carry them. */
 import { describe, expect, it } from 'vitest'
 import { FORMATIONS, type PlayerDef, Rng } from '../engine/index.ts'
-import { GUEST, type Result, type Season, createSeason, matchdays } from '../season/season.ts'
+import { GUEST, type Result, type Season, createSeason, matchdays, playerRating } from '../season/season.ts'
 import { upgradeSave } from '../season/store.ts'
 import { advanceCup } from './cup.ts'
 import {
@@ -139,12 +139,12 @@ describe('themed drafts', () => {
       for (const team of teams) {
         expect(team.players).toHaveLength(11)
         expect(team.players[0].role).toBe('GK')
-        // Later sides lose men to earlier ones (a classic league is the same, or thinner).
-        expect(team.bench.length).toBeGreaterThanOrEqual(3)
+        // Later sides lose men to earlier ones; the bench is made up to nine (fillBench).
+        expect(team.bench).toHaveLength(9)
       }
       const everyone = teams.flatMap((team) => [...team.players, ...team.bench])
       expect(new Set(everyone.map((p) => p.name)).size).toBe(everyone.length)
-      if (t.player) for (const p of everyone) expect(p.overall!).toBeLessThanOrEqual(NO_STARS_CAP)
+      if (t.player) for (const p of everyone) expect(playerRating(p)).toBeLessThanOrEqual(NO_STARS_CAP)
       if (t.id === 'underdogs') for (const p of clubs) expect(TOP_CLUBS.has(p.club)).toBe(false)
     }
   })
