@@ -8,8 +8,63 @@ Updated at the end of each session. Keep this short — current state, not a ful
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
 (session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
-every mode (session 22); formations levelled (session 23). Next: **block balance** (below), contracts,
-in-match management (on hold at the owner's request).
+every mode (session 22); formations levelled (session 23); blocks levelled (session 24). Next: goals
+a match back up in career leagues (below), contracts, in-match management (on hold at the owner's request).
+
+## Done (session 24): block balance
+
+On branch `wip/blocks`. Tool: `scripts/diag-blocks.ts` (one squad in two blocks: regains by third,
+clearances and where they go, shot sources, line height, spells by where they start).
+
+- **What was wrong.** A high block won the ball in the final third ~20 times a match because the
+  pressed side cleared ~50 times, ~20 of them into touch for the presser's throw. The press and
+  the high line were worth ~+0.7 xGD each. A low block sat on its six-yard line (14 - 7 m), and
+  every entry against it was as dangerous as one against a mid block.
+- **Fixes.**
+  - A high block presses in 3 s bursts after losing the ball or a restart, then settles to mid
+    lines with its first presser engaging inside 60 m.
+  - Every side counter-presses for 5 s.
+  - A low block's line stops at the box edge (17 m) and closes up near its box (16 m long, 0.6
+    width).
+  - Defenders in the middle clear the ball inside the pitch. Wide ones still go for touch.
+    Harness: `clearance-in-play`.
+  - Defensive headers go away from the middle.
+  - Through balls can come from anywhere and reach 15 m beyond a pass.
+  - To get back the goals the level blocks cost: shot eagerness is 0.75 and finishing spread 0.9;
+    final-third tackling is 6.
+- One squad against itself, xGD a match (`diag-formations 200 <seed> block`):
+
+| | before (seed 1) | after: seed 1 / 1001 |
+|---|---|---|
+| low v mid | -0.70 | -0.10 / -0.14 |
+| low v high | -2.00 | -0.15 / -0.26 |
+| mid v high | -1.16 | +0.01 / -0.02 |
+| low, high against the rest | -1.35, +1.58 | -0.12 / -0.20, +0.07 / +0.14 |
+
+  The low block is still a little the weakest (~0.15). It holds a 17-22 m line and has less of the
+  ball. The high block keeps ~3 final-third regains a match against mid's ~1.7, and a higher line.
+- **Checks.**
+  - calibrate 80 1 / 201: 31/31 and 30/31 (won by 4+ 11.3%), zero violations.
+  - tsc passes; vitest 88/88.
+  - Matches are tighter at equal blocks: shots 14.1 -> ~12.5 a team, goals 1.5 -> 1.4.
+- **Open: 4-2-3-1 slipped.** Formations at equal strength (`diag-formations 100 1`):
+  - 4-4-2 +0.05, 4-3-3 +0.01, 4-2-3-1 -0.23, 4-1-4-1 +0.10, 3-5-2 0.00, 3-4-3 +0.06.
+  - The spread is 0.33, over the ~0.2 target. 4-2-3-1 was -0.02 in session 23.
+  - This is one seed set; confirm on 1001 before tuning its pivots.
+- **Open: career goals are low.** Career sims (seeds 1-3, five seasons, run with a 4 s press
+  spell):
+
+| | session 23 | session 24 | target |
+|---|---|---|---|
+| Goals a match | 2.61-2.92 | 2.13-2.66, mean 2.43 | 2.5-2.9 |
+| Top scorer | 23-37 | 18-34 | 22-35 |
+| Best side | 79-107 | 74-93 | 80-100 |
+| League eleven, S1 -> S5 | -0.1, 0.0, +0.2 | -0.2, -0.1, +0.2 | ±1 |
+| Per 90 regulars DEF / MID / FWD goals | 0.02-0.04 / 0.12-0.16 / 0.32-0.42 | 0.03-0.04 / 0.11-0.15 / 0.24-0.36 | |
+
+  The best sides no longer run away with it (seed 1's Ashford was the high block), but the league
+  scores ~0.2-0.3 a match too few. That needs a global retune of finishing or chance creation,
+  checked against calibrate, rather than a block change.
 
 ## Done (session 23): formation balance; block height is the big imbalance
 

@@ -430,4 +430,15 @@ pulling the repo.
   a changed eleven is a different match and is played afresh. `autoPick` works out each man's
   ability once a pick (the market asks for many elevens a window day).
 
+- Blocks (session 24, ai.ts). A high block presses in bursts: for `PRESS_SPELL` (3 s) after it
+  loses the ball (or a restart, `sinceLost`) it plays high (`BLOCK_LINES.high`, `PRESS_LINES`),
+  then settles to mid lines with a first presser engaging only inside `HIGH_SETTLED_PRESS` (60 m)
+  (`blockNow`, cached in the snapshot). Any side counter-presses for `COUNTER_PRESS` (5 s). A low
+  block's line never drops below 17 m (the box edge, not the six-yard line) and, with the ball
+  inside `LOW_COMPACT_FROM`, closes up (`LOW_LENGTH` 16 m long, `LOW_WIDTH`). Clearances: a wide
+  defender goes for touch, anyone else aims inside the pitch (`CLEAR_IN`, `CLEAR_WIDE`; harness
+  `clearance-in-play`); defensive headers go away from the middle (`HEADED_WIDE`). Measure with
+  `diag-formations <n> <seed> block` and `node scripts/diag-blocks.ts <blockA> <blockB> [n] [seed]`
+  (regains by third, clearances and where they go, shot sources, line height, spells by start).
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

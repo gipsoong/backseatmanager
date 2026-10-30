@@ -1379,7 +1379,7 @@ const BLOCK_LINES = { low: [17, 36], mid: [20, 42], high: [26, 55] } as const
  * mid one and ~1.9 more than a low one, at equal strength: the side it pressed never got out, and
  * nothing in the engine made it pay (real sides can't keep a press on for a whole spell either).
  */
-const PRESS_SPELL = 4
+const PRESS_SPELL = 3
 /** For this long (s) after losing the ball (or an opponent's restart) any side's nearest man presses it, wherever it is. */
 const COUNTER_PRESS = 5
 
