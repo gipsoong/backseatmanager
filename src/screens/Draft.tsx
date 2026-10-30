@@ -4,7 +4,30 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
-import { DRAFT_ROUNDS, DRAFT_SUBS, LEAGUES, type Draft as DraftState, type Place, draftRating, isComplete, newDraft, offer, place, poolName, roundOf } from '../draft/draft.ts'
+import {
+  DRAFT_ROUNDS,
+  DRAFT_SUBS,
+  LEAGUES,
+  THEMES,
+  type Draft as DraftState,
+  type DraftOptions,
+  type Place,
+  budgetFor,
+  canAfford,
+  draftEyebrow,
+  draftRating,
+  isComplete,
+  newDraft,
+  offer,
+  place,
+  poolName,
+  priceIn,
+  reserveFor,
+  roundOf,
+  spendable,
+  themeOf,
+  today,
+} from '../draft/draft.ts'
 import type { League } from '../draft/pools.ts'
 import { Swatch } from './Hub.tsx'
 import { stagger } from './motion.ts'
@@ -16,14 +39,30 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
   const [chosen, setChosen] = useState<PlayerDef | null>(null)
   const [name, setName] = useState('Backseat XI')
   const [league, setLeague] = useState<League>('Premier League')
+  const [opts, setOpts] = useState<DraftOptions>({})
   // The place filled last, so it can settle in; and the phone's sheet held open to show it.
   const [placed, setPlaced] = useState<string | null>(null)
   const [peek, setPeek] = useState(false)
   const closing = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(closing.current), [])
 
-  if (!draft) return <PickShape league={league} onLeague={setLeague} onPick={(f) => setDraft(newDraft(seed, f, league))} onBack={onBack} />
-  const where = draft.league ?? 'Premier League'
+  if (!draft)
+    return (
+      <PickShape
+        league={league}
+        opts={opts}
+        onLeague={(l) => {
+          setLeague(l)
+          setOpts({ ...opts, theme: undefined })
+        }}
+        onOpts={setOpts}
+        onPick={(f) => setDraft(newDraft(seed, f, league, { ...opts, daily: opts.daily ? today() : undefined }))}
+        onBack={onBack}
+      />
+    )
+  const theme = themeOf(draft.theme)
+  const where = theme ? `${theme.name} club-seasons from Europe's top five leagues` : `${draft.league ?? 'Premier League'} sides from 2010 to now`
+  const eyebrow = draftEyebrow({ league: draft.league, theme: draft.theme, budget: draft.money !== undefined, daily: draft.daily })
 
   const slots = FORMATIONS[draft.formation]
   const done = isComplete(draft)
@@ -46,7 +85,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
     <div className="draft">
       <header className="draft-head">
         <div className="fixture">
-          <p className="eyebrow">Draft · {where} 2010–now</p>
+          <p className="eyebrow">{eyebrow}</p>
           <h1>
             {done ? (
               'Your side is picked'
@@ -58,6 +97,11 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
           </h1>
         </div>
         <div className="draft-head-side">
+          {draft.money !== undefined && (
+            <span className="rating big team-rating money" title={`Money left of a £${budgetFor(draft)}m budget`}>
+              <small>Left</small>£{draft.money}m
+            </span>
+          )}
           <span className="rating big team-rating" title="Team rating: the starters' overalls, less for anyone out of position">
             <small>Rating</small>
             {draftRating(draft) || '–'}
@@ -83,7 +127,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
             >
               <label htmlFor="club-name">Name your side</label>
               <input id="club-name" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
-              <p className="meta">A 38-match season against 19 {where} sides from 2010 to now. No transfers: this squad is the squad. Finish in the top four to play on in the European Cup.</p>
+              <p className="meta">A 38-match season against 19 {where}. No transfers: this squad is the squad. Finish in the top four to play on in the European Cup.</p>
               <button type="submit" className="btn">
                 Start the season
               </button>
@@ -148,7 +192,17 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
                 </button>
               </div>
             ) : (
-              !done && <p className="meta draft-hint">Choose a player from {poolName(offer(draft).pool)}, then a place for him.</p>
+              !done && (
+                <p className="meta draft-hint">
+                  Choose a player from {poolName(offer(draft).pool)}, then a place for him.
+                  {draft.money !== undefined && (
+                    <>
+                      {' '}
+                      Up to £{spendable(draft)}m this round{reserveFor(draft) > 0 ? `, £${reserveFor(draft)}m kept back for the ${DRAFT_ROUNDS - round - 1} places after it` : ''}.
+                    </>
+                  )}
+                </p>
+              )
             )}
           </div>
         </section>
@@ -168,20 +222,67 @@ export const FORMATION_BLURB: Record<Formation, string> = {
   '3-4-3': 'Three centre-backs, wing-backs, a front three',
 }
 
-function PickShape({ league, onLeague, onPick, onBack }: { league: League; onLeague: (l: League) => void; onPick: (f: Formation) => void; onBack: () => void }) {
+function PickShape({
+  league,
+  opts,
+  onLeague,
+  onOpts,
+  onPick,
+  onBack,
+}: {
+  league: League
+  opts: DraftOptions
+  onLeague: (l: League) => void
+  onOpts: (o: DraftOptions) => void
+  onPick: (f: Formation) => void
+  onBack: () => void
+}) {
+  const theme = themeOf(opts.theme)
+  const budget = budgetFor({ theme: opts.theme, league })
   return (
     <div className="start draft-start">
-      <p className="eyebrow">Draft · {league} 2010–now</p>
+      <p className="eyebrow">{draftEyebrow({ league, theme: opts.theme, budget: opts.budget, daily: opts.daily ? today() : undefined })}</p>
       <h1>Draft a side. Try to go unbeaten.</h1>
-      {LEAGUES.length > 1 && (
+      <div className="draft-options">
+        <p className="eyebrow step">Players from</p>
         <div className="segmented league-pick" role="group" aria-label="League">
           {LEAGUES.map((l) => (
-            <button key={l} type="button" aria-pressed={l === league} onClick={() => onLeague(l)}>
+            <button key={l} type="button" aria-pressed={!theme && l === league} onClick={() => onLeague(l)}>
               {l}
             </button>
           ))}
         </div>
-      )}
+        <p className="eyebrow step">Or a theme, from all five leagues</p>
+        <div className="segmented league-pick" role="group" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button key={t.id} type="button" aria-pressed={t.id === opts.theme} title={t.blurb} onClick={() => onOpts({ ...opts, theme: t.id === opts.theme ? undefined : t.id })}>
+              {t.name}
+            </button>
+          ))}
+        </div>
+        {theme && <p className="meta">{theme.blurb}. Your league is drawn from the same club-seasons.</p>}
+        <p className="eyebrow step">Draft</p>
+        <div className="segmented league-pick" role="group" aria-label="Kind of draft">
+          <button type="button" aria-pressed={!opts.budget} onClick={() => onOpts({ ...opts, budget: false })}>
+            Classic
+          </button>
+          <button type="button" aria-pressed={!!opts.budget} onClick={() => onOpts({ ...opts, budget: true })}>
+            Budget
+          </button>
+        </div>
+        <div className="segmented league-pick" role="group" aria-label="Daily draft">
+          <button type="button" aria-pressed={!!opts.daily} onClick={() => onOpts({ ...opts, daily: opts.daily ? undefined : today() })}>
+            <span className="check" aria-hidden="true">{opts.daily ? '✓' : ''}</span>
+            Daily draft
+          </button>
+        </div>
+        <p className="meta">
+          {opts.budget
+            ? `£${budget}m for all twenty. Every player has a price by his overall, from £1m; a cheap pick leaves money for a star later. Enough is always kept back to fill your squad.`
+            : 'Take whoever you like from each club.'}
+          {opts.daily ? ` Daily: today's offers (${today()}) are the same for everyone who picks these options.` : ''}
+        </p>
+      </div>
       <p className="meta">
         {DRAFT_ROUNDS} rounds. Each one shows a club's squad from one season: pick one of its players and put him in your side, as one of eleven starters
         or {DRAFT_SUBS} substitutes. A player out of position counts for less. You can change the shape later.
@@ -212,6 +313,7 @@ const ROLE_ORDER = ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 function Offer({ draft, chosen, onChoose }: { draft: DraftState; chosen: PlayerDef | null; onChoose: (p: PlayerDef) => void }) {
   const { pool, players } = offer(draft)
   const sorted = [...players].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (b.overall ?? 0) - (a.overall ?? 0))
+  const priced = draft.money !== undefined
   return (
     <>
       <h2 className="offer-club deal-in">
@@ -220,12 +322,20 @@ function Offer({ draft, chosen, onChoose }: { draft: DraftState; chosen: PlayerD
       <ul className="offer-list">
         {sorted.map((p, i) => (
           <li key={p.id} className="deal-in" style={stagger(i)}>
-            <button type="button" className={`offer${chosen?.id === p.id ? ' chosen' : ''}`} aria-pressed={chosen?.id === p.id} onClick={() => onChoose(p)}>
+            <button
+              type="button"
+              className={`offer${chosen?.id === p.id ? ' chosen' : ''}${priced ? ' priced' : ''}`}
+              aria-pressed={chosen?.id === p.id}
+              disabled={!canAfford(draft, p, players)}
+              title={canAfford(draft, p, players) ? undefined : `£${priceIn(draft, p, players)}m: more than you can spend this round`}
+              onClick={() => onChoose(p)}
+            >
               <span className="role">{positionsLabel(p)}</span>
               <span className="name">
                 {p.name}
                 <small className="style">{styleLabel(p)}</small>
               </span>
+              {priced && <span className="price">£{priceIn(draft, p, players)}m</span>}
               <span className="rating">{p.overall}</span>
             </button>
           </li>

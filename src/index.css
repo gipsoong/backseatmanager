@@ -1667,6 +1667,22 @@ th .sort.on {
   color: var(--muted);
 }
 
+/* Budget draft: a price beside the rating; one he can't afford is greyed. */
+.offer.priced {
+  grid-template-columns: 4.4em minmax(0, 1fr) auto auto;
+}
+
+.offer .price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.offer:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .draft-side {
   padding: 12px;
   display: grid;
@@ -2380,6 +2396,29 @@ button.name-link {
 
 .draft-start .step {
   margin-top: 8px;
+}
+
+.draft-options {
+  display: grid;
+  justify-items: start;
+  margin-bottom: 8px;
+}
+
+.draft-options .step {
+  margin-bottom: 6px;
+}
+
+.draft-options .league-pick {
+  margin-bottom: 6px;
+}
+
+.draft-options > .meta {
+  margin: 2px 0 6px;
+}
+
+.league-pick .check {
+  display: inline-block;
+  width: 1em;
 }
 
 .shape-grid {

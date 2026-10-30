@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { randomTeam } from "./engine/index.ts";
-import { draftLeague } from "./draft/draft.ts";
+import { budgetFor, draftLeague } from "./draft/draft.ts";
 import { decline, makeDeal } from "./draft/transfers.ts";
 import { Draft } from "./screens/Draft.tsx";
 import { Hub } from "./screens/Hub.tsx";
@@ -266,9 +266,19 @@ export default function App() {
           onBack={() => setScreen({ kind: "start" })}
           onDone={(d, name) => {
             void commit({
-              ...createSeason(screen.seed, 0, new Date(), draftLeague(d, name)),
+              // The draft's own seed: a daily draft's league plays the same for everyone.
+              ...createSeason(d.seed, 0, new Date(), draftLeague(d, name)),
               mode: "draft",
               league: d.league,
+              ...(d.theme || d.money !== undefined || d.daily
+                ? {
+                    draftStyle: {
+                      theme: d.theme,
+                      budget: d.money !== undefined ? budgetFor(d) : undefined,
+                      daily: d.daily,
+                    },
+                  }
+                : {}),
             });
             setScreen({ kind: "hub" });
           }}

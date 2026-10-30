@@ -154,8 +154,13 @@ export interface Season {
   lineup: string[] | null
   /** A drafted side against clubs of the past, rather than a club in a league of made-up ones. */
   mode?: 'draft'
-  /** Draft mode: whose club-seasons the league is made of (unset: the Premier League). */
+  /** Draft mode: whose club-seasons the league is made of (unset: the Premier League, or a theme's). */
   league?: string
+  /**
+   * Draft mode, how the side was drafted (unset: a classic draft of one league): a theme (a
+   * `ThemeId`: club-seasons of all five leagues, filtered), a budget (£m it had), a daily draft's date.
+   */
+  draftStyle?: { theme?: string; budget?: number; daily?: string }
   /** Deals done in the January window (draft mode), oldest first. */
   transfers?: Transfer[]
   /** Offers from other clubs turned down this window (draft mode). */

@@ -21,7 +21,7 @@ import {
   squadRating,
   table,
 } from "../season/season.ts";
-import { LEAGUES, leagueOf, poolTeam } from "./draft.ts";
+import { LEAGUES, leagueOf, poolName, poolTeam, themeOf, themePools } from "./draft.ts";
 import { POOLS } from "./pools.ts";
 
 export const CUP_NAME = "European Cup";
@@ -173,6 +173,8 @@ function pickGuests(s: Season, rng: Rng): TeamDef[] {
   const taken = new Set(
     s.teams.flatMap((t) => [...t.players, ...t.bench].map((p) => p.name)),
   );
+  const theme = themeOf(s.draftStyle?.theme);
+  if (theme) return themedGuests(s, rng, taken, themePools(theme), theme.id);
   const home = s.league ?? "Premier League";
   const guests: TeamDef[] = [];
   for (const league of LEAGUES.filter((l) => l !== home)) {
@@ -191,6 +193,39 @@ function pickGuests(s: Season, rng: Rng): TeamDef[] {
       for (const p of [...team.players, ...team.bench]) taken.add(p.name);
       guests.push(team);
     }
+  }
+  return guests;
+}
+
+/**
+ * A themed league is of all five leagues already: its twelve guests are club-seasons of the theme
+ * from the stronger half, of clubs not in the league, all different.
+ */
+function themedGuests(
+  s: Season,
+  rng: Rng,
+  taken: Set<string>,
+  pools: number[],
+  theme: string,
+): TeamDef[] {
+  const inLeague = new Set(s.teams.map((t) => t.name));
+  const clubs = new Set(
+    pools.filter((i) => inLeague.has(poolName(POOLS[i]))).map((i) => POOLS[i].club),
+  );
+  const strength = new Map(
+    pools.map((i) => [i, squadRating(poolTeam(i, new Set(), POOLS[i].formation, theme))]),
+  );
+  const strong = pools
+    .filter((i) => !clubs.has(POOLS[i].club))
+    .sort((a, b) => strength.get(b)! - strength.get(a)!)
+    .slice(0, Math.ceil(pools.length / 2));
+  const guests: TeamDef[] = [];
+  for (const i of rng.shuffle(strong)) {
+    if (clubs.has(POOLS[i].club) || guests.length >= PER_LEAGUE * 4) continue;
+    clubs.add(POOLS[i].club);
+    const team = poolTeam(i, taken, POOLS[i].formation, theme);
+    for (const p of [...team.players, ...team.bench]) taken.add(p.name);
+    guests.push(team);
   }
   return guests;
 }

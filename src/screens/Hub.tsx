@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import type { Formation, Kit, TeamDef } from "../engine/index.ts";
 import { ordinal } from "./format.ts";
+import { draftEyebrow } from "../draft/draft.ts";
 import {
   type Season,
   fixturesOn,
@@ -139,7 +140,12 @@ export function Hub({
         <div className="fixture">
           <p className="eyebrow">
             {season.mode === "draft"
-              ? `Draft · ${season.league ?? "Premier League"} 2010–now`
+              ? draftEyebrow({
+                  league: season.league,
+                  theme: season.draftStyle?.theme,
+                  budget: season.draftStyle?.budget !== undefined,
+                  daily: season.draftStyle?.daily,
+                })
               : season.career
                 ? careerLabel(season)
                 : `Matchday · Season ${season.startDate.slice(0, 4)}`}

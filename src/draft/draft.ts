@@ -108,6 +108,11 @@ export function draftLabel(d: { theme?: string; league?: string }): string {
   return theme ? `${theme.name} · Europe's top five` : `${d.league ?? 'Premier League'} 2010–now`
 }
 
+/** A draft's eyebrow: "Draft · Underdogs · Europe's top five · Budget · Daily". */
+export function draftEyebrow(d: { theme?: string; league?: string; budget?: boolean; daily?: string }): string {
+  return ['Draft', draftLabel(d), d.budget && 'Budget', d.daily && 'Daily'].filter(Boolean).join(' · ')
+}
+
 // ---- Budget ----
 
 /** The least a player costs, in £m. */
