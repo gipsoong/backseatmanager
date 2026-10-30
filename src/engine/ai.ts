@@ -60,6 +60,7 @@ import {
 } from './constants.ts'
 import { type BallMotion, loftTime, shotVz } from './physics.ts'
 import type { Archetype } from './archetypes.ts'
+import { FORMATIONS } from './teams.ts'
 import type { Foot, MatchState, PlayerState, Restart, Role, Side } from './types.ts'
 
 // ---------------------------------------------------------------------------
@@ -511,6 +512,15 @@ const lossCost = (a: Vec): number => pv(a) + threat(vec(PITCH_LENGTH - a.x, PITC
  */
 const interceptChance = (margin: number): number => 0.6 / (1 + Math.exp((margin - 0.05) * 9))
 
+/**
+ * What losing a ball in the air costs: charged down, it's lost where it was struck (`loss`); lost in
+ * the race at the far end, it's lost there (`at`, attacking frame), far less dear from deep.
+ */
+function farLoss(risk: number, chargedDown: number, loss: number, at: Vec): number {
+  const near = Math.min(chargedDown, risk)
+  return near * loss + (risk - near) * lossCost(at)
+}
+
 /** Chance a pass played within an opponent's reach gets to him (he can still miss it). */
 const IN_THE_LANE = 0.4
 /** Points along a ground pass (fractions of its length) where an opponent might meet it. */
@@ -701,16 +711,18 @@ function choose(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
   // Holding the ball is only a fallback when nothing else is possible; it never wins on merit,
   // or carriers stand still waiting for a perfect option.
   let best: Option = { action: { kind: 'hold' }, u: -Infinity }
+  let longBall: Option | null = null
   const consider = (o: Option): void => {
     // However he'd play it (lofted, through, crossed), never a fifth swap between the same two men.
     if (o.action.kind === 'pass' && exchanges(s, p.idx, o.action.toIdx) > MAX_SWAPS) return
+    if (ENV.EXP_LB && o.action.kind === 'pass' && o.action.lofted && afX(s, p.team, o.action.target) > d.a.x + 20 && (!longBall || o.u > longBall.u)) longBall = o
     if (o.u > best.u) {
       best = o
       d.bestU = o.u
     }
   }
   passOptions(d, consider)
-  if (d.a.x > 35) throughBallOptions(d, consider)
+  if (d.a.x > Number(ENV.EXP_TBX ?? 35)) throughBallOptions(d, consider)
   if (d.a.x > 72 && Math.abs(d.a.y - CENTER.y) > 10 && !opts.passFilter) {
     for (const o of crossesIntoSpace(s, p, d.a, d.offside, opts.maxPass)) {
       consider({ action: { kind: 'pass', toIdx: o.toIdx, target: o.target, lofted: o.lofted }, u: o.u })
@@ -724,9 +736,14 @@ function choose(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
   if (shot) return shot
   // A pass that's more likely to be lost than kept (utility below zero) is no better than no pass:
   // near our own goal, go long instead of playing it through the man waiting for it.
-  const nothingOn = best.action.kind !== 'pass' || best.u < 0
+  const nothingOn = ENV.EXP_NO ? best.u < 0 : best.action.kind !== 'pass' || best.u < 0
   const keeper = p.slot.role === 'GK'
-  if (nothingOn && d.a.x < 30 && (keeper || nearestDist(d.opps, p.pos) < 3)) return { kind: 'clearance', target: clearanceTarget(d) }
+  if (nothingOn && d.a.x < 30 && (keeper || nearestDist(d.opps, p.pos) < 3)) {
+    const G = globalThis as unknown as { DBG?: Record<string, number> }
+    if (G.DBG) { const k = `${s.teams[p.team].block} ${best.action.kind} ${best.u === -Infinity ? 'none' : best.u < -0.03 ? '<-.03' : best.u < -0.01 ? '<-.01' : best.u < 0 ? '<0' : '>=0'}`; G.DBG[k] = (G.DBG[k] ?? 0) + 1 }
+    if (longBall && (longBall as Option).u > Number(ENV.EXP_LB)) return (longBall as Option).action
+    return { kind: 'clearance', target: clearanceTarget(d) }
+  }
   return best.action
 }
 
@@ -843,9 +860,10 @@ function passOptions(d: Decision, consider: (o: Option) => void): void {
         if ((1 - riskLo) * value * mult - riskLo * loss + lean + g >= d.bestU - BOUND_SLACK) {
           const race = raceAgainst(s, q, path, ball, target, mine)
           const riskAir = clamp(race.lost + misplace * 1.5, 0, 1)
+          const lossAir = ENV.EXP_FARLOSS ? farLoss(riskAir, race.chargedDown, loss, ta) : riskAir * loss
           consider({
             action: { kind: 'pass', toIdx: q.idx, target, lofted: true },
-            u: (1 - riskAir) * value * mult - riskAir * loss + lean + g,
+            u: (1 - riskAir) * value * mult - lossAir + lean + g,
           })
         }
       }
@@ -1156,7 +1174,7 @@ function throughBalls(d0: Decision, q: PlayerState, qa: Vec, consider: (o: Optio
   const va = sub(af(s, p.team, add(q.pos, q.vel)), qa)
   const toGoal = norm(sub(vec(PITCH_LENGTH, CENTER.y), qa))
   const dir = norm(add(add(vec(1, 0), scale(toGoal, 0.6)), scale(va, 0.1)))
-  for (const ahead of [6, 11, 16]) {
+  for (const ahead of ENV.EXP_AHEAD ? ENV.EXP_AHEAD.split(',').map(Number) : [6, 11, 16]) {
     // Short of the byline, or it runs out of play before he gets there.
     const spotA = vec(Math.min(qa.x + dir.x * ahead, PITCH_LENGTH - 12), clamp(qa.y + dir.y * ahead, 5, PITCH_WIDTH - 5))
     if (spotA.x < qa.x + 3) continue
@@ -1183,7 +1201,8 @@ function throughBalls(d0: Decision, q: PlayerState, qa: Vec, consider: (o: Optio
       // Onto the ball in space: worth more the further clear of the defence he is.
       const space = clamp(0.7 + (1 - race.lost) * 0.4, 0.5, 1.3)
       const value = threat(af(s, p.team, race.point)) * space + pv(af(s, p.team, race.point))
-      consider({ action: { kind: 'pass', toIdx: q.idx, target, lofted, through: true }, u: (1 - risk) * value - risk * loss + lean + g })
+      const lost = ENV.EXP_FARLOSS && lofted ? farLoss(risk, race.chargedDown, loss, pa) : risk * loss
+      consider({ action: { kind: 'pass', toIdx: q.idx, target, lofted, through: true }, u: (1 - risk) * value - lost + lean + g })
     }
   }
 }
@@ -1340,7 +1359,10 @@ const BLOCK_ENGAGE = 10
 const SHAPE_FROM = 65
 
 /** How far from its own goal each block holds its line out of possession (m): lowest, highest. */
-const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
+// EXP
+const ENV: Record<string, string | undefined> = (globalThis as unknown as { process?: { env: Record<string, string> } }).process?.env ?? {}
+const envPair = (k: string, d: [number, number]): [number, number] => (ENV[k] ? (ENV[k]!.split(',').map(Number) as [number, number]) : d)
+const BLOCK_LINES = { low: envPair('EXP_LOW', [14, 32]), mid: envPair('EXP_MID', [20, 42]), high: envPair('EXP_HIGH', [26, 55]) }
 
 /** With the ball past here (m), the holding midfielder steps up to DM_EDGE from goal (an anchor 30). */
 const DM_STEP_UP = 76
@@ -1354,6 +1376,23 @@ const DM_EDGE = 25
 const lineInPossession = (x: number): number => clamp(x * LINE_FOLLOWS + LINE_BASE, 20, 58)
 const LINE_FOLLOWS = 0.5
 const LINE_BASE = 6
+
+/** How deep a tracking winger drops: level with a 4-3-3's midfield three. */
+const TRACK_DEPTH = 0.55
+/** The depth of a shape's furthest-forward central midfielder (CM or DM). */
+const MIDFIELD_LINE = new Map<string, number>()
+function midfieldLine(f: keyof typeof FORMATIONS): number {
+  let v = MIDFIELD_LINE.get(f)
+  if (v === undefined) MIDFIELD_LINE.set(f, (v = Math.max(...FORMATIONS[f].filter((q) => q.role === 'CM' || q.role === 'DM').map((q) => q.depth))))
+  return v
+}
+
+const BACK_THREE = new Map<string, boolean>()
+function backThree(f: keyof typeof FORMATIONS): boolean {
+  let v = BACK_THREE.get(f)
+  if (v === undefined) BACK_THREE.set(f, (v = FORMATIONS[f].filter((q) => q.role === 'CB').length >= 3))
+  return v
+}
 
 /** Where a player stands in the team's shape, given the ball and who has it. */
 export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean): Vec {
@@ -1406,12 +1445,12 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   const wingBack = p.slot.role === 'FB' && p.slot.attackDepth > 0.6
   const ballSide = Math.sign(b.y - CENTER.y) === Math.sign(p.slot.y - CENTER.y)
   const presses = !inPossession && wingBack && ballSide && b.x > 35
-  const restDepth = tracks ? Math.min(p.slot.depth, 0.55) : presses ? 0.4 : p.slot.depth
+  const restDepth = tracks ? Math.min(p.slot.depth, TRACK_DEPTH, ENV.EXP_TRK ? midfieldLine(s.teams[team].formation) : 1) : presses ? 0.4 : p.slot.depth
   const depth = restDepth + (inPossession ? attackDepthFor(p) : 0)
   const x = lineX + depth * length
   // A winger holds the touchline to stretch them; a target man stays central for the cross.
   // Centre-backs split wide with the ball, so a full-back or midfielder has an angle back to them.
-  const width = inPossession && arch === 'winger' ? 1.15 : inPossession && arch === 'targetMan' ? 0.4 : inPossession && p.slot.role === 'CB' ? 1.6 : 1
+  const width = inPossession && arch === 'winger' ? 1.15 : inPossession && arch === 'targetMan' ? 0.4 : inPossession && p.slot.role === 'CB' ? (ENV.EXP_CB3 && backThree(s.teams[team].formation) ? Number(ENV.EXP_CB3) : 1.6) : 1
   // Out of possession the whole side slides across to the ball (a man on the ball out wide is met by
   // the nearest wide player and has the touchline behind him), as a back five's midfield three
   // already did.
@@ -1630,14 +1669,14 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
     const zone = shapeTarget(s, p, false)
     if (!pressing && oa.x > SHAPE_FROM && dist(owner.pos, zone) > BLOCK_ENGAGE) return defendIntent(s, p, zone)
     // How tight he gets: an aggressive man gets right up to him, a cautious one stands off.
-    const stand = pressing ? 1.4 - t.aggression * 0.8 - (winner ? 0.3 : 0) : 3.5
+    const stand = pressing ? 1.4 + Number(ENV.EXP_STAND ?? 0) - t.aggression * 0.8 - (winner ? 0.3 : 0) : 3.5
     const ahead = add(owner.pos, scale(owner.vel, 0.4)) // meet him where he's going, not where he was
     return { target: add(ahead, scale(goalSide, stand)), urgency: pressing ? 0.8 + t.workRate * 0.2 : 0.6 + t.workRate * 0.2 }
   }
   return defendIntent(s, p, shapeTarget(s, p, false))
 }
 
-const PRESS_LINES = { low: 38, mid: 55, high: 105 }
+const PRESS_LINES = { low: Number(ENV.EXP_PL ?? 38), mid: Number(ENV.EXP_PM ?? 55), high: Number(ENV.EXP_PH ?? 105) }
 
 /** In possession, a man keeps this far from a teammate (m): two on one spot offer one pass, not two. */
 const SPACING = 4
@@ -1731,6 +1770,8 @@ function defendIntent(s: MatchState, p: PlayerState, zone: Vec): MoveIntent {
     if (mark) {
       // Tighter in our own box, and the better a marker he is.
       const tight = clamp((inPenaltyArea(mark.pos, ownGoal.x) ? 0.95 : 0.7) + (p.attrs.marking - 12) * 0.05, 0.4, 1)
+      if (ENV.EXP_LOOSE && afX(s, p.team, zone) > Number(ENV.EXP_LOOSE)) target = lerp(zone, add(mark.pos, scale(norm(sub(ownGoal, mark.pos)), 1.5)), tight * 0.5)
+      else
       target = lerp(zone, add(mark.pos, scale(norm(sub(ownGoal, mark.pos)), 1.5)), tight)
       // Whatever the zone says, never be caught on the wrong side of him: stay at least a yard deeper.
       // (Unless he's offside: then the line holds and leaves him there.) With the man on the ball
@@ -1872,7 +1913,7 @@ export function maybeStartRuns(s: MatchState): PlayerState[] {
   if (!owner || keeperHasItInHands(s, owner)) return []
   const a = af(s, owner.team, owner.pos)
   const started: PlayerState[] = []
-  if (a.x >= 35 && a.x <= 88) runsInBehind(s, owner, started)
+  if (a.x >= Number(ENV.EXP_RUNX ?? 35) && a.x <= 88) runsInBehind(s, owner, started)
   const ballA = af(s, owner.team, s.ball.pos)
   if (ballA.x >= ARRIVAL_FROM) lateRuns(s, owner, ballA, started)
   if (ballA.x >= OVERLAP_FROM && ballA.x <= OVERLAP_TO && Math.abs(ballA.y - CENTER.y) >= OVERLAP_WIDE) overlaps(s, owner, ballA, started)

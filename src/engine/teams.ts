@@ -15,8 +15,10 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CB', 0, 26),
     s('FB', 0, 8, 0.35),
     s('WM', 0.5, 58, 0.25),
-    s('CM', 0.45, 40),
-    s('CM', 0.45, 28),
+    // The two in the middle get forward a little with the ball (standing still, the shape was worth
+    // ~0.25 xG a match less than one with a midfield three).
+    s('CM', 0.45, 40, 0.1),
+    s('CM', 0.45, 28, 0.1),
     s('WM', 0.5, 10, 0.25),
     s('ST', 1, 40),
     // The second striker plays off the first: a little deeper, arriving late rather than on the shoulder.
@@ -44,7 +46,7 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CB', 0, 26),
     s('FB', 0, 8, 0.35),
     s('DM', 0.25, 41),
-    s('DM', 0.3, 27, 0.2),
+    s('DM', 0.35, 27, 0.3),
     s('W', 0.8, 56, 0.2),
     s('CM', 0.7, 34, 0.15),
     s('W', 0.8, 12, 0.2),
@@ -85,15 +87,27 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CB', 0, 34),
     s('CB', 0, 21),
     s('FB', 0, 63, 0.85),
-    s('CM', 0.4, 40, 0.1),
-    s('CM', 0.4, 28, 0.1),
+    // The midfield two stand as high as a 4-3-3's pair, with three centre-backs behind them: at 0.4
+    // they left the shape ~0.4 xG a match short.
+    s('CM', 0.5, 40, 0.2),
+    s('CM', 0.5, 28, 0.2),
     s('FB', 0, 5, 0.85),
-    s('W', 0.85, 56, 0.1),
+    // The wide forwards play inside the wing-backs, who give the width: on the same line as them they
+    // crowded one flank and left the side ~0.2 xG a match short.
+    s('W', 0.85, 52, 0.1),
     s('ST', 1, 34),
-    s('W', 0.85, 12, 0.1),
+    s('W', 0.85, 16, 0.1),
   ],
 }
 
+// EXP
+{
+  const env = (globalThis as unknown as { process?: { env: Record<string, string> } }).process?.env ?? {}
+  for (const f of Object.keys(FORMATIONS) as Formation[]) {
+    const v = env['EXP_F' + f.replace(/-/g, '')]
+    if (v) FORMATIONS[f] = (JSON.parse(v) as [Role, number, number, number][]).map(([r, d, y, a]) => s(r, d, y, a))
+  }
+}
 export const FORMATION_NAMES = Object.keys(FORMATIONS) as Formation[]
 
 /** No green shirts: they'd vanish against the pitch. */
