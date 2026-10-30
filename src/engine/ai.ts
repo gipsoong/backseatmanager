@@ -61,6 +61,7 @@ import {
   CLEAR_WIDE,
 } from './constants.ts'
 import { type BallMotion, loftTime, shotVz } from './physics.ts'
+import { ROLE_OFFSET, cardOverall } from './attributes.ts'
 import type { Archetype } from './archetypes.ts'
 import type { Block, Foot, MatchState, PlayerState, Restart, Role, Side } from './types.ts'
 
@@ -1390,13 +1391,34 @@ const PRESS_SPELL = 3
 const COUNTER_PRESS = 5
 /**
  * ...for a side as good as the other. The better side keeps at it for longer, up to twice as long;
- * the weaker one drops off into its shape sooner, down to not at all at an edge of -0.5 (about eight
- * overall worse): it can't afford to be played through by a better side (session 26). Pressed the
- * same by everyone, a side ~5 overall better was worth only ~0.7 points a match more, and career
- * leagues were too level: a third of the champions under 80 points.
+ * the weaker one drops off into its shape sooner, not at all once it's COUNTER_PRESS_SPAN overall
+ * worse (its eleven's average at kick-off, `qualityGap`): it can't afford to be played through by a
+ * better side (session 26). Pressed the same by everyone, a side ~5 overall better was worth only
+ * ~0.7 points a match more, and career leagues were too level: a third of the champions under 80
+ * points. (By the overall, not `edgeOf`'s raw attribute mean, which reads a shape with more
+ * attackers as a better side: by that, formations drifted ~0.3 xGD apart at equal strength.)
  */
-const COUNTER_PRESS_BY_EDGE = 2
-const counterPressFor = (s: MatchState, team: Side): number => COUNTER_PRESS * clamp(1 + COUNTER_PRESS_BY_EDGE * edgeOf(s, team), 0, 2)
+const COUNTER_PRESS_SPAN = 6
+const counterPressFor = (s: MatchState, team: Side): number => COUNTER_PRESS * clamp(1 + qualityGap(s, team) / COUNTER_PRESS_SPAN, 0, 2)
+
+/**
+ * How much better (overall points) this side's eleven at kick-off is than the other's, on the cards'
+ * scale; a made-up player's overall net of his position's ROLE_OFFSET.
+ */
+const gaps = new WeakMap<MatchState, [number, number]>()
+export function qualityGap(s: MatchState, team: Side): number {
+  let g = gaps.get(s)
+  if (!g) {
+    const mean = (t: Side): number => {
+      const ps = s.players.filter((p) => p.onPitch && p.team === t)
+      return ps.reduce((n, p) => n + (p.def.overall ?? cardOverall(p.def.attrs, p.def.role) - ROLE_OFFSET[p.def.role]), 0) / Math.max(1, ps.length)
+    }
+    const d = mean(0) - mean(1)
+    g = [d, -d]
+    gaps.set(s, g)
+  }
+  return g[team]
+}
 
 /** The block a side is playing right now: a high one between its bursts plays as a mid one. */
 function blockNow(s: MatchState, team: Side): Block {

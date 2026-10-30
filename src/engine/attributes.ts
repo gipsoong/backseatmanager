@@ -344,6 +344,14 @@ export const CARD_GAP: Record<Role, number> = { GK: 2.3, CB: 1.9, FB: 4.25, DM: 
  */
 export const cardOverall = (a: Attributes, role: Role): number => Math.max(1, Math.min(99, ratingAt(positionLevel(a, role)) + CARD_GAP[role]))
 
+/**
+ * How far a position's overalls sit from the league's (made-up players on the draft's scale: a
+ * centre-midfielder reads ~2 high, a striker ~4 low), so a striker of 76 is priced like an average
+ * player, not a poor one. Signings and academy players are made at it too, and the engine's `qualityGap` reads a made-up
+ * eleven's quality net of it, so a shape with more centre-midfielders doesn't read as a better side.
+ */
+export const ROLE_OFFSET: Record<Role, number> = { GK: 0, CB: 0, FB: 1, DM: 1, CM: 2, WM: 1, W: -2, ST: -4 }
+
 /** Sub-attributes that come from knowing a position: technique and reading the game, not the body. */
 export const POSITIONAL: Sub[] = [
   'finishing',

@@ -5,7 +5,7 @@
  * A player's value comes from his overall, his age and his room to grow: a 19-year-old who could
  * become an 85 is worth far more than a 30-year-old of the same overall today.
  */
-import type { PlayerDef, Role } from '../engine/index.ts'
+import { type PlayerDef, ROLE_OFFSET, type Role } from '../engine/index.ts'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
 import type { Person } from './career.ts'
 
@@ -16,12 +16,8 @@ export interface Finance {
   income: number[]
 }
 
-/**
- * How far a position's overalls sit from the league's (made-up players on the draft's scale: a
- * centre-midfielder reads ~2 high, a striker ~4 low), so a striker of 76 is priced like an average
- * player, not a poor one. Signings and academy players are made at it too.
- */
-export const ROLE_OFFSET: Record<Role, number> = { GK: 0, CB: 0, FB: 1, DM: 1, CM: 2, WM: 1, W: -2, ST: -4 }
+/** How far a position's overalls sit from the league's: see the engine's ROLE_OFFSET (session 26 moved it there). */
+export { ROLE_OFFSET }
 
 /** The overall his value is priced at: today's, plus some of what he could become while he's young. */
 function pricedAt(overall: number, who: Person | undefined): number {
