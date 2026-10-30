@@ -6,8 +6,8 @@
 import { useState } from 'react'
 import { positionsLabel, styleLabel } from '../names.ts'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
-import { expiringAt, judgeFreeAgent, renewalTerms, seasonYear } from '../career/contracts.ts'
-import { money, wageOf } from '../career/money.ts'
+import { RED_LINE, expiringAt, judgeFreeAgent, renewProblem, renewalTerms, seasonYear } from '../career/contracts.ts'
+import { WAGE_BUDGET, inTheRed, money, wageBill, wageOf } from '../career/money.ts'
 import { windowMatchdays, windowName, windowOpen } from '../draft/transfers.ts'
 import { Effect } from './Transfers.tsx'
 import { stagger } from './motion.ts'
@@ -48,8 +48,26 @@ export function Contracts({
   const signed = (c.signings ?? []).filter((x) => x.club === season.userTeam)
   const nameOf = (id: string): string => squadOf(season.teams[season.userTeam]).find((p) => p.id === id)?.name ?? id
 
+  const finance = c.finance
+  const bill = wageBill(season, season.userTeam)
+  const red = inTheRed(season)
   return (
     <div className="contracts">
+      {finance && (
+        <section className="pad">
+          <h4 className="eyebrow">Money</h4>
+          <p className="meta">
+            Budget <strong>{money(finance.cash[season.userTeam])}</strong> · wages {money(bill)} a season against income of{' '}
+            {money(finance.income[season.userTeam])} (prize money on top). The accounts are settled each summer.
+            {bill > finance.income[season.userTeam] * WAGE_BUDGET && !red && ' Your wages are running ahead of your income: the summer will cost you.'}
+          </p>
+          {red && (
+            <p className="money-warning" role="status">
+              {RED_LINE} Sell players, or let wages go in the summer.
+            </p>
+          )}
+        </section>
+      )}
       <section className="pad">
         <h4 className="eyebrow">Ending this summer</h4>
         {expiring.length === 0 ? (
@@ -62,6 +80,7 @@ export function Contracts({
                 const who = c.people[p.id]
                 const terms = renewalTerms(season, p.id)
                 const leaving = !!who.contract?.leaving
+                const problem = renewProblem(season, p.id)
                 return (
                   <li key={p.id} className="contract-row rise" style={stagger(i)}>
                     <span className="role">{positionsLabel(p)}</span>
@@ -78,7 +97,7 @@ export function Contracts({
                     </span>
                     <span className="rating">{playerRating(p)}</span>
                     <span className="contract-actions">
-                      <button type="button" className="btn slim" onClick={() => onRenew(p.id)}>
+                      <button type="button" className="btn slim" disabled={!!problem} title={problem ?? undefined} onClick={() => onRenew(p.id)}>
                         Renew
                       </button>
                       <button type="button" className="btn ghost slim" onClick={() => onLetGo(p.id, !leaving)}>

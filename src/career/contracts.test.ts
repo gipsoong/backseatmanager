@@ -5,8 +5,9 @@ import { upgradeSave } from '../season/store.ts'
 import { windowOpen } from '../draft/transfers.ts'
 import { SQUAD_MAX, nextSeason, startCareer } from './career.ts'
 import { fakePlayed } from './fake.ts'
-import { FREE_SQUAD_MAX, expiringAt, inLastYear, judgeFreeAgent, letGo, renew, renewalTerms, seasonYear, signFreeAgent, staffRenewals } from './contracts.ts'
-import { valueOf, wage, wageBill, yearsLeft } from './money.ts'
+import { FREE_SQUAD_MAX, RED_LINE, expiringAt, renewProblem, inLastYear, judgeFreeAgent, letGo, renew, renewalTerms, seasonYear, signFreeAgent, staffRenewals } from './contracts.ts'
+import { WAGE_BUDGET, inTheRed, valueOf, wage, wageBill, wageOf, yearsLeft } from './money.ts'
+import { judge } from '../draft/transfers.ts'
 
 const start = (seed: number): Season => startCareer(createSeason(seed, 0, new Date(Date.UTC(2026, 5, 1))))
 const everyone = (s: Season) => s.teams.flatMap(squadOf)
@@ -177,5 +178,41 @@ describe('saves with contracts', () => {
     const late = upgradeSave({ ...v4, matchday: 20 } as Season)
     expect(late.career!.cup).toBeUndefined()
     expect(nextSeason(fakePlayed(late)).career!.cup).toBeDefined()
+  })
+})
+
+describe('money and wages', () => {
+  it('keeps the other clubs\u2019 wages within their income over the summers', () => {
+    let s = start(8)
+    for (let i = 0; i < 3; i++) s = nextSeason(staffRenewals(fakePlayed(s), new Rng(i)))
+    const f = s.career!.finance!
+    const ratio = s.teams.map((_, club) => wageBill(s, club) / f.income[club])
+    const others = ratio.filter((_, club) => club !== 0)
+    expect(others.reduce((a, b) => a + b, 0) / others.length).toBeLessThanOrEqual(WAGE_BUDGET + 0.02)
+    expect(others.reduce((a, b) => a + b, 0) / others.length).toBeGreaterThan(0.8)
+    for (const t of s.teams) expect(squadOf(t).length).toBeGreaterThanOrEqual(17)
+  })
+
+  it('in the red, the manager can\u2019t add to his wages: no free agents, no pay rises, no deals that cost wages', () => {
+    const summer = nextSeason(fakePlayed(start(6)))
+    const f = summer.career!.finance!
+    const red: Season = { ...summer, career: { ...summer.career!, finance: { ...f, cash: f.cash.map((x, i) => (i === 0 ? -2 : x)) } } }
+    expect(inTheRed(red)).toBe(true)
+    expect(inTheRed(summer)).toBe(false)
+    const fa = summer.career!.freeAgents!.find((x) => judgeFreeAgent(summer, x.player.id).ok)!
+    expect(judgeFreeAgent(red, fa.player.id)).toMatchObject({ ok: false, reason: RED_LINE })
+    // A renewal: allowed if it doesn't raise his wage.
+    const p = expiringAt(red).find((q) => renewalTerms(red, q.id).wage > wageOf(q, red.career!.people[q.id]))
+    if (p) expect(renewProblem(red, p.id)).toBe(RED_LINE)
+    const same = expiringAt(red).find((q) => renewalTerms(red, q.id).wage <= wageOf(q, red.career!.people[q.id]))
+    if (same) expect(renewProblem(red, same.id)).toBeNull()
+    // A swap that brings in a dearer player is off; selling is fine (a first season's full squads).
+    const s1 = start(6)
+    const f1 = s1.career!.finance!
+    const red1: Season = { ...s1, career: { ...s1.career!, finance: { ...f1, cash: f1.cash.map((x, i) => (i === 0 ? -2 : x)) } } }
+    const theirs = squadOf(red1.teams[5]).sort((a, b) => wageOf(b, red1.career!.people[b.id]) - wageOf(a, red1.career!.people[a.id]))[0]
+    const mine = squadOf(red1.teams[0]).sort((a, b) => wageOf(a, red1.career!.people[a.id]) - wageOf(b, red1.career!.people[b.id]))[0]
+    expect(judge(red1, { club: 5, give: [mine.id], get: [theirs.id], fee: 0 }).reason).toMatch(/in the red/)
+    expect(judge(red1, { club: 5, give: [mine.id], get: [], fee: -0.1 }).reason).not.toMatch(/in the red/)
   })
 })

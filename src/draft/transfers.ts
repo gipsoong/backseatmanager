@@ -33,7 +33,7 @@ import {
   playerRating,
   table,
 } from "../season/season.ts";
-import { valueOf } from "../career/money.ts";
+import { inTheRed, valueOf, wageOf } from "../career/money.ts";
 
 /** Deals the manager can make in one window. */
 export const DEALS_PER_WINDOW = 3;
@@ -345,7 +345,12 @@ function judgeForMoney(
   const cash = s.career!.finance?.cash;
   const theirCash = cash?.[deal.club] ?? Infinity;
   const myCash = cash?.[s.userTeam] ?? Infinity;
-  if (fee > myCash + 0.05)
+  // In the red, no deal that adds to the wage bill.
+  const people = s.career!.people;
+  const wages = (ps: PlayerDef[]): number => ps.reduce((n, p) => n + wageOf(p, people[p.id]), 0);
+  if (inTheRed(s) && wages(get) > wages(give))
+    return { ok: false, interest, them, you, reason: "You're in the red: no deal that adds to your wages until you're back in the black." };
+  if (fee > 0 && fee > myCash + 0.05)
     return { ok: false, interest, them, you, reason: "You don't have the money." };
   if (-fee > theirCash + 0.05)
     return { ok: false, interest: "no", them, you, reason: "They can't afford that." };

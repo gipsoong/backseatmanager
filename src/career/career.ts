@@ -5,7 +5,7 @@
  * the season: `nextSeason` turns a finished season into the next one.
  */
 import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, ability, freshName, makePlayerAt } from '../engine/index.ts'
-import { type Finance, ROLE_OFFSET, settle, startFinance } from './money.ts'
+import { type Finance, ROLE_OFFSET, WAGE_BUDGET, settle, startFinance, wageAt } from './money.ts'
 import { type Cup, type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 import { POINT_VALUE, sideOf } from '../draft/transfers.ts'
 import {
@@ -298,6 +298,8 @@ function madeAt(rng: Rng, id: string, name: string, shirt: number, role: Role, o
 const OUTSIDE_FREE_AGENTS = 6
 /** A replacement signing from the free agents: within this of the overall the club would sign at. */
 const FREE_FIT = 3
+/** The fewest players another club keeps to stay within its wage budget. */
+const AI_MIN_SQUAD = 20
 /** The fewest players the manager's club starts a season with (the staff sign to it if he's let too many go). */
 export const MANAGER_MIN = 16
 
@@ -369,12 +371,18 @@ export function nextSeason(s: Season): Season {
     }
     // Contracts that ran out this summer: the manager's go (he renewed those he wanted); the
     // other clubs' staff keep most of theirs.
+    // They keep within their wage budget: the regulars are renewed whatever, the rest only if there's room.
+    const budget = (finance.income[club] * WAGE_BUDGET * 1000) / 52
+    const expires = (p: PlayerDef): boolean => people[p.id].contract!.until <= was + 1
+    let committed = squad.filter((p) => !expires(p)).reduce((n, p) => n + people[p.id].contract!.wage, 0)
     const ranked = [...squad].sort((a, b) => staffWorth(b, people[b.id]) - staffWorth(a, people[a.id]))
     ranked.forEach((p, rank) => {
       const who = people[p.id]
-      if (who.contract!.until > was + 1) return
-      if (!mine && staffKeeps(rank, who.age, who.potential - playerRating(p), rng)) {
-        people[p.id] = { ...who, contract: { until: year + contractLength(who.age), wage: askedWage(p, who) } }
+      if (!expires(p)) return
+      const asked = askedWage(p, who)
+      if (!mine && staffKeeps(rank, who.age, who.potential - playerRating(p), rng) && (rank < 11 || committed + asked <= budget)) {
+        people[p.id] = { ...who, contract: { until: year + contractLength(who.age), wage: asked } }
+        committed += asked
         return
       }
       squad.splice(squad.indexOf(p), 1)
@@ -430,6 +438,25 @@ export function nextSeason(s: Season): Season {
       pool.push(freeAgent(out, people[out.id], club))
       delete people[out.id]
       if (mine) summer.released.push(out.name)
+    }
+    // Over its wage budget (the places still to fill counted at what they'd cost): a club leaves
+    // places unfilled, then lets its least promising go, down to twenty.
+    const bill = (): number => squad.reduce((n, p) => n + people[p.id].contract!.wage, 0) + wanted[club].reduce((n, w) => n + wageAt(w.overall, w.role), 0)
+    while (!mine && bill() > budget && squad.length + wanted[club].length > AI_MIN_SQUAD) {
+      const keepers = squad.filter((p) => p.role === 'GK').length
+      // (Never the place of a second keeper.)
+      const skip = wanted[club].findLastIndex((w) => w.role !== 'GK' || keepers >= 2)
+      if (skip >= 0) {
+        wanted[club].splice(skip, 1)
+        continue
+      }
+      const out = squad
+        .filter((p) => people[p.id].age >= 19 && (p.role !== 'GK' || keepers > 2))
+        .sort((a, b) => staffWorth(a, people[a.id]) - staffWorth(b, people[b.id]))[0]
+      if (!out) break
+      squad.splice(squad.indexOf(out), 1)
+      pool.push(freeAgent(out, people[out.id], club))
+      delete people[out.id]
     }
     return { ...t, players: squad.slice(0, 11), bench: squad.slice(11) }
   })

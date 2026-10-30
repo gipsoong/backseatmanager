@@ -43,6 +43,8 @@ import {
 } from "../career/cup.ts";
 import { DomesticCup } from "./DomesticCup.tsx";
 import { Contracts, undecided } from "./Contracts.tsx";
+import { RED_LINE } from "../career/contracts.ts";
+import { inTheRed } from "../career/money.ts";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -218,6 +220,9 @@ export function Hub({
                 <TeamName team={season.teams[next.away]} />
               </h2>
               <BoardLine season={season} over={false} />
+              {season.career && inTheRed(season) && (
+                <p className="money-warning">{RED_LINE}</p>
+              )}
               {cupRoundOn && cup && (
                 <p className="meta">
                   Midweek, the {DOMESTIC_CUP}'s{" "}

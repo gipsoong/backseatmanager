@@ -40,6 +40,21 @@ export function marketValue(p: PlayerDef, who: Person | undefined): number {
   return Math.max(0.1, Math.round(v * 10) / 10)
 }
 
+/** About what a player of an overall asks, £k a week (in his twenties, before he's made). */
+export const wageAt = (overall: number, role: Role): number => Math.round(3 + 2.5 * Math.max(0.1, 2 * 1.2 ** (overall - ROLE_OFFSET[role] - 78)))
+
+/**
+ * The share of its income a club spends on wages at the most (the rest, with prize money, is what
+ * it has to buy with). The other clubs keep to it when they renew and sign; the manager may not, but
+ * in the red he can't add to his wages (`inTheRed`).
+ */
+export const WAGE_BUDGET = 0.95
+/** A club's wages start at this share of its income, with room for a few academy players. */
+const START_WAGES = 0.9
+
+/** The manager's club owes money: no signings or renewals that add wages until it's back in the black. */
+export const inTheRed = (s: Season): boolean => (s.career?.finance?.cash[s.userTeam] ?? 0) < 0
+
 /** His wages, £k a week: by what he's worth now (not what he might become), from a floor of 3. */
 export function wage(p: PlayerDef, who: Person | undefined): number {
   const now = marketValue(p, who && { ...who, potential: 0 })
@@ -79,11 +94,11 @@ export function wageBill(s: Season, club: number): number {
 export const prizeFor = (place: number, n: number): number => round1(0.3 * (n - place))
 
 /**
- * Each club's money when a career begins: an income that covers its wages (prize money is the
- * profit), and cash to spend in proportion to its squad's worth.
+ * Each club's money when a career begins: an income that covers its wages with a little to spare
+ * (a tenth; prize money is the rest of the profit), and cash to spend in proportion to its squad's worth.
  */
 export function startFinance(s: Season): Finance {
-  const income = s.teams.map((_, c) => round1(wageBill(s, c)))
+  const income = s.teams.map((_, c) => round1(wageBill(s, c) / START_WAGES))
   const cash = s.teams.map((t) => round1(5 + 0.12 * squadOf(t).reduce((n, p) => n + valueOf(s, p), 0)))
   return { cash, income }
 }

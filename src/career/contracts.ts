@@ -13,7 +13,7 @@ import type { PlayerDef, Rng } from '../engine/index.ts'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
 import { type Side, sideOf, windowOpen } from '../draft/transfers.ts'
 import type { Person } from './career.ts'
-import { marketValue, money, wage, yearsLeft } from './money.ts'
+import { inTheRed, marketValue, money, wage, wageOf, yearsLeft } from './money.ts'
 
 export interface Contract {
   /** The summer it runs out (the year): a deal to 2028 ends after the 2027–28 season. */
@@ -58,12 +58,14 @@ export function contractLength(age: number): number {
 }
 
 /**
- * The wage he asks for a new deal, £k a week: by his value (a young man's room to grow counts),
- * less once he's 33 and knows it.
+ * The wage he asks for a new deal, £k a week: what he's worth now (as every wage is, so the league's
+ * wages keep to the level its income was set at), and a little for a young man's room to grow; less
+ * once he's 33 and knows it.
  */
 export function askedWage(p: PlayerDef, who: Person): number {
-  const v = marketValue(p, who)
-  return Math.max(3, Math.round((3 + v * 2.5) * (who.age >= 33 ? 0.8 : 1)))
+  const now = wage(p, who)
+  const room = who.age <= 23 ? 0.15 * (3 + marketValue(p, who) * 2.5 - now) : 0
+  return Math.max(3, Math.round((now + room) * (who.age >= 33 ? 0.8 : 1)))
 }
 
 /** A free agent's asking wage. */
@@ -99,10 +101,22 @@ export function renewalTerms(s: Season, id: string): { wage: number; years: numb
   return { wage: askedWage(byId(s, id), who), years, until: seasonYear(s) + 1 + years }
 }
 
+/** In the red, the club can't add to its wages. */
+export const RED_LINE = "You're in the red: no signings or pay rises until the club's back in the black."
+
+/** Why he can't be renewed now, or null. */
+export function renewProblem(s: Season, id: string): string | null {
+  if (!inLastYear(s, id)) return "He's not in the last year of his deal."
+  const who = s.career!.people[id]
+  if (inTheRed(s) && renewalTerms(s, id).wage > wageOf(byId(s, id), who)) return RED_LINE
+  return null
+}
+
 /** He signs a new deal on his terms (the new wage from now on). */
 export function renew(s: Season, id: string): Season {
   const c = s.career!
-  if (!inLastYear(s, id)) throw new Error('not in his last year')
+  const problem = renewProblem(s, id)
+  if (problem) throw new Error(problem)
   const { wage, until } = renewalTerms(s, id)
   return { ...s, career: { ...c, people: { ...c.people, [id]: { ...c.people[id], contract: { until, wage } } } } }
 }
@@ -181,6 +195,7 @@ export function judgeFreeAgent(s: Season, id: string): FreeVerdict {
   const no = (reason: string, you: Side | null = null): FreeVerdict => ({ ok: false, reason, you, wage: fa?.wage ?? 0, years })
   if (!fa) return no('He has signed elsewhere.')
   if (!windowOpen(s)) return no('Free agents can sign while a window is open.')
+  if (inTheRed(s)) return no(RED_LINE)
   const squad = squadOf(s.teams[s.userTeam])
   if (squad.length >= FREE_SQUAD_MAX) return no(`Your squad is full (${FREE_SQUAD_MAX}).`)
   const you = sideOf(withCondition(s, [fa.player]), s.userTeam, [], [fa.player])
