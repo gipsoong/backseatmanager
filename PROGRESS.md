@@ -10,8 +10,51 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
-more, 4-2-3-1 levelled (session 26). Next: in-match management
-(on hold at the owner's request).
+more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27).
+Next: in-match management (on hold at the owner's request).
+
+## Done (session 27): draft variety
+
+On branch `wip/draft-variety` (roadmap stage 2). All choices on the draft's start screen; a classic
+draft of one league stays the default and plays exactly as before (same rounds for a seed).
+- **Themed drafts** (`THEMES`, draft.ts): club-seasons of all five leagues, since one league has too
+  few clubs per era for 20 rounds and a 19-club league (PL 2010-14: 12 club-seasons). 2010–2015,
+  2015–2020, 2020–now (by season start), Underdogs (no club-season of a league's usual top clubs,
+  `TOP_CLUBS`), No stars (nobody over 80, in offers, opponents and cup guests). The league and the
+  European Cup's twelve guests (stronger half, clubs not in the league) come from the same filter.
+  65-114 club-seasons and 54-87 clubs each. Under 25s was dropped: the pools have no ages (only the
+  340 `CARDS` carry a birth year).
+- **Budget draft**: prices by overall (£1m to 74, doubling every 4: 80 £4m, 84 £8m, 88 £16m, 92 £32m);
+  a budget per league or theme (`budgetFor`: eleven at the league's level + 1 and nine at £1m; PL £85m,
+  La Liga £70m, Serie A £65m, Bundesliga £55m, Ligue 1 £45m, eras £60-65m, Underdogs £45m, No stars
+  £35m). £1m a later round is kept back; a pick over what's spendable is refused (greyed in the offer);
+  if nobody in an offer were affordable the cheapest would cost what's left, so a squad always completes.
+  Header shows money left, each offer its price, the hint what can be spent this round.
+- **Daily draft**: a toggle; the seed is the UTC date's hash, so the same options give everyone the
+  same offers (and, as the season is seeded with the draft's seed, the same fixtures' seeds).
+- Saves: optional `Season.draftStyle` {theme, budget, daily}, no version bump; round-trip test, and an
+  old classic save loads unchanged. Tests: `draft/variety.test.ts` (prices, budgets, always affordable
+  spending greedily or at random over every league and theme, refusal, classic unchanged, theme pools
+  and positions, theme leagues, themed cup guests, daily seeds, saves).
+- **Balance** (`node scripts/diag-draft.ts 20 1`, greedy drafts): a budget eleven is ~+2 over the
+  league's average eleven, 4th-10th of 20 by eleven (classic greedy ~+3-4, the best sides ~+6).
+  Seasons (sim-season, greedy, 38 matchdays):
+
+| draft | seed | our eleven (rank) | league xi | finish | goals a match | champions |
+|---|---|---|---|---|---|---|
+| PL classic | 1 | 82.5 (3rd) | 79.3 | 2nd, 99 pts | 3.21 | 100 |
+| PL budget | 1 | 82.1 (5th) | 79.5 | 6th, 69 | 3.34 | 96 |
+| Underdogs classic | 3 | 80.2 (3rd) | 76.2 | 1st, 96 | 3.56 | 96 |
+| Underdogs budget | 3 | 78.8 (5th) | 76.3 | 13th, 45 | 3.49 | 92 |
+| 2010–2015 budget | 5 | 79.6 (8th) | 78.7 | 11th, 44 | 3.34 | 99 |
+| No stars budget | 4 | 77.0 (6th) | 75.3 | 5th, 70 | 3.08 | 83 |
+
+  Themed leagues score like a classic draft league (3.1-3.6; Underdogs at the top, weaker
+  defenders); draws 16-22%, home wins 39-43%. Engine untouched (no calibrate needed).
+- Mobile: Playwright at 390x844 and 1280x800 through options, a budget draft's first picks: no
+  horizontal scroll, no console errors, every button ≥ 40px.
+- Seen, not changed: in a classic league the last sides drawn can have thin benches (0-3 subs once
+  earlier sides have taken shared players; Serie A worst); themed leagues are fuller (4+).
 
 ## Done (session 26, later): 4-2-3-1 levelled
 

@@ -280,6 +280,22 @@ pulling the repo.
   LEFT_FOOTED / WEAK_FOOT / ARCHETYPE tables merged in pools.ts. POOLS keeps the Premier League
   first (saves refer to pools by index). A draft is of one league (`Draft.league`, `Season.league`).
   Check a squads file with `node scripts/check-squads.ts <file>`; names must match across files.
+- Draft variety (session 27, draft.ts; chosen on the draft's start screen, classic stays the default).
+  Themed drafts (`THEMES`, `Draft.theme`): club-seasons of all five leagues, filtered (`themePools`):
+  three eras by season start (2010-14, 2015-19, 2020-24), Underdogs (no `TOP_CLUBS` club-season),
+  No stars (players over `NO_STARS_CAP` 80 left out of offers, the league and cup guests; club-seasons
+  that keep 18 with two keepers). A themed draft has no `league`; its league and its European Cup's
+  twelve guests (`themedGuests`, cup.ts: stronger half, clubs not in the league) come from the same
+  filter (`draftPools`, `poolTeam(..., theme)`). Budget draft (`Draft.money`, £m): `budgetFor` buys
+  eleven at `leagueLevel` + `BUDGET_EDGE` 1 at `priceOf` (£1m to 74, doubling every 4 overall) plus
+  nine at `MIN_PRICE` (PL £85m, Ligue 1 £45m, No stars £35m); `place` charges `priceIn` and refuses
+  more than `spendable` (money less `reserveFor`, £1m for each later round), and if nobody in an
+  offer is affordable the cheapest costs what's left, so a squad is always completed. Daily
+  (`Draft.daily`): the seed is `dailySeed(today())` (UTC date), so offers match for everyone with
+  the same options; App seeds the season with `d.seed`. Saves: optional `Season.draftStyle` {theme,
+  budget, daily} (labels via `draftEyebrow`, cup guests); no version bump. `node scripts/diag-draft.ts
+  [n] [seed]`: each league and theme's budget, league elevens, a greedy classic and budget eleven
+  (`scripts/greedy-draft.ts`) and its rank; sim-season takes `--theme=<id>` and `--budget`.
 - Knockout matches (session 16): `MatchConfig.knockout` ({ carried } from a first leg). Level on
   aggregate after 90 goes to extra time (`period` 3 and 4, 15 minutes each; `half` stays the
   direction), then penalties (`MatchState.shootout`): each kick is an ordinary penalty restart at
