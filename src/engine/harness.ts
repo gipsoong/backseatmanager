@@ -46,6 +46,8 @@ import {
   OVERRUN,
   SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
+  CLEAR_IN,
+  CLEAR_WIDE,
 } from './constants.ts'
 import { frameOf, runMatch } from './match.ts'
 import type { Frame, MatchConfig, MatchEvent, MatchState, Side, TeamDef } from './types.ts'
@@ -341,6 +343,12 @@ export function checkMatch(
           (o, i) => o.team !== team(e.byIdx) && o.slot.role !== 'GK' && P.players[i].onPitch && dist(P.players[i], P.players[e.byIdx]) < TIGHT_MARK - 0.01 && attackX(P.players[i].x, team(e.byIdx), half) > mx + 0.01,
         )
         if (away && tight) v('shot-on-the-spin', `${e.byIdx} shot going away from goal at ${speed.toFixed(1)}m/s with a man on his back`)
+      }
+      // A clearance lands in play, unless a man out wide (not the keeper) means to put it out.
+      if (e.type === 'clearance' && !e.header) {
+        const wide = Math.abs(e.from.y - CENTER.y) > CLEAR_WIDE && s.players[e.byIdx].slot.role !== 'GK'
+        const inPlay = e.target.y >= CLEAR_IN - EPS && e.target.y <= PITCH_WIDTH - CLEAR_IN + EPS && e.target.x >= 0 && e.target.x <= PITCH_LENGTH
+        if (!wide && !inPlay) v('clearance-in-play', `clearance by ${e.byIdx} from ${fmt(e.from)} aimed out of play at ${fmt(e.target)}`)
       }
       if (e.type === 'pass') {
         // Open play only: a throw-in or free kick to the man who won it starts a new move.

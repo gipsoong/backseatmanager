@@ -95,3 +95,6 @@ export const OVERLAP_TO = 92
 /** A carrier going away from goal faster than this (m/s) with a man within TIGHT_MARK (m) goal-side of him can't shoot until he turns. */
 export const BACK_TO_GOAL_SPEED = 1
 export const TIGHT_MARK = 2.5
+/** A clearance lands at least this far (m) inside the touchline; only a man this far (m) off the middle kicks it out on purpose. */
+export const CLEAR_IN = 4
+export const CLEAR_WIDE = 10

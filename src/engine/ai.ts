@@ -57,10 +57,12 @@ import {
   PASS_ARRIVAL_SPEED,
   SLIDE_TACKLE_DISTANCE,
   TACKLE_RANGE,
+  CLEAR_IN,
+  CLEAR_WIDE,
 } from './constants.ts'
 import { type BallMotion, loftTime, shotVz } from './physics.ts'
 import type { Archetype } from './archetypes.ts'
-import type { Foot, MatchState, PlayerState, Restart, Role, Side } from './types.ts'
+import type { Block, Foot, MatchState, PlayerState, Restart, Role, Side } from './types.ts'
 
 // ---------------------------------------------------------------------------
 // Frames and lookups
@@ -232,6 +234,7 @@ interface Snapshot {
   path?: BallPath
   arrivals?: Map<number, { ticks: number; point: BallPoint }>
   corner?: { r: Restart; plan: Map<number, Vec> }
+  blocks?: (Block | undefined)[]
   /** Marks this snapshot's entries in the pair-distance buffers. */
   stamp: number
 }
@@ -710,7 +713,7 @@ function choose(s: MatchState, p: PlayerState, opts: ChooseOpts): Action {
     }
   }
   passOptions(d, consider)
-  if (d.a.x > 35) throughBallOptions(d, consider)
+  throughBallOptions(d, consider)
   if (d.a.x > 72 && Math.abs(d.a.y - CENTER.y) > 10 && !opts.passFilter) {
     for (const o of crossesIntoSpace(s, p, d.a, d.offside, opts.maxPass)) {
       consider({ action: { kind: 'pass', toIdx: o.toIdx, target: o.target, lofted: o.lofted }, u: o.u })
@@ -984,8 +987,12 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
   return opponentsOf(s, p.team).some((o) => o.slot.role !== 'GK' && dist(o.pos, p.pos) < TIGHT_MARK && afX(s, p.team, o.pos) > pa)
 }
 
-/** How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone else is to try it from distance. */
-const EAGER = 0.65
+/**
+ * How keen everyone is to shoot, before flair and skill; and how much keener than forwards everyone
+ * else is to try it from distance. (0.65 until session 24: with the blocks level there were fewer
+ * shots, ~12 a team, and too many of them headers.)
+ */
+const EAGER = 0.75
 /**
  * How readily each position shoots when it has a chance: wide men and holding midfielders have a
  * go, central midfielders more often look for the pass.
@@ -1033,6 +1040,9 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   return { kind: 'shot', target, xg: q, height, finesse, foot, footQ }
 }
 
+/** A ball in behind can be this much (m) longer than an ordinary pass: over the top from deep. */
+const THROUGH_EXTRA = 15
+
 /** Passes longer than this (m) are long passes: longPassing, and only on if he sees them (vision). */
 const LONG_PASS = 25
 
@@ -1059,9 +1069,11 @@ const judgedLooseness = (passing: number): number => passLooseness(14 + (passing
  * How far off a finisher's aim goes (a multiplier on the spread), by his finishing. A poor finisher
  * sprays it (steep below 14); better ones are more accurate, but only so much: the best beat their
  * xG by 15-20% over a season, not half again. (At 0.025 a point above 14, finishers of 19-20 scored
- * 1.4 times their non-penalty xG.)
+ * 1.4 times their non-penalty xG.) FINISHING_SPREAD scales the lot: at 1, with the blocks level
+ * (session 24), goals fell to 0.8-0.9 of xG (real ~1).
  */
-export const finishingError = (finishing: number): number => Math.max(0.35, 0.56 - (finishing - 14) * (finishing > 14 ? 0.012 : 0.055))
+const FINISHING_SPREAD = 0.9
+export const finishingError = (finishing: number): number => FINISHING_SPREAD * Math.max(0.35, 0.56 - (finishing - 14) * (finishing > 14 ? 0.012 : 0.055))
 
 /**
  * From the spot: picks a side and places it, low or high, well inside the post. Nobody's closing
@@ -1083,16 +1095,26 @@ function penaltyKick(d: Decision): Action {
 /**
  * Under pressure deep in our own half with nothing on (or a keeper with it in his hands): long,
  * and away from whoever is closing him down. Of a spread of directions (upfield first, then
- * towards the touchlines), the one whose first few metres are clearest.
+ * towards the touchlines), the one whose first few metres are clearest, landing in play: one
+ * angled wide is hit only as far as CLEAR_IN from the touchline. Out wide, a defender (not the
+ * keeper) puts it out of play on purpose if he can. (From the middle, clearing the nearest clear
+ * way whatever the touchline sent ~10 a match into touch against a high press, each a throw-in
+ * to the pressing side in our half.)
  */
 function clearanceTarget(d: Decision): Vec {
   const { s, p, rng, ball, a, opps } = d
   const keeper = p.slot.role === 'GK'
   const len = rng.range(35, 55)
+  const candidates: Vec[] = []
   // Out wide, a defender under pressure (not the keeper) puts it out of play if he can.
   const touchSide = Math.sign(a.y - CENTER.y)
-  const angles = !keeper && Math.abs(a.y - CENTER.y) > 18 ? [touchSide * 1.3, 0, 0.35 * touchSide, 0.7 * touchSide] : [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]
-  const candidates = angles.map((angle) => wfXY(s, p.team, a.x + Math.cos(angle) * len, a.y + Math.sin(angle) * len))
+  if (!keeper && Math.abs(a.y - CENTER.y) > CLEAR_WIDE) candidates.push(wfXY(s, p.team, a.x + Math.cos(touchSide * 1.3) * len, a.y + Math.sin(touchSide * 1.3) * len))
+  for (const angle of CLEAR_ANGLES) {
+    const sy = Math.sin(angle)
+    const room = sy > 0 ? (PITCH_WIDTH - CLEAR_IN - a.y) / sy : sy < 0 ? (CLEAR_IN - a.y) / sy : Infinity
+    const l = Math.min(len, room)
+    if (l >= CLEAR_SHORTEST) candidates.push(wfXY(s, p.team, a.x + Math.cos(angle) * l, a.y + sy * l))
+  }
   const clearance = (target: Vec): number => {
     const near = lerp(ball, target, Math.min(1, 6 / Math.max(dist(ball, target), 1)))
     let gap = Infinity
@@ -1104,6 +1126,9 @@ function clearanceTarget(d: Decision): Vec {
   }
   return candidates.find((t) => clearance(t) > 2) ?? candidates.reduce((x, y) => (clearance(y) > clearance(x) ? y : x))
 }
+const CLEAR_ANGLES = [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]
+/** A clearance angled wide goes at least this far (m), or that way is left out. */
+const CLEAR_SHORTEST = 25
 
 /**
  * Worth of moving the ball 25 m upfield, on top of the threat where it ends up. Deep in our half the
@@ -1162,7 +1187,8 @@ function throughBalls(d0: Decision, q: PlayerState, qa: Vec, consider: (o: Optio
     if (spotA.x < qa.x + 3) continue
     const target = wf(s, p.team, spotA)
     const d = dist(ball, target)
-    if (d < 8 || d > maxPass + 5) continue
+    // Over the top from deep can be a long one.
+    if (d < 8 || d > maxPass + THROUGH_EXTRA) continue
     // Over the top only to land outside the box: in it, it's the keeper's.
     // and in from the touchline: a dropping ball skids on and out.
     const canLoft = d >= 18 && spotA.x < PITCH_LENGTH - BOX_DEPTH - 2 && Math.abs(spotA.y - CENTER.y) < CENTER.y - 10
@@ -1339,8 +1365,59 @@ const BLOCK_ENGAGE = 10
 /** ...but only with the ball this far from his own goal (m): nearer it, someone always goes to the man on the ball. */
 const SHAPE_FROM = 65
 
-/** How far from its own goal each block holds its line out of possession (m): lowest, highest. */
-const BLOCK_LINES = { low: [14, 32], mid: [20, 42], high: [26, 55] } as const
+/**
+ * How far from its own goal each block holds its line out of possession (m): lowest, highest. A
+ * low block holds at the edge of its box (14 left it on its six-yard line once it dropped off an
+ * unpressured ball, the attackers onside in the box in front of it).
+ */
+const BLOCK_LINES = { low: [17, 36], mid: [20, 42], high: [26, 55] } as const
+
+/**
+ * A high block presses and squeezes up in bursts: for PRESS_SPELL seconds after its side loses the
+ * ball (or the opponents restart), then it settles into a mid block until it has the ball again.
+ * Pressed and squeezed all the time, a high block was worth ~1.1 goals of xG a match more than a
+ * mid one and ~1.9 more than a low one, at equal strength: the side it pressed never got out, and
+ * nothing in the engine made it pay (real sides can't keep a press on for a whole spell either).
+ */
+const PRESS_SPELL = 4
+/** For this long (s) after losing the ball (or an opponent's restart) any side's nearest man presses it, wherever it is. */
+const COUNTER_PRESS = 5
+
+/** The block a side is playing right now: a high one between its bursts plays as a mid one. */
+function blockNow(s: MatchState, team: Side): Block {
+  const block = s.teams[team].block
+  if (block !== 'high') return block
+  const snap = snapOf(s)
+  const cached = snap?.blocks?.[team]
+  if (cached) return cached
+  const v: Block = sinceLost(s, team) <= PRESS_SPELL ? 'high' : 'mid'
+  if (snap) (snap.blocks ??= [])[team] = v
+  return v
+}
+
+/**
+ * Seconds since `team` lost the ball, or since the opponents restarted (up to a minute): the
+ * latest of its own last touch of possession, an opponent's restart, or a goal.
+ */
+function sinceLost(s: MatchState, team: Side): number {
+  const limit = s.tick - 60 / DT
+  for (let i = s.events.length - 1; i >= 0; i--) {
+    const e = s.events[i]
+    if (e.tick < limit) break
+    if (e.type === 'goal' || (e.type === 'possession' && (s.players[e.idx].team === team || e.via === 'restart'))) return (s.tick - e.tick) * DT
+  }
+  return 60
+}
+
+/**
+ * A low block near its own box (the ball within LOW_COMPACT_FROM m of its goal) closes up: LOW_LENGTH
+ * m from back to front and narrower (LOW_WIDTH, of the usual 0.7), so the space in and around the box
+ * is shut. Otherwise a low block only conceded more of the pitch than a mid one, and every attack
+ * that reached its third was as dangerous as against a mid block.
+ */
+const LOW_COMPACT_FROM = 45
+const LOW_LENGTH = 16
+const LOW_WIDTH = 0.6
 
 /** With the ball past here (m), the holding midfielder steps up to DM_EDGE from goal (an anchor 30). */
 const DM_STEP_UP = 76
@@ -1383,18 +1460,22 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     length = 42 + Math.max(0, b.x - 70) * 0.4
     widthK = 1.05
   } else {
-    const lines = BLOCK_LINES[s.teams[team].block]
+    const block = blockNow(s, team)
+    const lines = BLOCK_LINES[block]
     const lo = lines[0]
     const hi = lines[1]
-    // No pressure on the ball: he has time to pick a pass in behind, so the line drops off.
+    // No pressure on the ball: he has time to pick a pass in behind, so the line drops off; a low
+    // block's no further than the edge of its box. (Holding mid and high lines there too cost ~0.1
+    // xG a team a match, from ~1.35 between two mid blocks.)
     const unpressured = ballUnpressured(s, team)
     // Never hold a line further out than the ball: drop towards the six-yard box when it's deep.
-    lineX = Math.min(clamp(b.x - 22, lo, hi) - (unpressured ? 7 : 0), Math.max(b.x - 2, 4))
+    lineX = Math.min(Math.max(clamp(b.x - 22, lo, hi) - (unpressured ? 7 : 0), block === 'low' ? lo : -Infinity), Math.max(b.x - 2, 4))
     // Ball wide near our byline: drop to the six-yard box, where the crosses are aimed.
     if (b.x < 24 && Math.abs(b.y - CENTER.y) > 10) lineX = Math.min(lineX, 6)
     // A compact block: about 26 m from back line to front (30 left too much room between the lines).
-    length = 26
-    widthK = 0.7
+    const compact = block === 'low' && b.x < LOW_COMPACT_FROM
+    length = compact ? LOW_LENGTH : 26
+    widthK = compact ? LOW_WIDTH : 0.7
   }
   const arch = p.archetype
   // Out of possession with the ball in their half, wingers track back into the midfield line (a
@@ -1616,15 +1697,16 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
   }
   if (chasers.get(p.idx) === 0) {
     const oa = af(s, p.team, owner.pos)
-    const block = s.teams[p.team].block
     // The better side presses higher, the weaker one sits off: the ball goes to the better side.
-    const pressLine = PRESS_LINES[block] + PRESS_BY_EDGE * edgeOf(s, p.team)
+    const block = s.teams[p.team].block
+    const pressLine = (block === 'high' && blockNow(s, p.team) !== 'high' ? HIGH_SETTLED_PRESS : PRESS_LINES[block]) + PRESS_BY_EDGE * edgeOf(s, p.team)
     const goalSide = norm(sub(ownGoalOf(s, p.team), owner.pos))
     const t = p.def.traits
     // A hard-working presser pushes the press a little higher up the pitch.
     // A ball-winner hunts it higher still, and gets tighter.
     const winner = p.archetype === 'ballWinner'
-    const pressing = oa.x <= pressLine + t.workRate * 8 + (winner ? 10 : 0)
+    // Straight after losing it, whatever the block, the nearest man goes to the ball (the counter-press).
+    const pressing = oa.x <= pressLine + t.workRate * 8 + (winner ? 10 : 0) || sinceLost(s, p.team) <= COUNTER_PRESS
     // Behind the press line the block holds its shape: nobody leaves it to run out at a man on the
     // ball in his own third. He's met once he carries it up to the man whose zone it is.
     const zone = shapeTarget(s, p, false)
@@ -1638,6 +1720,8 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
 }
 
 const PRESS_LINES = { low: 38, mid: 55, high: 105 }
+/** Between its bursts a high block still meets the ball this far (m) from its own goal, higher than a mid block. */
+const HIGH_SETTLED_PRESS = 60
 
 /** In possession, a man keeps this far from a teammate (m): two on one spot offer one pass, not two. */
 const SPACING = 4

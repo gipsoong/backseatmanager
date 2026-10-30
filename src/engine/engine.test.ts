@@ -160,6 +160,21 @@ describe('the harness catches inconsistencies', () => {
     expect(violations.some((v) => v.rule === 'ping-pong')).toBe(true)
   })
 
+  it('flags a clearance aimed out of play from the middle', () => {
+    const [h, a] = teams(1)
+    let done = false
+    const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 10 }, {
+      tamper: (s) => {
+        const e = s.events.find((r) => r.tick === s.tick && r.type === 'clearance' && !r.header)
+        if (done || e?.type !== 'clearance' || Math.abs(e.from.y - 34) > 10) return
+        e.target = { x: e.target.x, y: -6 }
+        done = true
+      },
+    })
+    expect(done).toBe(true)
+    expect(violations.some((v) => v.rule === 'clearance-in-play')).toBe(true)
+  })
+
   it('flags a ball that leaves the pitch without going out of play', () => {
     const [h, a] = teams(1)
     const { violations } = checkMatch(h, a, { seed: 1, halfLengthMinutes: 2 }, {
