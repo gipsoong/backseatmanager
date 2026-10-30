@@ -992,7 +992,13 @@ export function backToGoal(s: MatchState, p: PlayerState): boolean {
  * else is to try it from distance. (0.65 until session 24: with the blocks level there were fewer
  * shots, ~12 a team, and too many of them headers.)
  */
-const EAGER = 0.75
+const EAGER = 0.9
+/**
+ * Keener in the box, less from range (session 24): with the blocks level, career leagues scored
+ * ~2.4 a match and 41% of shots came from outside the box (real ~35-40%).
+ */
+const BOX_KEEN = 1.15
+const RANGE_KEEN = 0.85
 /**
  * How readily each position shoots when it has a chance: wide men and holding midfielders have a
  * go, central midfielders more often look for the pass.
@@ -1018,7 +1024,7 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const freeKick = (opts.maxShotDistance ?? 0) > MAX_SHOT_DISTANCE
   const inBox = a.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(a.y - CENTER.y) < BOX_HALF_WIDTH
   const skill = freeKick ? attrs.freeKicks : inBox ? attrs.finishing : attrs.longShots
-  const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (freeKick ? 1 : SHOOTING[p.slot.role])
+  const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (freeKick ? 1 : SHOOTING[p.slot.role] * (inBox ? BOX_KEEN : RANGE_KEEN))
   // Patience in their third is for choosing passes, not for passing up a shot.
   // Two or more up, he takes fewer chances on (LEAD_SHOTS less keen at four up). The premium on
   // keeping the ball in their third (ATTACKING_KEEP) is for choosing passes: a shot only partly gives it up.
@@ -1072,7 +1078,7 @@ const judgedLooseness = (passing: number): number => passLooseness(14 + (passing
  * 1.4 times their non-penalty xG.) FINISHING_SPREAD scales the lot: at 1, with the blocks level
  * (session 24), goals fell to 0.8-0.9 of xG (real ~1).
  */
-const FINISHING_SPREAD = 0.9
+const FINISHING_SPREAD = 0.85
 export const finishingError = (finishing: number): number => FINISHING_SPREAD * Math.max(0.35, 0.56 - (finishing - 14) * (finishing > 14 ? 0.012 : 0.055))
 
 /**

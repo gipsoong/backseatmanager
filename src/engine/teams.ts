@@ -46,8 +46,9 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CB', 0, 26),
     s('FB', 0, 8, 0.35),
     s('DM', 0.25, 41),
-    // The second steps up with the ball (at 0.3 + 0.2 the shape was ~0.3 xG a match short).
-    s('DM', 0.35, 27, 0.3),
+    // The second steps up with the ball (at 0.3 + 0.2 the shape was ~0.3 xG a match short; at 0.35 + 0.3
+    // ~0.2 short once the blocks were level, session 24).
+    s('DM', 0.4, 27, 0.4),
     s('W', 0.8, 56, 0.2),
     s('CM', 0.7, 34, 0.15),
     s('W', 0.8, 12, 0.2),
