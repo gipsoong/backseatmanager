@@ -473,7 +473,8 @@ pulling the repo.
   elevens are equal; since session 26 `counterPressFor` scales it by `qualityGap` (the elevens' average
   overall at kick-off, made-up players net of `ROLE_OFFSET`, which moved to attributes.ts): up to twice
   as long for the better side, none for one `COUNTER_PRESS_SPAN` (6) worse. It's the one place quality
-  steers tactics; mirror tests (same squad) are unaffected, as the gap is 0. A low
+  steers tactics, with the cynical foul (match.ts: an outclassed side pulls a man back on a break up to
+  twice as often, which kept fouls at ~9); mirror tests (same squad) are unaffected, as the gap is 0. A low
   block's line never drops below 17 m (the box edge, not the six-yard line) and, with the ball
   inside `LOW_COMPACT_FROM`, closes up (`LOW_LENGTH` 16 m long, `LOW_WIDTH`). Clearances: a wide
   defender goes for touch, anyone else aims inside the pitch (`CLEAR_IN`, `CLEAR_WIDE`; harness
