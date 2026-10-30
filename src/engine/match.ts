@@ -883,7 +883,10 @@ function header(s: MatchState, p: PlayerState, contact: Vec, height: number, out
   }
   // A good header of the ball sends it further and where he means it to go.
   const reach = 10 + p.attrs.heading * 0.8
-  const target = wf(s, p.team, vec(a.x + rng.range(reach - 5, reach + 5), a.y + rng.range(-12, 12) * (1.3 - p.attrs.heading / 20 * 0.6)))
+  // Away from the middle, towards the near touchline, the safe side: high and wide. (Headed
+  // straight back up the middle, few went out of play: throw-ins were short of the real 15-25.)
+  const awaySide = Math.sign(a.y - CENTER.y) || 1
+  const target = wf(s, p.team, vec(a.x + rng.range(reach - 5, reach + 5), a.y + (rng.range(-12, 12) + awaySide * HEADED_WIDE) * (1.3 - p.attrs.heading / 20 * 0.6)))
   const d = dist(contact, target)
   const time = 1.3
   kick(s, p, 'clearance', target, d / time, null, null, { lofted: true, vz: shotVz(-height, time) })
@@ -1074,6 +1077,13 @@ const FOUL_BASE = 0.14
 /** How readily a defender goes in for a tackle in his own third, against elsewhere. */
 const OWN_THIRD_TACKLING = 0.75
 /**
+ * ...and up the pitch, where forwards counter-press a ball they've just lost. (At 3, with a high
+ * block no longer pressing all the time, only ~6% of tackles were in the final third; real 8-22%.)
+ */
+const FINAL_THIRD_TACKLING = 6
+/** How far (m, before his heading's spread) a defensive header is aimed out towards the near touchline. */
+const HEADED_WIDE = 14
+/**
  * A through ball's error, times an ordinary pass's: weighting one into the space behind a line is
  * hard (real ones find their man ~40-55% of the time; without this, ~65%).
  */
@@ -1108,7 +1118,7 @@ function challenges(s: MatchState, out: MatchEvent[]): void {
   const ownThird = af(s, o.team, c.pos).x < 35
   // A poor tackler jockeys rather than dives in: a forward goes in about half as often as a centre-back.
   const willing = clamp(0.4 + (o.attrs.standingTackle - 6) * 0.1, 0.4, 1.4)
-  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? 3 : ownThird ? OWN_THIRD_TACKLING : 1) * willing)) return
+  if (!rng.chance((0.007 + traits.aggression * 0.017) * (finalThird ? FINAL_THIRD_TACKLING : ownThird ? OWN_THIRD_TACKLING : 1) * willing)) return
 
   const oa = o.attrs
   const ca = c.attrs
