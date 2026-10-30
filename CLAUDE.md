@@ -299,7 +299,8 @@ pulling the repo.
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
   are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Session 23 levelled them (all within ~0.1 xGD a match at equal strength, was
   -0.49 to +0.24): 4-4-2's centre-midfielders get forward a little (`attackDepth` 0.15), 4-2-3-1's
-  second pivot steps up (0.35 + 0.3), 3-4-3's midfield two stand as high as a 4-3-3's (0.5 + 0.2) and
+  second pivot steps up (session 26: a centre-midfielder at 0.4 + 0.4, a "6 and an 8", with the No. 10
+  at 0.55 + 0.3 so he drops in beside it out of possession), 3-4-3's midfield two stand as high as a 4-3-3's (0.5 + 0.2) and
   its wide forwards play inside the wing-backs (y 52/16). Block height is not level: see PROGRESS.
   Random clubs use all six; check a shape change with
   `calibrate` and a per-formation shots comparison, as one-striker shapes were once far weaker.

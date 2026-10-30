@@ -10,8 +10,38 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
-more (session 26). Next: in-match management
+more, 4-2-3-1 levelled (session 26). Next: in-match management
 (on hold at the owner's request).
+
+## Done (session 26, later): 4-2-3-1 levelled
+
+Same branch. 4-2-3-1 was the weakest shape on both seed sets (-0.15 to -0.18 xGD against the rest,
+both ends: least xG for, most against), and the spread at 200 a pair was 0.33 on seed 1001.
+- What it lacked: its second holding midfielder. As a DM, however far he stepped up (0.35-0.45 +
+  0.3-0.45), he took shots from range (DMs took ~3x the 4-3-3's DM's shots) and never arrived in the
+  box: fewer final-third entries (49 vs 4-3-3's 59 a match) and box shots (6.9 vs 8.2). Now he's a
+  centre-midfielder (CM, 0.4 + 0.4), a "6 and an 8" (`4-2-3-1` +0.13 xGD with only this). The No.
+  10 drops in beside the pivot out of possession (0.55 + 0.3, was 0.7 + 0.15: he stood ~7 m ahead
+  of it with the ball in our third); worth ~+0.05 with the CM, nothing alone. Tried and dropped: runs
+  in behind from the No. 10 (worse), wingers higher (0.85: worse), a less adventurous second DM
+  (0.35 + 0.3: -0.1 worse). The draft's blurb reads "A holding midfielder and a box-to-box one".
+- Formations, 200 a pair (1000 matches a shape, ±0.04), xGD against the rest:
+
+| | 4-4-2 | 4-3-3 | 4-2-3-1 | 4-1-4-1 | 3-5-2 | 3-4-3 | spread |
+|---|---|---|---|---|---|---|---|
+| seed 1001, before | +0.06 | +0.06 | -0.18 | +0.15 | -0.03 | -0.06 | 0.33 |
+| seed 1001, after | +0.03 | +0.06 | -0.07 | +0.09 | -0.03 | -0.09 | 0.18 |
+| seed 1, after | -0.04 | +0.05 | -0.14 | +0.04 | +0.07 | +0.03 | 0.21 |
+
+  (Seed 1 before at 100 a pair: 4-2-3-1 -0.18, spread 0.25.) 100 a pair is ±0.08 between equivalent
+  match sets (home and away swapped): judge a shape at 200.
+- Blocks (`diag-formations 200 <seed> block`, seeds 1 / 1001): low v mid -0.20 / -0.13, low v high
+  -0.19 / -0.27, mid v high -0.07 / -0.09 (session 24: -0.19 / -0.10, -0.16 / -0.29, -0.14 / -0.05).
+- calibrate 80 1 / 201: 31/31 and 30/31 (won by 4+ 11.3%), zero violations. tsc; vitest 104/104.
+- Career sims (seeds 1-3, five seasons): goals a match 2.52-3.00, mean 2.76 (was 2.51-2.94, 2.70:
+  4-2-3-1 sides score more; two first seasons at 2.99 and 3.00); top scorer 22-40 (39 and 40 once
+  each); best side 80-98, mean 87.1, none under 80; league eleven S1 -> S5 -0.01, -0.17, +0.17;
+  wages/income 0.90-0.95; per 90 DEF 0.03-0.05, MID 0.13-0.16, FWD 0.32-0.37.
 
 ## Done (session 26): a modest edge for quality
 
