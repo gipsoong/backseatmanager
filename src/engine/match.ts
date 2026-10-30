@@ -1080,7 +1080,7 @@ const OWN_THIRD_TACKLING = 0.75
  * ...and up the pitch, where forwards counter-press a ball they've just lost. (At 3, with a high
  * block no longer pressing all the time, only ~6% of tackles were in the final third; real 8-22%.)
  */
-const FINAL_THIRD_TACKLING = 6
+const FINAL_THIRD_TACKLING = 7
 /** How far (m, before his heading's spread) a defensive header is aimed out towards the near touchline. */
 const HEADED_WIDE = 14
 /**
