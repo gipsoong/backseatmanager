@@ -79,41 +79,46 @@ clearances and where they go, shot sources, line height, spells by where they st
     Harness: `clearance-in-play`.
   - Defensive headers go away from the middle.
   - Through balls can come from anywhere and reach 15 m beyond a pass.
-  - To get back the goals the level blocks cost: shot eagerness is 0.75 and finishing spread 0.9;
-    final-third tackling is 6.
+  - 4-2-3-1's second pivot gets forward more (0.4 + 0.4, was 0.35 + 0.3).
+  - Shooting retuned for the quieter games. Shots now come more from the box (36-39% from range,
+    was 41-42%). Settings: `EAGER` 0.9, `BOX_KEEN` 1.15, `RANGE_KEEN` 0.85, finishing spread 0.85.
+    Final-third tackling is 7.
 - One squad against itself, xGD a match (`diag-formations 200 <seed> block`):
 
 | | before (seed 1) | after: seed 1 / 1001 |
 |---|---|---|
-| low v mid | -0.70 | -0.10 / -0.14 |
-| low v high | -2.00 | -0.15 / -0.26 |
-| mid v high | -1.16 | +0.01 / -0.02 |
-| low, high against the rest | -1.35, +1.58 | -0.12 / -0.20, +0.07 / +0.14 |
+| low v mid | -0.70 | -0.19 / -0.10 |
+| low v high | -2.00 | -0.16 / -0.29 |
+| mid v high | -1.16 | -0.14 / -0.05 |
+| low, high against the rest | -1.35, +1.58 | -0.18 / -0.20, +0.15 / +0.17 |
 
-  The low block is still a little the weakest (~0.15). It holds a 17-22 m line and has less of the
+  The low block is still a little the weakest (~0.2). It holds a 17-22 m line and has less of the
   ball. The high block keeps ~3 final-third regains a match against mid's ~1.7, and a higher line.
+- Formations at equal strength (`diag-formations 100 1`):
+
+| 4-4-2 | 4-3-3 | 4-2-3-1 | 4-1-4-1 | 3-5-2 | 3-4-3 |
+|---|---|---|---|---|---|
+| 0.00 | 0.00 | -0.14 | +0.09 | +0.04 | +0.01 |
+
+  The spread is 0.23. Before the pivot change, 4-2-3-1 was -0.23 on seed 1 and -0.18 on 1001.
 - **Checks.**
-  - calibrate 80 1 / 201: 31/31 and 30/31 (won by 4+ 11.3%), zero violations.
-  - tsc passes; vitest 88/88.
-  - Matches are tighter at equal blocks: shots 14.1 -> ~12.5 a team, goals 1.5 -> 1.4.
-- **Open: 4-2-3-1 slipped.** Formations at equal strength (`diag-formations 100 1`):
-  - 4-4-2 +0.05, 4-3-3 +0.01, 4-2-3-1 -0.23, 4-1-4-1 +0.10, 3-5-2 0.00, 3-4-3 +0.06.
-  - The spread is 0.33, over the ~0.2 target. 4-2-3-1 was -0.02 in session 23.
-  - This is one seed set; confirm on 1001 before tuning its pivots.
-- **Open: career goals are low.** Career sims (seeds 1-3, five seasons, run with a 4 s press
-  spell):
+  - calibrate 80 1 / 201: 30/31 and 31/31, zero violations.
+  - Seed 1's miss is won by 4+ at 11.3%. Over both sets it averages 7.6%, was 8.1%.
+  - Goals 1.5 a team, shots 13.3.
+  - tsc passes; vitest 104/104.
+- Career sims (seeds 1-3, five seasons):
 
 | | session 23 | session 24 | target |
 |---|---|---|---|
-| Goals a match | 2.61-2.92 | 2.13-2.66, mean 2.43 | 2.5-2.9 |
-| Top scorer | 23-37 | 18-34 | 22-35 |
-| Best side | 79-107 | 74-93 | 80-100 |
-| League eleven, S1 -> S5 | -0.1, 0.0, +0.2 | -0.2, -0.1, +0.2 | ±1 |
-| Per 90 regulars DEF / MID / FWD goals | 0.02-0.04 / 0.12-0.16 / 0.32-0.42 | 0.03-0.04 / 0.11-0.15 / 0.24-0.36 | |
+| Goals a match | 2.61-2.92 | 2.45-2.82, mean 2.64 | 2.5-2.9 |
+| Top scorer | 23-37 | 21-34 | 22-35 |
+| Best side | 79-107 | 74-92 | 80-100 |
+| League eleven, S1 -> S5 | -0.1, 0.0, +0.2 | -0.1, 0.0, +0.1 | ±1 |
+| Per 90 regulars DEF / MID / FWD goals | 0.02-0.04 / 0.12-0.16 / 0.32-0.42 | 0.03-0.05 / 0.12-0.15 / 0.27-0.38 | |
 
-  The best sides no longer run away with it (seed 1's Ashford was the high block), but the league
-  scores ~0.2-0.3 a match too few. That needs a global retune of finishing or chance creation,
-  checked against calibrate, rather than a block change.
+  The best sides no longer run away with it: seed 1's Ashford had been the high block. But five
+  champions of fifteen are under 80 points (seed 3: 76, 74, 76; seed 1: 79, 78), so leagues are a
+  little too level. Open: let strength count for a little more, not shape.
 
 ## Done (session 23): formation balance; block height is the big imbalance
 

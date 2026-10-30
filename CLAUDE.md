@@ -476,5 +476,8 @@ pulling the repo.
   `clearance-in-play`); defensive headers go away from the middle (`HEADED_WIDE`). Measure with
   `diag-formations <n> <seed> block` and `node scripts/diag-blocks.ts <blockA> <blockB> [n] [seed]`
   (regains by third, clearances and where they go, shot sources, line height, spells by start).
+  Level blocks made for quieter games, so shooting was retuned along with them: `EAGER` 0.9, keener
+  in the box than from range (`BOX_KEEN` 1.15, `RANGE_KEEN` 0.85), `FINISHING_SPREAD` 0.85 (ai.ts),
+  and `FINAL_THIRD_TACKLING` 7 (match.ts). Career leagues score ~0.88 of calibrate's goals a match.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
