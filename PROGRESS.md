@@ -8,8 +8,48 @@ Updated at the end of each session. Keep this short — current state, not a ful
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
 (session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
-every mode (session 22); formations levelled (session 23). Next: **block balance** (below), contracts,
-in-match management (on hold at the owner's request).
+every mode (session 22); formations levelled (session 23); career depth: contracts, free agents, a
+domestic cup, the manager's record (session 25). Next: **block balance** (session 23), in-match
+management (on hold at the owner's request).
+
+## Done (session 25): career depth
+
+On branch `wip/career-depth` (career and UI only; the engine untouched). Save version 5. See CLAUDE.md
+"Career depth" for the mechanics.
+
+- **Contracts**: every career player has one (until a summer, a wage). The Contracts tab lists the
+  manager's expiring deals (renew at the asked wage and length, or let go; the hub's season-over card
+  warns about undecided ones), the free agents and the squad's contracts. Other clubs keep ~75% of
+  their expiring players. A last-year player sells at 0.6 of his value, two years left 0.85.
+- **Free agents**: expired, released and six made-up players a summer, up to 60 kept for the season.
+  Other clubs fill ~1 in 5 of their summer places from them (the best for their eleven, near the
+  level they'd sign at); the manager signs any left during a window, for wages only, if he can
+  afford a season of them and a player of his eleven's level would start.
+- **Domestic cup**: all twenty clubs, one leg, extra time and penalties; the eight weakest play a first
+  round, then open draws; midweek before matchdays 6, 13, 19, 26, 32. A Cup tab, the tie in the
+  hub's next card (Watch / Just the result), a round without the manager played first on its own.
+  Cup matches carry fitness and injuries but not league stats. Winners in history and trophies.
+- **Manager record** at the top of History: seasons, trophies, win % (league and cup), board targets
+  met, best finish; a cup column (Won/F/SF/QF/L16/R1) in the seasons table.
+- Tests: `contracts.test.ts` (contracts, renewals, the summer, free agents, v4 -> v5 save round trip),
+  `cup.test.ts` (draw and byes, schedule, rounds, fitness and injuries, history and record).
+  Playwright pass at 390x844 and 1280x800 (hub, Cup, Contracts, History; signing, renewing, a cup
+  round played in workers, watching a cup tie): no horizontal scroll, no console errors, targets ≥ 40px.
+
+Career sims (seeds 1-3, five seasons, every match in the engine, staff renewing the manager's deals):
+
+| | session 23 | session 25 | target |
+|---|---|---|---|
+| Goals a match | 2.61-2.92, mean 2.79 | 2.67-2.94, mean 2.79 | 2.5-2.9 |
+| Top scorer | 23-37 | 23-31 | 22-35 |
+| Best side | 79-107 | 79-97 | 80-100 |
+| League eleven, S1 -> S5 | -0.1, 0.0, +0.2 | +0.1, -0.1, -0.1 | ±1 |
+| Squads | | 18-26 (AI 19-26) | |
+| Cup winner | | every season, from 1st to 11th in the league | |
+
+  Finances: wage bills grow to ~1.15 of income by season 5 (squads fill 20 -> 24; about 0.05 of it is
+  renewals asking for young players' room to grow); cash ranges from about -3 to 91, so a few clubs
+  sit a little in the red. Worth a look if a club's money starts to matter (no consequence yet).
 
 ## Done (session 23): formation balance; block height is the big imbalance
 

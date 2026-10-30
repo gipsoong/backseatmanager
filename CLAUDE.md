@@ -408,6 +408,34 @@ pulling the repo.
   Squads' average overall falls ~1 over five seasons only because squads fill from 20 to 24 with
   academy kids; sim-career prints the best twenty of each squad, which holds.
 
+- Career depth (session 25, save version 5; `upgradeCareer` → `withContracts` gives a v4 career
+  contracts, an empty pool, and the cup if its first round is still to come).
+  Contracts (`career/contracts.ts`): `Person.contract` = { until (the summer it ends), wage £k/week,
+  leaving? }. Year arithmetic: `seasonYear(s)` is the start year; `yearsLeft` = until - start year, 1 in
+  his last year. `firstContract` 1-5 years by age at today's `wage`; renewals at `askedWage` (value incl.
+  young room, ×0.8 from 33) for `contractLength(age)` years. The manager renews or lets go in his last
+  year (Contracts tab); the summer (`nextSeason`) releases whoever ran out at his club, while AI staff
+  keep by squad rank and age (`staffKeeps`: ~75% of expiring stay, retirements counted). `staffRenewals` does the manager's
+  the same way (sim-career uses it). `valueOf` (money.ts) is `marketValue` × `CONTRACT_FACTOR` (0.6
+  in the last year, 0.85 with two left); `wageBill` sums contract wages (`wageOf`).
+  Free agents: `Career.freeAgents` (expired, released by the 24 cap, and 6 made-up a summer; best
+  `POOL_MAX` 60 kept for a season). In the summer each AI departure (retired or expired) is replaced
+  from the pool if someone of that role fits within `FREE_FIT` 3 of the overall the club would sign at
+  (chosen by `sideOf` value × POINT_VALUE − a season's wages; ~1 in 5 places), else made up as before. The manager signs
+  any while a window is open (`judgeFreeAgent`: squad < 26, a season's wages in cash, and a player at
+  the eleven's level won't come to sit on the bench); `addToClub` adds condition, stats, contract.
+  The manager's club gets no replacements unless he's let it fall below `MANAGER_MIN` 16.
+  Domestic cup (`career/cup.ts`, `Career.cup`, the `Cup` type with no guests): all 20 clubs, one leg,
+  extra time and penalties (engine `knockout: {}`); the 8 weakest by `elevenRating` play a first round,
+  then open draws (`completeCupDay` draws the next round when one ends). Rounds are midweek before
+  league matchdays `cupSchedule` (38: 6, 13, 19, 26, 32): a cup day is `cupToday(s)` non-empty, and is
+  played before that matchday's league games without moving `s.matchday`; `recover` runs with
+  matchday - 1 so an injury counts from that weekend. Cup matches don't touch league stats. App plays a
+  round the manager isn't in first, on its own (`cupRoundFirst`); `todaysMatches` prefetches it.
+  `PastSeason.cup` {winner, run}, `trophies` gets 'Cup', `record` W/D/L (league + cup);
+  `managerRecord(history)` for the History tab. Screens: `DomesticCup.tsx` (Cup tab), `Contracts.tsx`
+  (Contracts tab: renewals, free agents, the squad's contracts).
+
 - Performance (session 21). A match is ~41k ticks, ~1.3 s on one desktop core (was ~2.4 s). Hot,
   in order: the per-tick movement intents (`playIntent` → `shapeTarget`, `defendIntent`, ~40%),
   the carrier's options (`chooseAction`: through balls, passes, their races, ~17%), loose-ball
