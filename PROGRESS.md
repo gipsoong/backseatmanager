@@ -8,8 +8,70 @@ Updated at the end of each session. Keep this short — current state, not a ful
 team selection and a 38-0-style draft mode (session 9); a January swap window in draft mode
 (session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
-every mode (session 22). Next: contracts,
+every mode (session 22); formations levelled (session 23). Next: **block balance** (below), contracts,
 in-match management (on hold at the owner's request).
+
+## Done (session 23): formation balance; block height is the big imbalance
+
+On branch `wip/formations`. Tools: `scripts/diag-formations.ts` (mirror tests: shapes at equal
+strength, one squad in two shapes, one squad in two blocks; xGD on every core but one) and
+`scripts/diag-shape.ts` (a shape's average places by phase and third, shots for/against by zone and
+role, regains by third, xG by where the move began). See CLAUDE.md.
+
+- **Formations**, each against the other five at equal strength, xGD a match (500 matches a shape a
+  seed set; ±0.05):
+
+| | before (seed 1) | after: seed 1 / 1001 / 2001 | one squad in both shapes (seed 1) |
+|---|---|---|---|
+| 4-4-2 | -0.12 | -0.05 / -0.14 / -0.11 | +0.02 |
+| 4-3-3 | +0.22 | +0.01 / +0.20 / +0.09 | -0.02 |
+| 4-2-3-1 | -0.06 | -0.02 / -0.05 / -0.03 | -0.06 |
+| 4-1-4-1 | +0.22 | +0.01 / +0.03 / -0.04 | 0.00 |
+| 3-5-2 | +0.24 | +0.02 / +0.03 / +0.05 | -0.03 |
+| 3-4-3 | -0.49 | +0.02 / -0.07 / +0.04 | +0.09 |
+
+  (seed 1001/2001 "after" for 4-4-2 was measured with its midfield at 0.1/0.15; final is 0.15.)
+  Spread over the three sets ~0.15-0.2 between the extremes, about the noise; was 0.73.
+  What made the difference: the shapes with a holding midfielder and two midfielders who get
+  forward (4-3-3, 4-1-4-1, 3-5-2) beat those whose central men stood still. 4-4-2's two CMs had no
+  `attackDepth` (now 0.15); 4-2-3-1's second pivot now 0.35 + 0.3 (was 0.3 + 0.2); 3-4-3's midfield
+  two 0.5 + 0.2 (was 0.4 + 0.1, ~12 m behind the wingers, nobody arriving), and its wide forwards
+  stood on the wing-backs' line (y 56/12 vs 58-60), crowding one flank: now inside them (52/16), as
+  a 3-4-3 plays. Traces: 3-4-3 attacks with wing-backs on the touchlines, wide forwards in the half-
+  spaces, and defends as a 5-4-1 (back five 17-20 m, midfield 28-33 m). Tried and dropped: wingers
+  tracking to the midfield line, a back three splitting less, deeper or in-possession-only midfields,
+  wing-backs less high, a 3-4-3 holding midfielder.
+- **Ashford is block height, not a bug in defending.** One squad against itself in two blocks
+  (`diag-formations 200 1 block`): high v low +1.9 xGD a match, high v mid +1.1, mid v low +0.8
+  (each side's own squad, same shape). Seed 1's league has one high block (Ashford); seed 3's has
+  nine. A high block wins the ball in the final third ~20 times a match (mid v mid ~1.5) and the
+  pressed side clears ~64 times from its own third (vs ~15), most of it straight back. Not fixed:
+  tried (100-120 matches each, none moved high v mid beyond noise) charge-down chance, presser
+  stand-off, through balls and runs from deep, longer balls in behind, losing a long ball costed
+  where it's lost, preferring a long ball to a clearance, holding instead of clearing, looser
+  marking upfield; realistic line heights (low 18-34, high 26-48) and a press stopping 30 m out
+  halve it at most. The press is simply too good and a deep block too porous (it sits on its
+  six-yard line unpressed: line 14 - 7). Needs its own session: start from diag-shape's regains and
+  "xG by where the move began" with `high low` / `mid high`.
+- Found on the way: a pressed carrier in his own third whose best option is to hold it clears it
+  instead (`nothingOn` counts anything but a pass), ~45 times a match against a high press; letting
+  him hold made the press stronger still, so left as it is.
+- calibrate's woodwork now counts shots that hit the frame (Opta's definition), not saves and
+  blocks turned onto it (~a quarter of the events; it read 0.9-1.1 a match, HIGH, with the shapes
+  a little more open: shots 12.8 -> 14.1 a team on seed 1).
+
+Checks: calibrate 80 1 / 201: 31/31 and 30/31 (tackles own third 52.7%, base 51.7), zero
+violations; tsc and vitest pass. Career sims (seeds 1-3, five seasons):
+
+| | session 22 | session 23 | target |
+|---|---|---|---|
+| Goals a match | 2.40-2.78, mean 2.60 | 2.61-2.92, mean 2.79 | 2.5-2.9 |
+| Top scorer | 23-37 | 23-37 (one 37, one 36) | 22-35 |
+| Best side | 85-103 | 79-107 (seed 1: 106, 107, 101, 100, 99) | 80-100 |
+| League eleven, S1 -> S5 | -0.3, 0.0, +0.2 | -0.1, 0.0, +0.2 | ±1 |
+| Per 90 regulars DEF / MID / FWD goals | 0.03-0.05 / 0.11-0.14 / 0.29-0.38 | 0.02-0.04 / 0.12-0.16 / 0.32-0.42 | |
+
+  Seed 1's best side over 100 is the high block above; seed 2 had two 79-point champions.
 
 ## Done (session 22): one overall scale, career outliers
 

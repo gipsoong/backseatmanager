@@ -242,7 +242,14 @@ pulling the repo.
   accuracy, and the AI weighs it. Draft data: `LEFT_FOOTED`, `WEAK_FOOT` in pools.ts.
   `SIDE` in pools.ts (session 16) pins the flank a player is known for (`PlayerDef.side`, read
   first by `naturalSide`): Messi is a right-sided player whatever his archetype reads.
-- Balance checks for formations and squads (scratch scripts, not in the repo): the same squad in
+- Balance checks for formations and squads: `node scripts/diag-formations.ts [n a pair] [seed] [equal|squad|block] [shapes]`
+  (session 23; on every core but one) plays every pair of shapes at equal strength (`equal`: fresh
+  squads of one quality built for each shape; `squad`: one squad put out in both by fit x ability) or
+  one squad in two blocks (`block`), and prints each shape's xGD against the rest; a '+' after the
+  first shape plays only its pairs. 100 a pair (500 matches a shape, ~9 min) is ±0.05; confirm on a
+  second seed set. `node scripts/diag-shape.ts <shape> [opp] [n] [seed] [block] [their block]`: each
+  slot's average place in and out of possession by third, shots for/against by zone and role,
+  regains by third, xG by where the move began. The older scratch checks: the same squad in
   two shapes against itself, and a whole league of every club-decade next to squad ratings. Use
   them after any change to shapes or archetypes; 4-4-2 was once worth a goal a game. Archetype shapes are levelled by
   measured attribute worth per line (`LEVELLED`, archetypes.ts); re-measure if attributes' effects change.
@@ -290,7 +297,11 @@ pulling the repo.
   (`Season.cupEntered`); App shows it instead of Hub while entered.
 - `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
-  are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Random clubs use all six; check a shape change with
+  are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Session 23 levelled them (all within ~0.1 xGD a match at equal strength, was
+  -0.49 to +0.24): 4-4-2's centre-midfielders get forward a little (`attackDepth` 0.15), 4-2-3-1's
+  second pivot steps up (0.35 + 0.3), 3-4-3's midfield two stand as high as a 4-3-3's (0.5 + 0.2) and
+  its wide forwards play inside the wing-backs (y 52/16). Block height is not level: see PROGRESS.
+  Random clubs use all six; check a shape change with
   `calibrate` and a per-formation shots comparison, as one-striker shapes were once far weaker.
 - Corners (session 10): `cornerPlan` in `ai.ts` sends the aerial threats up and a marker with
   each; `cornerSetUp` gates the kick until they're there. Harness: `restart-corner` checks both
