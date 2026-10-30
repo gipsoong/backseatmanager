@@ -9,8 +9,67 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 (session 13); single-season draft squads and fair attributes (session 14); career mode stage 1,
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
-contracts, free agents, a domestic cup, the manager's record (session 25). Next: in-match management
+contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
+more (session 26). Next: in-match management
 (on hold at the owner's request).
+
+## Done (session 26): a modest edge for quality
+
+On branch `wip/strength`. Tool: `scripts/diag-strength.ts` (career sides of the first season at full
+fitness, random pairs; xGD, GD and points a match regressed on the elevens' overall gap).
+
+- **What was wrong.** Not a lost edge: at full fitness the slope was the same before and after
+  session 24 (xGD +0.170 a point before, +0.164 after; points +0.119 and +0.134, ±0.012; 600
+  matches). Session 23's 100-point champions were the high block's, not quality's. Without them a
+  league's champion is set by the points slope times its elevens' spread (7.5-11 overall): at ~0.13
+  a point the strongest side (~+4-5 on the league) expects ~78 points. Of session 24's changes only
+  the counter-press could be read as levelling (everyone the same 5 s); taking it out (0 s) changed
+  nothing (xGD +0.156), so it's no lever by itself.
+- **Fix.** The counter-press follows quality (`counterPressFor`, ai.ts): 5 s for equal elevens, up
+  to 10 s for the better side, none for a side `COUNTER_PRESS_SPAN` (6) overall worse, which drops
+  into its shape instead. The gap is `qualityGap`, the elevens' average overall at kick-off
+  (made-up players net of `ROLE_OFFSET`, moved from career/money.ts to engine/attributes.ts):
+  `edgeOf`'s raw attribute mean read a shape with more attackers as a better side and pulled the
+  formations ~0.3 xGD apart. With less counter-pressing an outclassed side made fewer challenges
+  (fouls 8.9 on calibrate seed 1), so it now pulls a man back on a break more often (the cynical
+  foul, up to twice at 6 worse). Mirror tests (one squad, so a gap of 0) play exactly as before.
+- diag-strength 600 1 3, a point of overall gap: xGD +0.164 -> +0.204, GD +0.228 -> +0.239,
+  points +0.134 -> +0.158, shots +1.14 -> +1.55; goals a match 2.89 -> 2.90. Tried: the favourite's
+  part only (edge-scaled, capped at 5 s: xGD +0.194), `PRESS_BY_EDGE` 20 (+0.208, a press line,
+  shape not quality), span 8 (+0.195).
+- **Checks.**
+  - calibrate 80 1 / 201: 31/31 and 31/31, zero violations (base 30/31 both: seed 1 won by 4+ 11.3%).
+  - Blocks (`diag-formations block`): unchanged by construction (one squad, gap 0).
+  - Formations (`diag-formations 100`), xGD against the rest:
+
+| | 4-4-2 | 4-3-3 | 4-2-3-1 | 4-1-4-1 | 3-5-2 | 3-4-3 | spread |
+|---|---|---|---|---|---|---|---|
+| seed 1, base | 0.00 | 0.00 | -0.14 | +0.09 | +0.04 | +0.01 | 0.23 |
+| seed 1, now | +0.02 | 0.00 | -0.18 | +0.08 | +0.02 | +0.07 | 0.25 |
+| seed 1001, base | -0.02 | +0.05 | -0.15 | +0.14 | +0.03 | -0.06 | 0.30 |
+| seed 1001, now | +0.05 | +0.06 | -0.15 | +0.12 | +0.04 | -0.11 | 0.27 |
+
+    No change beyond noise (±0.05 a shape); 4-2-3-1 is still the weakest, as at base. Not fixed.
+  - tsc passes; vitest 104/104.
+- Draft (La Liga, Ronaldo 94 put in, greedy 4-3-3; seeds 1, 2, 5, 6): Ronaldo 29, 30, 47, 36 ->
+  25, 30, 36, 33; our side 77-99 -> 80-88 points, champions 90-99 -> 90-95. A dominant side
+  (`sim-season ... dominant`: the league's best player for each place, an eleven of ~90 with Messi
+  and Ronaldo): 96-104 -> 96-108 points (seed 1 second to a 98), 119-139 goals, Ronaldo 27-49 -> 32-50
+  (with Messi beside him a 94 scores like his real 40-50 seasons; the 22-35 check is the greedy draft).
+- Career sims (seeds 1-3, five seasons):
+
+| | session 24 (base, rerun) | session 26 | target |
+|---|---|---|---|
+| Goals a match | 2.45-2.82, mean 2.64 | 2.51-2.94, mean 2.70 | 2.5-2.9 |
+| Top scorer | 21-34 | 20-36 (seed 1: 21, 20) | 22-35 |
+| Best side | 74-92, mean 81.9; 5 of 15 under 80 | 79-97, mean 87.9; 1 under 80 | 80-100 |
+| League eleven, S1 -> S5 | -0.12, -0.01, +0.08 | -0.14, -0.29, +0.10 | ±1 |
+| Per 90 regulars DEF / MID / FWD goals | 0.03-0.05 / 0.12-0.15 / 0.27-0.38 | 0.03-0.05 / 0.12-0.15 / 0.28-0.40 | |
+| Wages / income | 0.90-0.94 | 0.90-0.93 | ~0.9 |
+
+  Seed 1's league is the levellest (strongest - weakest 7.5-8.3): its top scorers are the low ones.
+  One season at 2.94 goals a match (seed 3, S2). The spread of champions now follows the spread of
+  the elevens, as it should; what's left is luck.
 
 ## Done (session 25): career depth
 
