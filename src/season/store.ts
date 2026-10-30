@@ -3,6 +3,8 @@ import { openDB } from 'idb'
 import { type Attributes, type LegacyAttributes, type PlayerDef, archetypeFrom, upgradeAttributes } from '../engine/index.ts'
 import type { Season } from './season.ts'
 import { upgradeCareer } from '../career/career.ts'
+import { poolPlayer } from '../draft/draft.ts'
+import { POOLS } from '../draft/pools.ts'
 
 const db = () =>
   openDB('matchday', 1, {
@@ -19,7 +21,25 @@ export async function loadSeason(): Promise<Season | null> {
 
 /** Any save we can carry on, brought up to date: sub-attributes, then a career for club mode. */
 export function upgradeSave(s: Season): Season {
-  return upgradeCareer(upgraded(s))
+  return upgradeCareer(shifted(upgraded(s)))
+}
+
+/**
+ * A draft save from before session 28: its club-season players play from their FIFA cards as they
+ * are; they're remade as the draft now makes them (their card moved by ROLE_OFFSET), so an old
+ * draft league scores like a new one. Only players who are still who their id says.
+ */
+function shifted(s: Season): Season {
+  if (s.mode !== 'draft') return s
+  const up = (p: PlayerDef): PlayerDef => {
+    const m = /^p(\d+)-(\d+)$/.exec(p.id)
+    if (!m || p.card || p.cardShift !== undefined || p.overall === undefined) return p
+    const [pi, i] = [Number(m[1]), Number(m[2])]
+    if (POOLS[pi]?.players[i]?.[0] !== p.name || POOLS[pi].players[i][2] !== p.overall) return p
+    const fresh = poolPlayer(pi, i)
+    return { ...p, attrs: fresh.attrs, ...(fresh.cardShift ? { cardShift: fresh.cardShift } : {}) }
+  }
+  return { ...s, teams: s.teams.map((t) => ({ ...t, players: t.players.map(up), bench: t.bench.map(up) })) }
 }
 
 /** A save from before sub-attributes (17 Oct 2026): each player expanded from his old attributes. */

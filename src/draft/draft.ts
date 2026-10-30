@@ -4,7 +4,7 @@
  * club-seasons, one per club. A player can be in several seasons' squads, but only ever turns up
  * once: in your side, or for one opponent.
  */
-import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, archetypeOf, cardAttributes, cardFor, fitFor, freshName, makeAttributes, makePlayerAt, makeTraits, shapedAttributes, type Archetype, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, ROLE_OFFSET, archetypeOf, cardAttributes, cardFor, fitFor, freshName, makeAttributes, makePlayerAt, makeTraits, shapedAttributes, type Archetype, type Card, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
 import { cardOf } from './cards.ts'
 import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, SIDE, TIRELESS, WEAK_FOOT } from './pools.ts'
 
@@ -224,7 +224,12 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const known = ARCHETYPE[name]
   const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)
   const traits = draftTraits(rng, name, archetype)
-  const card = cardOf(name, Number(pool.season.slice(0, 4)), overall, role === 'GK') ?? cardFor(archetype, overall)
+  // He plays as a made-up player of his position does at the same standing (ROLE_OFFSET: a FIFA
+  // card gives a striker ~4 more points of skill than the engine's positions were tuned with, a
+  // centre-midfielder ~2 fewer), so a draft league plays like a career one; his card shows as FIFA's
+  // (`cardShift`, put back by `shownRatings`).
+  const off = ROLE_OFFSET[role]
+  const card = (cardOf(name, Number(pool.season.slice(0, 4)), overall, role === 'GK') ?? cardFor(archetype, overall)).map((v) => v + off) as Card
   return {
     id: `p${poolIdx}-${i}`,
     name,
@@ -235,9 +240,10 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
     foot: LEFT_FOOTED.has(name) ? 'left' : 'right',
     weakFoot: WEAK_FOOT[name] ?? 3,
     side: SIDE[name],
-    attrs: cardAttributes(shapedAttributes(rng, role, archetype, quality), card, role, archetype, overall, () => rng.gauss() * 0.7),
+    attrs: cardAttributes(shapedAttributes(rng, role, archetype, quality), card, role, archetype, overall + off, () => rng.gauss() * 0.7),
     traits,
     overall,
+    ...(off ? { cardShift: off } : {}),
   }
 }
 
@@ -412,5 +418,28 @@ export function draftLeague(d: Draft, name: string): TeamDef[] {
     return team
   })
   // Then short benches are made up, once every side has its own men (fill-ins take nobody's).
-  return [draftTeam(d, name), ...teams.map((t, k) => fillBench(t, chosen[k], taken, d.theme))]
+  const filled = teams.map((t, k) => fillBench(t, chosen[k], taken, d.theme))
+  return [draftTeam(d, name), ...withBlocks(filled, new Rng(d.seed + 2))]
+}
+
+/**
+ * How the league's sides defend, by where their eleven ranks (strongest third, middle, weakest):
+ * chances of a high, mid and low block. Not everyone sits in a mid block: the best sides tend to
+ * press, the weakest to sit deep, as in a career league's mix (where they're even). Blocks are
+ * level against each other (session 24), so this is about how matches look, not who wins them.
+ */
+const BLOCK_ODDS: [number, number, number][] = [
+  [0.5, 0.35, 0.15],
+  [0.3, 0.4, 0.3],
+  [0.15, 0.35, 0.5],
+]
+
+function withBlocks(teams: TeamDef[], rng: Rng): TeamDef[] {
+  const xi = (t: TeamDef): number => t.players.reduce((n, p) => n + (p.overall ?? 0), 0) / t.players.length
+  const order = teams.map((t, i) => [xi(t), i] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]).map(([, i]) => i)
+  return teams.map((t, i) => {
+    const [high, mid] = BLOCK_ODDS[Math.min(2, Math.floor((order.indexOf(i) * 3) / teams.length))]
+    const u = rng.next()
+    return { ...t, block: u < high ? 'high' : u < high + mid ? 'mid' : 'low' }
+  })
 }

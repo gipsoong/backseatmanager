@@ -180,7 +180,7 @@ function pickGuests(s: Season, rng: Rng): TeamDef[] {
   for (const league of LEAGUES.filter((l) => l !== home)) {
     const pools = POOLS.flatMap((p, i) => (leagueOf(p) === league ? [i] : []));
     const strength = new Map(
-      pools.map((i) => [i, squadRating(poolTeam(i, new Set()))]),
+      pools.map((i) => [i, squadRating(poolTeam(i, new Set(), POOLS[i].formation, undefined, false))]),
     );
     const strong = [...pools]
       .sort((a, b) => strength.get(b)! - strength.get(a)!)
@@ -213,7 +213,7 @@ function themedGuests(
     pools.filter((i) => inLeague.has(poolName(POOLS[i]))).map((i) => POOLS[i].club),
   );
   const strength = new Map(
-    pools.map((i) => [i, squadRating(poolTeam(i, new Set(), POOLS[i].formation, theme))]),
+    pools.map((i) => [i, squadRating(poolTeam(i, new Set(), POOLS[i].formation, theme, false))]),
   );
   const strong = pools
     .filter((i) => !clubs.has(POOLS[i].club))

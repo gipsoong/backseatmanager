@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ARCHETYPES, FORMATIONS, archetypeOf, fitFor, groupRatings, playingAttributes, runMatch } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, ROLE_OFFSET, archetypeOf, fitFor, groupRatings, shownRatings, playingAttributes, runMatch } from '../engine/index.ts'
 import { cardOf } from './cards.ts'
 import { strikingFoot } from '../engine/ai.ts'
 import { autoPick, createSeason, matchdays, playerRating, squadOf } from '../season/season.ts'
 import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, LEAGUES, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
 import { type League, POOLS } from './pools.ts'
+import { upgradeSave } from '../season/store.ts'
 
 /** Draft greedily: each round, the best player who fits an open starting place, else a sub. */
 function autoDraft(seed: number, league?: League): Draft {
@@ -48,11 +49,13 @@ describe('draft pools', () => {
     for (const [name, overall] of [['Harry Kane', 90], ['Virgil van Dijk', 90], ['Sergio Busquets', 87], ['Manuel Neuer', 92]] as const) {
       const { p, year } = find(name, overall)
       const want = cardOf(name, year, overall, p.role === 'GK')!
-      groupRatings(p.attrs, p.role).forEach((g, k) => expect(Math.abs(g.value - want[k]), `${name} ${g.key}`).toBeLessThanOrEqual(2))
+      shownRatings(p).forEach((g, k) => expect(Math.abs(g.value - want[k]), `${name} ${g.key}`).toBeLessThanOrEqual(2))
+      // He plays as a made-up player of his position at that standing would: his card moved by ROLE_OFFSET.
+      groupRatings(p.attrs, p.role).forEach((g, k) => expect(Math.abs(g.value - want[k] - ROLE_OFFSET[p.role]), `${name} ${g.key}`).toBeLessThanOrEqual(2))
     }
     // Kane shoots like a 90 striker and defends like one, but still heads it.
     const kane = find('Harry Kane', 90).p
-    const card = Object.fromEntries(groupRatings(kane.attrs, kane.role).map((g) => [g.key, g.value]))
+    const card = Object.fromEntries(shownRatings(kane).map((g) => [g.key, g.value]))
     expect(card.SHO).toBeGreaterThan(90)
     expect(card.DEF).toBeLessThan(55)
     expect(kane.attrs.heading).toBeGreaterThanOrEqual(13)
@@ -71,7 +74,8 @@ describe('draft pools', () => {
       }),
     )
     expect(sums.length).toBeGreaterThan(3)
-    expect(Math.max(...sums) - Math.min(...sums)).toBeLessThanOrEqual(6)
+    // (6 before session 28: the best were clamped at 20, a level higher.)
+    expect(Math.max(...sums) - Math.min(...sums)).toBeLessThanOrEqual(7)
   })
 })
 
@@ -104,6 +108,34 @@ describe('draft', () => {
     const s = createSeason(9, 0, new Date(Date.UTC(2026, 5, 1)), teams)
     expect(matchdays(s)).toBe(38)
     expect(s.fixtures).toHaveLength(380)
+  })
+
+  it('mixes the blocks, the stronger sides pressing more often, the weaker sitting deeper', () => {
+    const count = { top: { high: 0, low: 0 }, bottom: { high: 0, low: 0 } }
+    for (const league of LEAGUES)
+      for (const seed of [1, 2, 3, 4, 5, 6]) {
+        const teams = draftLeague(autoDraft(seed, league), 'Backseat FC')
+        expect(teams[0].block).toBe('mid')
+        const xi = (t: (typeof teams)[number]): number => t.players.reduce((n, p) => n + (p.overall ?? 0), 0)
+        const ranked = teams.slice(1).sort((a, b) => xi(b) - xi(a))
+        for (const t of ranked.slice(0, 6)) if (t.block !== 'mid') count.top[t.block]++
+        for (const t of ranked.slice(-6)) if (t.block !== 'mid') count.bottom[t.block]++
+      }
+    expect(count.top.high).toBeGreaterThan(count.top.low)
+    expect(count.bottom.low).toBeGreaterThan(count.bottom.high)
+  })
+
+  it('remakes an old draft save\'s players as the draft now makes them, and shows their own cards', () => {
+    const teams = draftLeague(autoDraft(3), 'Backseat FC')
+    const s = { ...createSeason(3, 0, new Date(Date.UTC(2026, 5, 1)), teams), mode: 'draft' as const }
+    // Before session 28 a club-season player's attributes were his card as it is.
+    const old = { ...s, teams: s.teams.map((t) => ({ ...t, players: t.players.map(({ cardShift: _, ...p }) => ({ ...p, attrs: { ...p.attrs, finishing: 1 } })) })) }
+    const back = upgradeSave(JSON.parse(JSON.stringify(old)))
+    expect(back.teams).toEqual(s.teams)
+    const striker = back.teams.flatMap((t) => t.players).find((p) => p.role === 'ST' && p.overall !== undefined)!
+    expect(striker.cardShift).toBe(ROLE_OFFSET.ST)
+    const sho = (r: { key: string; value: number }[]): number => r.find((g) => g.key === 'SHO')!.value
+    expect(sho(shownRatings(striker)) - sho(groupRatings(striker.attrs, striker.role))).toBe(-ROLE_OFFSET.ST)
   })
 
   it('gives every side a full bench of nine, a keeper among them, in every league', () => {

@@ -164,6 +164,15 @@ export function groupRatings(a: Attributes, role: Role): { key: string; label: s
   return GROUPS[role === 'GK' ? 'keeper' : 'outfield'].map((g) => ({ key: g.key, label: g.label, value: toRating(weighted(g.subs.map((k) => a[k]), g.weights)) }))
 }
 
+/**
+ * A player's card as shown: his group ratings, with a draft player's `cardShift` put back, so he
+ * shows FIFA's card though he plays as a made-up player of his position would (see poolPlayer).
+ */
+export function shownRatings(p: { attrs: Attributes; role: Role; cardShift?: number }): { key: string; label: string; value: number }[] {
+  const back = -(p.cardShift ?? 0)
+  return groupRatings(p.attrs, p.role).map((g) => (back ? { ...g, value: Math.max(1, Math.min(99, g.value + back)) } : g))
+}
+
 /** A card rating (1-99) as a sub-attribute level: the inverse of `toRating`. */
 export const fromRating = (r: number): number => (r <= 86 ? 13.5 + (r - 80) / 4 : 15 + (r - 86) / 6)
 

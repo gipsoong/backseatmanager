@@ -7,7 +7,7 @@
 import { POOLS } from '../src/draft/pools.ts'
 import { poolPlayer } from '../src/draft/draft.ts'
 import { CARDS, cardOf } from '../src/draft/cards.ts'
-import { groupRatings } from '../src/engine/index.ts'
+import { shownRatings } from '../src/engine/index.ts'
 
 const all = process.argv.includes('--all')
 let rows = 0
@@ -26,7 +26,7 @@ for (const [name, [, year, overall]] of Object.entries(CARDS)) {
       if (seen.has(key)) return
       seen.add(key)
       const want = cardOf(name, start, o, p.role === 'GK')!
-      const got = groupRatings(p.attrs, p.role)
+      const got = shownRatings(p)
       const diffs = got.map((g, k) => g.value - want[k])
       // A forward's tackling can't go below 1: a good header's defending bottoms out at 33-36.
       const floor = p.role !== 'GK' && ['interceptions', 'marking', 'standingTackle', 'slidingTackle'].every((k) => p.attrs[k as 'marking'] <= 1)

@@ -134,6 +134,11 @@ export interface PlayerDef {
    * weighted skills (`positionLevel`), not an even average of everything. Unset in older saves.
    */
   card?: true
+  /**
+   * A draft player (session 28): how far his attributes were moved from his FIFA card (his position's
+   * ROLE_OFFSET), which `shownRatings` puts back. Unset in older saves (their attributes are the card).
+   */
+  cardShift?: number
 }
 
 /** Shirt colours. `family` is used to spot clashes between two kits. */
