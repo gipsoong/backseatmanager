@@ -92,7 +92,7 @@ export function Contracts({
                       <small className={leaving ? 'leaving' : 'asks'}>
                         {leaving
                           ? 'Leaving in the summer'
-                          : `Asks £${terms.wage}k a week for ${terms.years === 1 ? 'a year' : `${terms.years} years`} (to ${lastSeason(terms.until)})`}
+                          : `Asks £${terms.wage}k a week for ${terms.years === 1 ? 'a year' : `${terms.years} years`} (to ${lastSeason(terms.until)})${problem ? ': a rise you can\u2019t give in the red' : ''}`}
                       </small>
                     </span>
                     <span className="rating">{playerRating(p)}</span>
