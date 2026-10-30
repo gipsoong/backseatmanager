@@ -51,7 +51,7 @@ export const KEEPER_STAND_OFF = 8
 /** How close a player behind the ball must be to block it as it's struck away from him. */
 export const CHARGE_DOWN_REACH = 0.6
 /** Chance a player right on the ball as it's struck gets something on it. */
-export const CHARGE_DOWN_CHANCE = Number((globalThis as unknown as { process?: { env: Record<string, string> } }).process?.env.EXP_CD ?? 0.35)
+export const CHARGE_DOWN_CHANCE = 0.35
 
 /** A keeper reaching the ball further from his body than this has had to dive for it. */
 export const KEEPER_BODY_REACH = 1.0

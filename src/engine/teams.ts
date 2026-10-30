@@ -46,6 +46,7 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CB', 0, 26),
     s('FB', 0, 8, 0.35),
     s('DM', 0.25, 41),
+    // The second steps up with the ball (at 0.3 + 0.2 the shape was ~0.3 xG a match short).
     s('DM', 0.35, 27, 0.3),
     s('W', 0.8, 56, 0.2),
     s('CM', 0.7, 34, 0.15),
@@ -100,14 +101,6 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
   ],
 }
 
-// EXP
-{
-  const env = (globalThis as unknown as { process?: { env: Record<string, string> } }).process?.env ?? {}
-  for (const f of Object.keys(FORMATIONS) as Formation[]) {
-    const v = env['EXP_F' + f.replace(/-/g, '')]
-    if (v) FORMATIONS[f] = (JSON.parse(v) as [Role, number, number, number][]).map(([r, d, y, a]) => s(r, d, y, a))
-  }
-}
 export const FORMATION_NAMES = Object.keys(FORMATIONS) as Formation[]
 
 /** No green shirts: they'd vanish against the pitch. */
