@@ -17,8 +17,8 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('WM', 0.5, 58, 0.25),
     // The two in the middle get forward a little with the ball (standing still, the shape was worth
     // ~0.25 xG a match less than one with a midfield three).
-    s('CM', 0.45, 40, 0.1),
-    s('CM', 0.45, 28, 0.1),
+    s('CM', 0.45, 40, 0.15),
+    s('CM', 0.45, 28, 0.15),
     s('WM', 0.5, 10, 0.25),
     s('ST', 1, 40),
     // The second striker plays off the first: a little deeper, arriving late rather than on the shoulder.
