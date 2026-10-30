@@ -137,8 +137,11 @@ export function History({ season }: { season: Season }) {
               <tr key={p.number} className={`row-in${p.trophies.length ? ' mine' : ''}`} style={stagger(i)}>
                 <td className="team">
                   {p.year}–{String(p.year + 1).slice(2)}
-                  {p.trophies.includes('League title') && <span className="trophy"> · Champions</span>}
-                  {p.trophies.includes(CUP_TROPHY) && <span className="trophy"> · Cup winners</span>}
+                  {p.trophies.length > 0 && (
+                    <span className="trophy trophies">
+                      {[p.trophies.includes('League title') && 'Champions', p.trophies.includes(CUP_TROPHY) && 'Cup winners'].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
                 </td>
                 <td>{ordinal(p.place)}</td>
                 <td className="pts">{p.points}</td>

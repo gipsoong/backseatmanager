@@ -2998,6 +2998,11 @@ div.draft-hint .meta {
   font-weight: 600;
 }
 
+.history-table .trophies {
+  display: block;
+  font-size: 0.8rem;
+}
+
 .manager-record {
   padding: 0 12px;
 }
