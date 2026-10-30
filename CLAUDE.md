@@ -469,7 +469,11 @@ pulling the repo.
 - Blocks (session 24, ai.ts). A high block presses in bursts: for `PRESS_SPELL` (3 s) after it
   loses the ball (or a restart, `sinceLost`) it plays high (`BLOCK_LINES.high`, `PRESS_LINES`),
   then settles to mid lines with a first presser engaging only inside `HIGH_SETTLED_PRESS` (60 m)
-  (`blockNow`, cached in the snapshot). Any side counter-presses for `COUNTER_PRESS` (5 s). A low
+  (`blockNow`, cached in the snapshot). A side counter-presses for `COUNTER_PRESS` (5 s) when the two
+  elevens are equal; since session 26 `counterPressFor` scales it by `qualityGap` (the elevens' average
+  overall at kick-off, made-up players net of `ROLE_OFFSET`, which moved to attributes.ts): up to twice
+  as long for the better side, none for one `COUNTER_PRESS_SPAN` (6) worse. It's the one place quality
+  steers tactics; mirror tests (same squad) are unaffected, as the gap is 0. A low
   block's line never drops below 17 m (the box edge, not the six-yard line) and, with the ball
   inside `LOW_COMPACT_FROM`, closes up (`LOW_LENGTH` 16 m long, `LOW_WIDTH`). Clearances: a wide
   defender goes for touch, anyone else aims inside the pitch (`CLEAR_IN`, `CLEAR_WIDE`; harness
@@ -479,5 +483,12 @@ pulling the repo.
   Level blocks made for quieter games, so shooting was retuned along with them: `EAGER` 0.9, keener
   in the box than from range (`BOX_KEEN` 1.15, `RANGE_KEEN` 0.85), `FINISHING_SPREAD` 0.85 (ai.ts),
   and `FINAL_THIRD_TACKLING` 7 (match.ts). Career leagues score ~0.88 of calibrate's goals a match.
+- Strength (session 26): `node scripts/diag-strength.ts [n] [first career seed] [careers]` plays the
+  first season's career sides at full fitness in random pairs and regresses xGD, GD and points a
+  match on the elevens' overall gap (xGD is the one to trust; points ±0.012 at 600 matches). A
+  league's champion is set mostly by that points slope times the spread of its elevens: at 0.134 a
+  point (session 24) a third of career champions were under 80; at ~0.16 (session 26) ~85-90.
+  `sim-season.ts ... "Name:overall" dominant` fills the rest of the eleven with the league's best
+  player for each place (La Liga: ~90) for the dominant-side check.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
