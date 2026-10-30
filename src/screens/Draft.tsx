@@ -162,7 +162,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
 export const FORMATION_BLURB: Record<Formation, string> = {
   '4-4-2': 'Two wide midfielders, two strikers',
   '4-3-3': 'A holding midfielder, two wingers, one striker',
-  '4-2-3-1': 'Two holding midfielders, a No. 10 behind the striker',
+  '4-2-3-1': 'A holding midfielder and a box-to-box one, a No. 10 behind the striker',
   '4-1-4-1': 'One screening midfielder, a line of four, one striker',
   '3-5-2': 'Three centre-backs, wing-backs, two strikers',
   '3-4-3': 'Three centre-backs, wing-backs, a front three',

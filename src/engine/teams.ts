@@ -37,8 +37,8 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('ST', 1, 34),
     s('W', 0.85, 12, 0.2),
   ],
-  // Two holding midfielders (one steps up with the ball), a No. 10 behind the striker, wingers
-  // either side of him.
+  // A holding midfielder and a centre-midfielder who steps up with the ball, a No. 10 behind the
+  // striker, wingers either side of him.
   '4-2-3-1': [
     s('GK', -1, 34),
     s('FB', 0, 60, 0.35),
@@ -46,11 +46,15 @@ export const FORMATIONS: Record<Formation, Slot[]> = {
     s('CB', 0, 26),
     s('FB', 0, 8, 0.35),
     s('DM', 0.25, 41),
-    // The second steps up with the ball (at 0.3 + 0.2 the shape was ~0.3 xG a match short; at 0.35 + 0.3
-    // ~0.2 short once the blocks were level, session 24).
-    s('DM', 0.4, 27, 0.4),
+    // The second of the pivot is a centre-midfielder, a "6 and an 8": he steps up with the ball and
+    // arrives in the box as an eight does. (As a second holding midfielder, however far he stepped up,
+    // the shape was ~0.15-0.2 xG a match short: holding men shoot from range and don't arrive, session 26.)
+    s('CM', 0.4, 27, 0.4),
     s('W', 0.8, 56, 0.2),
-    s('CM', 0.7, 34, 0.15),
+    // The No. 10: with the ball he plays off the striker; without it he drops in beside the pivot (at
+    // 0.7 + 0.15 he stood ~7 m ahead of it with the ball in our third). Runs in behind from him made
+    // the shape no better.
+    s('CM', 0.55, 34, 0.3),
     s('W', 0.8, 12, 0.2),
     s('ST', 1, 34),
   ],
