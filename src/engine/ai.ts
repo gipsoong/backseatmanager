@@ -1386,8 +1386,17 @@ const BLOCK_LINES = { low: [17, 36], mid: [20, 42], high: [26, 55] } as const
  * nothing in the engine made it pay (real sides can't keep a press on for a whole spell either).
  */
 const PRESS_SPELL = 3
-/** For this long (s) after losing the ball (or an opponent's restart) any side's nearest man presses it, wherever it is. */
+/** For this long (s) after losing the ball (or an opponent's restart) a side's nearest man presses it, wherever it is... */
 const COUNTER_PRESS = 5
+/**
+ * ...for a side as good as the other. The better side keeps at it for longer, up to twice as long;
+ * the weaker one drops off into its shape sooner, down to not at all at an edge of -0.5 (about eight
+ * overall worse): it can't afford to be played through by a better side (session 26). Pressed the
+ * same by everyone, a side ~5 overall better was worth only ~0.7 points a match more, and career
+ * leagues were too level: a third of the champions under 80 points.
+ */
+const COUNTER_PRESS_BY_EDGE = 2
+const counterPressFor = (s: MatchState, team: Side): number => COUNTER_PRESS * clamp(1 + COUNTER_PRESS_BY_EDGE * edgeOf(s, team), 0, 2)
 
 /** The block a side is playing right now: a high one between its bursts plays as a mid one. */
 function blockNow(s: MatchState, team: Side): Block {
@@ -1712,7 +1721,7 @@ export function playIntent(s: MatchState, p: PlayerState, chasers: Map<number, n
     // A ball-winner hunts it higher still, and gets tighter.
     const winner = p.archetype === 'ballWinner'
     // Straight after losing it, whatever the block, the nearest man goes to the ball (the counter-press).
-    const pressing = oa.x <= pressLine + t.workRate * 8 + (winner ? 10 : 0) || sinceLost(s, p.team) <= COUNTER_PRESS
+    const pressing = oa.x <= pressLine + t.workRate * 8 + (winner ? 10 : 0) || sinceLost(s, p.team) <= counterPressFor(s, p.team)
     // Behind the press line the block holds its shape: nobody leaves it to run out at a man on the
     // ball in his own third. He's met once he carries it up to the man whose zone it is.
     const zone = shapeTarget(s, p, false)
