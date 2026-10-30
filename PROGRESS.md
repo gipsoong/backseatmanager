@@ -47,9 +47,18 @@ Career sims (seeds 1-3, five seasons, every match in the engine, staff renewing 
 | Squads | | 18-26 (AI 19-26) | |
 | Cup winner | | every season, from 1st to 11th in the league | |
 
-  Finances: wage bills grow to ~1.15 of income by season 5 (squads fill 20 -> 24; about 0.05 of it is
-  renewals asking for young players' room to grow); cash ranges from about -3 to 91, so a few clubs
-  sit a little in the red. Worth a look if a club's money starts to matter (no consequence yet).
+  Finances (first pass): wage bills grew to ~1.15 of income by season 5 and a few clubs went a little
+  into the red. Fixed in a second pass (below).
+- **Finances, second pass**: income starts at the wage bill / 0.9; every wage, renewals' asks included,
+  is by what a player's worth now (+15% of a young man's room to grow); other clubs keep wages within
+  95% of income in the summer (the eleven always renewed; then places left unfilled, then the least
+  promising let go, down to twenty). In the red the manager can't sign free agents, renew at a rise or
+  make a deal that adds wages: said on the hub's next card and the Contracts tab's new Money section.
+  Career sims (seeds 1-3, five seasons): wages/income 0.90-0.93 every season (was 1.00 -> 1.16); cash
+  0..103 (was -3..91: no club in the red; the strongest still pile it up from prize money); goals a
+  match 2.60-2.90, mean 2.74; top scorer 22-32; best side 81-106 (seed 1's season 5, its high-block
+  side as in session 23); league eleven S1 -> S5 -0.07, -0.34, -0.05; squads 17-26; a cup winner
+  every season.
 
 ## Done (session 23): formation balance; block height is the big imbalance
 

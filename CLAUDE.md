@@ -434,7 +434,15 @@ pulling the repo.
   round the manager isn't in first, on its own (`cupRoundFirst`); `todaysMatches` prefetches it.
   `PastSeason.cup` {winner, run}, `trophies` gets 'Cup', `record` W/D/L (league + cup);
   `managerRecord(history)` for the History tab. Screens: `DomesticCup.tsx` (Cup tab), `Contracts.tsx`
-  (Contracts tab: renewals, free agents, the squad's contracts).
+  (Contracts tab: money, renewals, free agents, the squad's contracts).
+  Wages (session 25, later): income starts at the wage bill / 0.9 (`START_WAGES`); every wage, asks
+  included, is by what he's worth now (`askedWage` adds 15% of a young man's room to grow), so wages
+  stay at the level income was set at. Other clubs keep within `WAGE_BUDGET` 0.95 of income in the
+  summer: the top eleven are always renewed, other renewals only if there's room, then places go
+  unfilled and the least promising are let go, down to `AI_MIN_SQUAD` 20 (`wageAt` estimates a place
+  still to fill). The manager in the red (`inTheRed`, cash < 0) can't sign free agents, renew at a
+  rise (`renewProblem`) or make a deal that adds wages (`judgeForMoney`); a fee is checked against
+  cash only when he pays one.
 
 - Performance (session 21). A match is ~41k ticks, ~1.3 s on one desktop core (was ~2.4 s). Hot,
   in order: the per-tick movement intents (`playIntent` → `shapeTarget`, `defendIntent`, ~40%),
