@@ -10,6 +10,7 @@
  */
 import { type Fixture, type Result, type Season, fitnessFor, fixturesOn, matchTeam } from './season.ts'
 import { cupFixturesToday, cupMatches, isCupDay } from '../draft/cup.ts'
+import { domesticCupMatches, isDomesticCupDay } from '../career/cup.ts'
 import type { SimRequest } from './simWorker.ts'
 
 type Match = Omit<SimRequest, 'fitness'>
@@ -25,6 +26,7 @@ export function simulate(season: Season, fixtures: Fixture[], opts: { foreground
 /** The matches of the season's current day (league or cup), as the hub would play them. */
 export function todaysMatches(s: Season): Match[] {
   if (isCupDay(s)) return cupMatches(s, cupFixturesToday(s))
+  if (isDomesticCupDay(s)) return domesticCupMatches(s)
   return fixturesOn(s, s.matchday).map((f) => ({ id: f.id, home: matchTeam(s, f.home), away: matchTeam(s, f.away), seed: f.seed }))
 }
 

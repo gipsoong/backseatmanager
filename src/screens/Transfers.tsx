@@ -341,7 +341,7 @@ function dealText(inn: string[], out: string[], paid: number): string {
 }
 
 /** What a deal does to one side: its eleven's rating before and after, and the reasons. */
-function Effect({ side, title }: { side: Verdict["them"]; title: string }) {
+export function Effect({ side, title }: { side: Verdict["them"]; title: string }) {
   if (!side) return null;
   const d = side.after.rating - side.before.rating;
   return (

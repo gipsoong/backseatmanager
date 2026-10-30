@@ -36,6 +36,14 @@ import {
   nextSeason,
   startCareer,
 } from "./career/career.ts";
+import {
+  completeCupDay,
+  cupToday,
+  domesticCupMatches,
+  isDomesticCupDay,
+  userCupTie,
+} from "./career/cup.ts";
+import { letGo, renew, signFreeAgent } from "./career/contracts.ts";
 import { MatchViewer } from "./viewer/MatchViewer.tsx";
 import { Timeline } from "./viewer/timeline.ts";
 
@@ -74,7 +82,45 @@ export default function App() {
     await saveSeason(s).catch(() => undefined); // a private window may refuse storage; play on regardless
   };
 
-  const watch = (s: Season): void => {
+  /**
+   * A domestic cup round the manager isn't in is played first, on its own (it's midweek, before
+   * the league match he's about to play).
+   */
+  const cupRoundFirst = async (s: Season): Promise<Season> => {
+    if (!isDomesticCupDay(s) || userCupTie(s)) return s;
+    const next = completeCupDay(
+      s,
+      await simulateMatches(domesticCupMatches(s), fitnessFor(s), {
+        foreground: true,
+      }),
+    );
+    await commit(next);
+    return next;
+  };
+
+  const watch = async (was: Season): Promise<void> => {
+    let s = was;
+    if (isDomesticCupDay(s) && !userCupTie(s)) {
+      setBusy(true);
+      s = await cupRoundFirst(s);
+      setBusy(false);
+    }
+    const tie = userCupTie(s);
+    if (tie) {
+      const [mine] = domesticCupMatches(s, [tie]);
+      others.current = simulateMatches(
+        domesticCupMatches(
+          s,
+          cupToday(s).filter((g) => g.id !== tie.id),
+        ),
+        fitnessFor(s),
+      );
+      setScreen({
+        kind: "match",
+        timeline: new Timeline(mine.home, mine.away, tie.seed, fitnessFor(s), {}),
+      });
+      return;
+    }
     if (isCupDay(s)) {
       const f = userCupFixture(s)!;
       const [mine] = cupMatches(s, [f]);
@@ -122,7 +168,11 @@ export default function App() {
     while (!timeline.done) timeline.advance(5000);
     const results = await (others.current ??
       Promise.resolve(new Map<number, Result>()));
-    if (isCupDay(s)) {
+    const tie = userCupTie(s);
+    if (tie) {
+      results.set(tie.id, resultOf(timeline.state));
+      await commit(completeCupDay(s, results));
+    } else if (isCupDay(s)) {
       results.set(userCupFixture(s)!.id, resultOf(timeline.state));
       await commit(completeCupMatchday(s, results));
     } else {
@@ -134,9 +184,19 @@ export default function App() {
     setScreen({ kind: "hub" });
   };
 
-  const simulateMatchday = async (s: Season): Promise<void> => {
+  const simulateMatchday = async (was: Season): Promise<void> => {
     setBusy(true);
-    if (isCupDay(s))
+    const s = await cupRoundFirst(was);
+    if (userCupTie(s))
+      await commit(
+        completeCupDay(
+          s,
+          await simulateMatches(domesticCupMatches(s), fitnessFor(s), {
+            foreground: true,
+          }),
+        ),
+      );
+    else if (isCupDay(s))
       await commit(
         completeCupMatchday(
           s,
@@ -236,7 +296,7 @@ export default function App() {
           <CupHub
             season={season}
             busy={busy}
-            onWatch={() => watch(season)}
+            onWatch={() => void watch(season)}
             onSimulate={() => void simulateMatchday(season)}
             onLeague={() => setScreen({ kind: "league" })}
             onNewSeason={newDraft}
@@ -255,7 +315,7 @@ export default function App() {
           <Hub
             season={season}
             busy={busy}
-            onWatch={() => watch(season)}
+            onWatch={() => void watch(season)}
             onSimulate={() => void simulateMatchday(season)}
             onNewSeason={season.mode === "draft" ? newDraft : newSeason}
             onNextSeason={
@@ -280,6 +340,9 @@ export default function App() {
               void commit({ ...season, cupEntered: true });
               setScreen({ kind: "hub" });
             }}
+            onRenew={(id) => void commit(renew(season, id))}
+            onLetGo={(id, leaving) => void commit(letGo(season, id, leaving))}
+            onSign={(id) => void commit(signFreeAgent(season, id))}
           />
         ))}
       {screen.kind === "match" && season && (

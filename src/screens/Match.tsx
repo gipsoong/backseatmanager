@@ -2,6 +2,7 @@
 import type { Season } from '../season/season.ts'
 import { matchdayDate } from '../season/season.ts'
 import { CUP_NAME, ROUND_NAMES, isCupDay, userCupFixture } from '../draft/cup.ts'
+import { DOMESTIC_CUP, cupDate, cupOf, roundName, roundsOf, userCupTie } from '../career/cup.ts'
 import { MatchViewer } from '../viewer/MatchViewer.tsx'
 import type { Timeline } from '../viewer/timeline.ts'
 
@@ -10,13 +11,15 @@ const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'nume
 export function Match({ season, timeline, busy, onDone }: { season: Season; timeline: Timeline; busy: boolean; onDone: () => void }) {
   const [home, away] = timeline.state.teams
   const cup = isCupDay(season) ? userCupFixture(season) : undefined
+  const tie = userCupTie(season)
   return (
     <>
       <header className="top">
         <div className="fixture">
           <p className="eyebrow">
-            {cup ? `${CUP_NAME} · ${ROUND_NAMES[cup.round]}${cup.leg ? `, ${cup.leg === 1 ? 'first' : 'second'} leg` : ''}` : `Matchday ${season.matchday}`} ·{' '}
-            {dateFmt.format(matchdayDate(season, season.matchday))}
+            {tie
+              ? `${DOMESTIC_CUP} · ${roundName(tie.round, roundsOf(cupOf(season)!))} · ${dateFmt.format(cupDate(season, tie))}`
+              : `${cup ? `${CUP_NAME} · ${ROUND_NAMES[cup.round]}${cup.leg ? `, ${cup.leg === 1 ? 'first' : 'second'} leg` : ''}` : `Matchday ${season.matchday}`} · ${dateFmt.format(matchdayDate(season, season.matchday))}`}
           </p>
           <h1>
             {home.name} <span className="v">v</span> {away.name}

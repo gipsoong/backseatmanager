@@ -32,6 +32,17 @@ import {
   cupTeam,
   cupWinner,
 } from "../draft/cup.ts";
+import {
+  DOMESTIC_CUP,
+  cupDate,
+  cupOf,
+  cupToday,
+  roundName,
+  roundsOf,
+  userCupTie,
+} from "../career/cup.ts";
+import { DomesticCup } from "./DomesticCup.tsx";
+import { Contracts, undecided } from "./Contracts.tsx";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, {
   weekday: "short",
@@ -47,7 +58,9 @@ type Tab =
   | "squad"
   | "stats"
   | "transfers"
-  | "history";
+  | "history"
+  | "cup"
+  | "contracts";
 
 export function Swatch({ kit }: { kit: Kit }) {
   return <span className="swatch" style={{ background: kit.shirt }} />;
@@ -65,6 +78,9 @@ export function Hub({
   onDeal,
   onDecline,
   onEnterCup,
+  onRenew,
+  onLetGo,
+  onSign,
 }: {
   season: Season;
   busy: boolean;
@@ -78,6 +94,9 @@ export function Hub({
   onDeal: (deal: Deal) => void;
   onDecline: (deal: Deal) => void;
   onEnterCup: () => void;
+  onRenew: (id: string) => void;
+  onLetGo: (id: string, leaving: boolean) => void;
+  onSign: (id: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>(isOver(season) ? "review" : "table");
   // The last matchday played: open the review.
@@ -101,6 +120,11 @@ export function Hub({
   const rows = table(season);
   const over = isOver(season);
   const next = over ? undefined : userFixture(season, season.matchday);
+  // A cup tie midweek comes before the weekend's league match.
+  const cupTie = userCupTie(season);
+  const cup = cupOf(season);
+  const cupRoundOn = !cupTie && cupToday(season).length > 0;
+  const toDecide = season.career ? undecided(season) : 0;
   const cupOn = cupLive(season);
   const champion = season.cup ? cupWinner(season.cup) : null;
   const last =
@@ -146,7 +170,43 @@ export function Hub({
 
       <div className="hub-grid">
         <section className="card next">
-          {next ? (
+          {cupTie && cup ? (
+            <>
+              <p className="eyebrow">
+                {DOMESTIC_CUP} · {roundName(cupTie.round, roundsOf(cup))} ·{" "}
+                {dateFmt.format(cupDate(season, cupTie))} ·{" "}
+                {cupTie.home === season.userTeam ? "Home" : "Away"}
+              </p>
+              <h2 className="versus">
+                <TeamName team={season.teams[cupTie.home]} />{" "}
+                <span className="v">v</span>{" "}
+                <TeamName team={season.teams[cupTie.away]} />
+              </h2>
+              <p className="meta">
+                One match: extra time and penalties if it's level.
+                {next &&
+                  ` Then matchday ${next.matchday}, ${next.home === season.userTeam ? "at home to" : "away to"} ${season.teams[next.home === season.userTeam ? next.away : next.home].name}.`}
+              </p>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onWatch}
+                  disabled={busy}
+                >
+                  Watch the match
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={onSimulate}
+                  disabled={busy}
+                >
+                  {busy ? "Playing…" : "Just the result"}
+                </button>
+              </div>
+            </>
+          ) : next ? (
             <>
               <p className="eyebrow">
                 Next · {dateFmt.format(matchdayDate(season, next.matchday))} ·{" "}
@@ -158,6 +218,13 @@ export function Hub({
                 <TeamName team={season.teams[next.away]} />
               </h2>
               <BoardLine season={season} over={false} />
+              {cupRoundOn && cup && (
+                <p className="meta">
+                  Midweek, the {DOMESTIC_CUP}'s{" "}
+                  {roundName(cupToday(season)[0].round, roundsOf(cup)).toLowerCase()}{" "}
+                  is played first, without you.
+                </p>
+              )}
               <SummerNote season={season} />
               {windowOpen(season) && (
                 <div className="window-note">
@@ -216,6 +283,22 @@ export function Hub({
                   ` A top-${CUP_PLACES} finish would have played on in the ${CUP_NAME}.`}
               </p>
               <BoardLine season={season} over />
+              {season.career && toDecide > 0 && (
+                <div className="window-note">
+                  <p className="meta">
+                    {toDecide === 1
+                      ? "A contract runs out this summer, and you haven't decided on it: he'll leave unless you renew him."
+                      : `${toDecide} contracts run out this summer, and you haven't decided on them: they'll leave unless you renew them.`}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn ghost slim"
+                    onClick={() => setTab("contracts")}
+                  >
+                    See contracts
+                  </button>
+                </div>
+              )}
               <div className="actions">
                 {season.cup && cupOn ? (
                   <button type="button" className="btn" onClick={onEnterCup}>
@@ -286,6 +369,9 @@ export function Hub({
               ...(over ? [{ id: "review", label: "Review" } as const] : []),
               { id: "table", label: "Table" },
               { id: "fixtures", label: "Fixtures" },
+              ...(season.career?.cup
+                ? [{ id: "cup", label: DOMESTIC_CUP } as const]
+                : []),
               { id: "squad", label: "Squad" },
               { id: "stats", label: "Stats" },
               ...(season.career?.history.length
@@ -297,6 +383,15 @@ export function Hub({
                       id: "transfers",
                       label: "Deals",
                       badge: windowOpen(season) ? offers.length : 0,
+                    } as const,
+                  ]
+                : []),
+              ...(season.career
+                ? [
+                    {
+                      id: "contracts",
+                      label: "Contracts",
+                      badge: toDecide,
                     } as const,
                   ]
                 : []),
@@ -316,6 +411,15 @@ export function Hub({
           {tab === "stats" && <Stats season={season} />}
           {tab === "review" && <SeasonReview season={season} />}
           {tab === "history" && <History season={season} />}
+          {tab === "cup" && <DomesticCup season={season} />}
+          {tab === "contracts" && season.career && (
+            <Contracts
+              season={season}
+              onRenew={onRenew}
+              onLetGo={onLetGo}
+              onSign={onSign}
+            />
+          )}
           {tab === "table" && (
             <table className="league">
               <thead>

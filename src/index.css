@@ -2911,6 +2911,110 @@ div.draft-hint .meta {
   margin-top: 0;
 }
 
+/* Career depth: contracts, free agents, the domestic cup, the manager's record */
+.contracts {
+  display: grid;
+  gap: 14px;
+  padding: 10px 0 12px;
+}
+
+.contracts h4 {
+  margin: 0 0 6px;
+}
+
+.contracts .meta {
+  margin: 0 0 8px;
+}
+
+.contracts .verdict {
+  margin: 10px 0 0;
+}
+
+.contract-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.contract-row {
+  display: grid;
+  grid-template-columns: 4.4em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.contract-row .role {
+  font-family: var(--display);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.contract-row .name {
+  min-width: 0;
+}
+
+.contract-row small.asks,
+.contract-row small.leaving {
+  display: block;
+  font-size: 0.8rem;
+}
+
+.contract-row small.leaving {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.contract-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.contract-actions .btn {
+  min-height: 40px;
+}
+
+.show-all {
+  margin-top: 8px;
+  min-height: 40px;
+}
+
+.contracts-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.domestic-cup .cup-round h4 {
+  margin: 12px 0 4px;
+}
+
+.domestic-cup .through {
+  font-weight: 600;
+}
+
+.manager-record {
+  padding: 0 12px;
+}
+
+.manager-record .meta {
+  margin: 0;
+}
+
+@media (min-width: 560px) {
+  .contract-row {
+    grid-template-columns: 4.4em minmax(0, 1fr) auto auto;
+  }
+  .contract-actions {
+    grid-column: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

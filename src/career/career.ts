@@ -546,6 +546,39 @@ export function pastSeason(s: Season): PastSeason {
 /** The domestic cup, in a season's trophies. */
 export const CUP_TROPHY = 'Cup'
 
+/** The manager's career so far, from its finished seasons. */
+export interface ManagerRecord {
+  seasons: number
+  titles: number
+  cups: number
+  /** League and cup matches (seasons saved before records were kept count none). */
+  won: number
+  drawn: number
+  lost: number
+  played: number
+  /** Seasons the board's target was met. */
+  met: number
+  /** Best league finish. */
+  best: number
+}
+
+export function managerRecord(history: PastSeason[]): ManagerRecord {
+  const r: ManagerRecord = { seasons: history.length, titles: 0, cups: 0, won: 0, drawn: 0, lost: 0, played: 0, met: 0, best: 0 }
+  for (const h of history) {
+    if (h.trophies.includes('League title')) r.titles++
+    if (h.trophies.includes(CUP_TROPHY)) r.cups++
+    if (h.met) r.met++
+    r.best = r.best ? Math.min(r.best, h.place) : h.place
+    if (h.record) {
+      r.won += h.record.won
+      r.drawn += h.record.drawn
+      r.lost += h.record.lost
+    }
+  }
+  r.played = r.won + r.drawn + r.lost
+  return r
+}
+
 /** The manager's matches in a season, league and cup: won, drawn, lost (a tie on penalties is drawn). */
 export function recordOf(s: Season): { won: number; drawn: number; lost: number } {
   const r = { won: 0, drawn: 0, lost: 0 }
