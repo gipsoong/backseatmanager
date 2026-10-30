@@ -9,7 +9,7 @@ import { runMatch } from '../src/engine/index.ts'
 import { draftLeague, isComplete, newDraft, offer, place, poolPlayer } from '../src/draft/draft.ts'
 import { POOLS, type League } from '../src/draft/pools.ts'
 import { FORMATIONS } from '../src/engine/index.ts'
-import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, matchTeam, resultOf } from '../src/season/season.ts'
+import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, matchTeam, resultOf, squadOf, table } from '../src/season/season.ts'
 
 const seed = Number(process.argv[2] ?? 1)
 const upTo = Number(process.argv[3] ?? 38)
@@ -26,6 +26,26 @@ if (force) {
   if (pi < 0) throw new Error(`no ${force} in the squads`)
   const p = poolPlayer(pi, POOLS[pi].players.findIndex(([n, , o]) => n === name && o === Number(overall)))
   d = place(d, p, { xi: slots.findIndex((slot) => slot.role === p.role) })
+}
+// `dominant` (after the player): every other place in the eleven goes to the league's best player
+// for it, from any of its club-seasons (an eleven of ~88), before the greedy draft fills the bench.
+if (process.argv[7] === 'dominant') {
+  const used = new Set(d.xi.filter((p) => p).map((p) => p!.name))
+  slots.forEach((slot, i) => {
+    if (d.xi[i]) return
+    let best: [number, number, number] | null = null
+    POOLS.forEach((pool, pi) => {
+      if (pool.league !== league) return
+      pool.players.forEach(([name, positions, overall], k) => {
+        if (positions.split('/')[0] === slot.role && !used.has(name) && (!best || overall > best[2])) best = [pi, k, overall]
+      })
+    })
+    if (!best) return
+    const p = poolPlayer(best[0], best[1])
+    used.add(p.name)
+    d = place(d, p, { xi: i })
+  })
+  console.error(`dominant eleven: ${d.xi.map((p) => `${p!.name} ${p!.overall}`).join(', ')}`)
 }
 while (!isComplete(d)) {
   const players = offer(d).players.sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
@@ -44,3 +64,12 @@ while (s.matchday <= upTo) {
   process.stderr.write(`MD ${s.matchday - 1} (${Math.round((Date.now() - t0) / 1000)}s)\n`)
 }
 writeFileSync(out, JSON.stringify(s))
+{
+  const rows = table(s)
+  const me = rows.find((r) => r.team === s.userTeam)!
+  const top = Math.max(...Object.values(s.stats).map((st) => st.goals))
+  const forced = force ? squadOf(s.teams[s.userTeam]).find((p) => p.name === force.split(':')[0]) : undefined
+  console.log(
+    `our side ${rows.indexOf(me) + 1}th, ${me.points} pts, ${me.goalsFor}-${me.goalsAgainst} | champions ${rows[0].points} | ${forced ? `${forced.name} ${s.stats[forced.id]?.goals ?? 0} goals | ` : ''}top scorer ${top}`,
+  )
+}
