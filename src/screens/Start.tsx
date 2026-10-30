@@ -43,7 +43,7 @@ export function Start({
         </button>
         <button type="button" className="btn big ghost rise" style={stagger(2)} onClick={onDraft}>
           <span>Draft a side</span>
-          <span className="sub">Europe's top five leagues, 2010 to now · 38 matches and a European cup{saved ? ' · replaces your saved season' : ''}</span>
+          <span className="sub">Europe's top five leagues, 2010 to now · classic, budget, themed or daily · 38 matches and a European cup{saved ? ' · replaces your saved season' : ''}</span>
         </button>
         <button type="button" className="btn big ghost rise" style={stagger(3)} onClick={onFriendly}>
           <span>Watch a friendly</span>
