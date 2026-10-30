@@ -94,6 +94,7 @@ for (let seed = first; seed < first + n; seed++) {
   add('longest dull spell (min)', Math.max(...marks.slice(1).map((t, i) => t - marks[i])))
   // From each restart to the next stoppage, in clock time (ticks are clock time while in play).
   let playFrom: number | null = null
+  let fromShot = false
   for (const e of state.events) {
     if (e.type === 'restart') playFrom = e.tick
     else if (playFrom !== null && ['out', 'foul', 'goal', 'offside', 'halfTime', 'fullTime'].includes(e.type)) {
@@ -157,7 +158,11 @@ for (let seed = first; seed < first + n; seed++) {
     if (e.type === 'pass' && e.lofted) add('lofted', 1)
     if (e.type === 'shot' && e.header) add('headed shots', 1)
     if (e.type === 'shot' && e.penalty) add('penalties (match)', 1)
-    if (e.type === 'woodwork') add('woodwork (match)', 1)
+    // Opta's "hit the woodwork": a shot that hits the frame. One a keeper or defender has touched
+    // on the way (a save onto the post) isn't counted (they made up ~a quarter of woodwork events).
+    if (e.type === 'shot') fromShot = true
+    else if (e.type === 'deflection' || e.type === 'possession' || e.type === 'pass' || e.type === 'clearance') fromShot = false
+    if (e.type === 'woodwork' && fromShot) add('woodwork (match)', 1)
   }
 }
 
