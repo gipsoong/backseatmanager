@@ -136,6 +136,8 @@ export function checkMatch(
   const orders = config.orders ?? []
   let stoppage = 0
   const subStoppages: [Set<number>, Set<number>] = [new Set(), new Set()]
+  // Everyone hurt so far (an injury event): only they may go off for an injury.
+  const hurt = new Set<number>()
   const managedFrom = [0, 1].map((team) => Math.min(...orders.filter((o) => o.order.kind === 'sub' && o.order.team === team).map((o) => o.tick)))
   const shape = [home, away].map((t) => ({ formation: t.formation, block: t.block }))
 
@@ -167,6 +169,7 @@ export function checkMatch(
    */
   function checkOrders(s: MatchState, events: MatchEvent[]): void {
     const v = (rule: string, detail: string): void => v0(s.tick, rule, detail)
+    for (const e of events) if (e.type === 'injury') hurt.add(e.idx)
     for (const e of events) {
       if (e.type === 'sub') {
         const used = subStoppages[e.team].add(stoppage)
@@ -174,6 +177,8 @@ export function checkMatch(
         if (e.reason === 'manager') {
           const asked = orders.some((o) => o.tick <= e.tick && o.order.kind === 'sub' && o.order.team === e.team && o.order.offIdx === e.offIdx && o.order.onIdx === e.onIdx)
           if (!asked) v('sub-order', `a manager's substitution (${e.onIdx} for ${e.offIdx}) nobody asked for`)
+        } else if (e.reason === 'injury') {
+          if (!hurt.has(e.offIdx)) v('sub-injury', `${e.offIdx} went off injured without an injury`)
         } else if (e.tick > managedFrom[e.team]) v('sub-staff', `team ${e.team}'s staff substituted after the manager took over`)
       }
       if (e.type === 'restart') stoppage++

@@ -108,6 +108,22 @@ describe('orders', () => {
     }
   })
 
+  it("after the manager's first sub, the staff still replace an injured man, but make no other change", () => {
+    const [x, y] = teams(16)
+    const s = createMatch(x, y, { seed: 16 })
+    const field = s.players.filter((p) => p.team === 0 && p.onPitch && p.slot.role !== 'GK')
+    const sub = s.players.find((p) => p.team === 0 && !p.onPitch && p.def.role !== 'GK')!
+    const { violations, state } = checkMatch(x, y, { seed: 16, orders: [{ tick: 100, order: { kind: 'sub', team: 0, offIdx: field[9].idx, onIdx: sub.idx } }] })
+    expect(violations.slice(0, 10)).toEqual([])
+    const mine = state.events.filter((e) => e.type === 'sub' && e.team === 0)
+    const injury = mine.find((e) => e.type === 'sub' && e.reason === 'injury')!
+    expect(injury).toBeDefined()
+    const hurt = state.events.find((e) => e.type === 'injury' && injury.type === 'sub' && e.idx === injury.offIdx)
+    expect(hurt && hurt.tick <= injury.tick).toBe(true)
+    expect(mine.some((e) => e.type === 'sub' && e.reason === 'tired')).toBe(false)
+    expect(state.subWindows[0]).toBeLessThanOrEqual(3)
+  })
+
   it('refuses what the laws do not allow', () => {
     const s = createMatch(h, a, { seed: 9 })
     const keeper = s.players.find((p) => p.team === 0 && p.slot.role === 'GK')!

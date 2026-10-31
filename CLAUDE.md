@@ -526,11 +526,11 @@ pulling the repo.
   `giveOrder(s, o)` between ticks, `MatchConfig.orders` ({tick, order}: given just after that tick),
   `orderProblem` (five subs in three stoppages counting those waiting, keeper for keeper, nothing at
   full time or in a shootout). Subs wait in `pendingSubs` for the next stoppage; once a side asks for
-  one (`managed`) its staff make no more. A shape change re-slots the men where they stand (`reslot`);
+  one (`managed`) its staff make no tactical ones but still replace the injured (`injuryCover`). A shape change re-slots the men where they stand (`reslot`);
   orders replace `s.teams[side]` with a copy. No RNG drawn, so a match without orders is byte-identical
   (fingerprint.ts). `cloneMatch` copies a match that plays on identically (`carryCaches` for ai.ts's
   kick-off caches; add any new per-match cache there). Harness: `sub-window`, `sub-order`, `sub-staff`,
-  `order-formation`, `order-block`, `shape-slots`. The viewer: `Timeline.order(tick, o)` goes back to
+  `sub-injury`, `order-formation`, `order-block`, `shape-slots`. The viewer: `Timeline.order(tick, o)` goes back to
   the last checkpoint (every 500 ticks), plays on to the playhead and gives it (median ~8 ms);
   `stateAt(tick)`; `timeline.orders` reproduces the match with `runMatch`. `viewer/ChangePanel.tsx` is
   the panel ("Change", by the playback controls; `MatchViewer` `manage` side).

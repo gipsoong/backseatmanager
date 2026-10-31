@@ -1269,6 +1269,7 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
   for (const team of [0, 1] as const) {
     if (s.managed[team]) {
       managerSubs(s, r, team, out)
+      injuryCover(s, r, team, out)
       continue
     }
     let made = 0
@@ -1289,6 +1290,28 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       if (made++ === 0) s.subWindows[team]++
       emit(s, out, { type: 'sub', team, offIdx: off.idx, onIdx: on.idx, reason: off.injured ? 'injury' : 'tired' })
     }
+  }
+}
+
+/**
+ * Once the manager has taken over the changes, his staff still replace an injured man (the best fit
+ * on the bench, not one already waiting to come on), while substitutions and stoppages are left;
+ * in the same stoppage as any of the manager's, it counts as that one.
+ */
+function injuryCover(s: MatchState, r: Restart, team: Side, out: MatchEvent[]): void {
+  const counted = atStoppage(s, team)
+  if (!counted && s.subWindows[team] >= 3) return
+  const waiting = new Set(s.pendingSubs[team].flatMap((p) => [p.offIdx, p.onIdx]))
+  let made = 0
+  while (s.stats[team].subs + s.pendingSubs[team].length < MAX_SUBS) {
+    const off = s.players.find((p) => p.onPitch && p.team === team && p.injured && p.idx !== r.takerIdx && !waiting.has(p.idx))
+    if (!off) break
+    const bench = unusedSubs(s, team).filter((p) => !waiting.has(p.idx))
+    const on = bench.sort((a, b) => fitFor(b.def, off.slot) * ability(b.def) - fitFor(a.def, off.slot) * ability(a.def))[0]
+    if (!on || fitFor(on.def, off.slot) === 0) break
+    swap(s, team, off, on)
+    if (made++ === 0 && !counted) s.subWindows[team]++
+    emit(s, out, { type: 'sub', team, offIdx: off.idx, onIdx: on.idx, reason: 'injury' })
   }
 }
 

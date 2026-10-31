@@ -12,8 +12,8 @@ every mode (session 22); formations levelled (session 23); blocks levelled (sess
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
 more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28);
 in-match changes while watching (session 29).
-Next: the owner's call (in-match changes are in; options: a mentality setting, the staff still
-covering injuries after the manager takes over, changes for "Just the result" matches).
+Next: the owner's call (in-match changes are in; options: a mentality setting, changes for
+"Just the result" matches).
 
 ## Done (session 29): in-match changes
 
@@ -27,7 +27,8 @@ On branch `wip/in-match`. Order-free matches are untouched: fingerprint.ts all `
   full time or in a shootout). A substitution waits in `s.pendingSubs` for the next stoppage (made at
   once if play is stopped and the restart's changes are done; the restart's taker waits for the next);
   all a side's waiting subs go in one stoppage. Once a side asks for a sub (`s.managed`) its staff make
-  no more: this includes injuries (the manager sees "Injured" in the panel). A shape change re-slots
+  no tactical ones, but still replace an injured man at the next stoppage (`injuryCover`: best fit,
+  while subs and stoppages are left; harness `sub-injury`: nobody goes off injured without an injury). A shape change re-slots
   the men on the pitch where they stand (`reslot`: the keeper keeps his slot, the outfield men an exact
   best assignment by fit and nearness to their old slot; ten men leave one empty); a block change is
   at once. Both replace `s.teams[side]` with a copy, so the season's TeamDef is untouched. Events
