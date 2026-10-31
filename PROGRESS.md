@@ -10,8 +10,54 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
-more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28).
-Next: in-match management (on hold at the owner's request).
+more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28);
+in-match changes while watching (session 29).
+Next: the owner's call (in-match changes are in; options: a mentality setting, the staff still
+covering injuries after the manager takes over, changes for "Just the result" matches).
+
+## Done (session 29): in-match changes
+
+On branch `wip/in-match`. Order-free matches are untouched: fingerprint.ts all `9d880d58a297`
+(every hash as session 28), calibrate 80 1 / 201: 31/31 and 30/31, zero violations (as session 28).
+- **Engine** (match.ts): `Order` = a substitution, a formation or a block for one side (there's no
+  mentality setting to change). `giveOrder(s, order)` gives one between ticks; `MatchConfig.orders`
+  ({tick, order}[]) gives each just after its tick, so a match with orders is `runMatch` with them,
+  deterministic like any other. `orderProblem` says why one can't be given (five subs in three
+  stoppages, counting those waiting; a keeper only for a keeper; a man who hasn't played; none at
+  full time or in a shootout). A substitution waits in `s.pendingSubs` for the next stoppage (made at
+  once if play is stopped and the restart's changes are done; the restart's taker waits for the next);
+  all a side's waiting subs go in one stoppage. Once a side asks for a sub (`s.managed`) its staff make
+  no more: this includes injuries (the manager sees "Injured" in the panel). A shape change re-slots
+  the men on the pitch where they stand (`reslot`: the keeper keeps his slot, the outfield men an exact
+  best assignment by fit and nearness to their old slot; ten men leave one empty); a block change is
+  at once. Both replace `s.teams[side]` with a copy, so the season's TeamDef is untouched. Events
+  `formation`, `block`, and `sub` with reason 'manager'. No RNG is drawn by any of it.
+- `cloneMatch(s)`: a copy that plays on exactly as the original (`carryCaches` takes ai.ts's
+  kick-off edge and quality gap with it). Tested over full matches, a knockout with penalties.
+- **Harness**: `sub-window` (no fourth stoppage), `sub-order` (a manager's sub only once asked
+  for), `sub-staff` (no staff sub after he took over), `order-formation` / `order-block` (only as
+  ordered, on its tick), `shape-slots` (every man on the pitch in a slot of his side's shape, one
+  each). Continuity through a change is the existing speed check. Tests: `engine/orders.test.ts`
+  (copies, determinism, no orders = byte-identical, rules, the harness catching faults).
+- **Timeline** keeps a copy every 500 ticks; `order(tick, o)` goes back to the last copy, plays on to
+  the playhead (identical frames and events), gives the order and lets the viewer simulate ahead again.
+  Orders for later ticks (after scrubbing back) are dropped. `stateAt(tick)` is the match at the
+  playhead, for the panel. 60 orders over 6 matches (node): median 8 ms, p90 17 ms, max 56 ms; in the
+  browser 12-50 ms (the panel says "Played on from 34' in 12 ms"). Tested: the watched match equals
+  `runMatch` with `timeline.orders`, and is the order-free one up to the first order.
+- **UI**: a "Change" button by the playback controls (the manager's side: by name in Match.tsx;
+  the home side in a friendly) pauses and opens a panel under the controls: Shape (six), Block
+  (low/mid/high) applied on a tap; Off and On lists (role, name, a fitness bar, "Injured"), a "Make
+  change" button that names the swap, what's left ("4 substitutions left, in 2 stoppages"), and subs
+  waiting for a stoppage. Commentary: "Change for Arsenal: Saka on for Martinelli.", "Arsenal go to a
+  3-5-2.", "Arsenal push up into a high block." The viewer's highlight and replay caches key on
+  `timeline.version`; kits key on the kit (a shape change gives the side a new definition).
+- **Saves**: "Continue to results" plays the same timeline to the end and records `resultOf` it, as
+  before, so the season keeps the match as watched. "Just the result" and the background matches
+  never see orders.
+- Checks: tsc; vitest (all); Playwright at 390x844 and 1280x800, a career's first match: a sub, a
+  3-5-2 and a high block, played on until the sub's commentary line, then Continue to results: no
+  console errors, no horizontal scroll, every button in the controls and panel ≥ 40px.
 
 ## Done (session 28): draft leagues' goals, full benches
 
