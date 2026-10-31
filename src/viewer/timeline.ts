@@ -9,19 +9,27 @@ import {
   type MatchConfig,
   type MatchEvent,
   type MatchState,
+  type Order,
   type TeamDef,
   type TeamStats,
+  type TimedOrder,
+  cloneMatch,
   createMatch,
+  giveOrder,
+  orderProblem,
   formatClock,
   halfElapsed,
   step,
 } from '../engine/index.ts'
 
 const STATS_EVERY = 10
+/** A copy of the match is kept this often (ticks), to play on from with new orders. */
+const CHECKPOINT_EVERY = 500
 export const PLAYERS_AT = 4
 
 export class Timeline {
-  readonly state: MatchState
+  /** The match as simulated so far (replaced when an order sends it down a new path). */
+  state: MatchState
   readonly stride: number
   /** Number of ticks recorded so far (ticks 0 .. recorded-1). */
   recorded = 0
@@ -36,6 +44,14 @@ export class Timeline {
   /** Ticks of a whistle ending a period: they belong to the period just ended. */
   private whistleTicks = new Set<number>()
   private stats: [TeamStats, TeamStats][] = []
+  /** Copies of the match every CHECKPOINT_EVERY ticks, oldest first. */
+  private checkpoints: MatchState[] = []
+  /** Every order given, in tick order: the match is `runMatch` with these as `config.orders`. */
+  orders: TimedOrder[] = []
+  /** Wall time (ms) the last order took to go back and play on to its tick. */
+  lastOrderMs = 0
+  /** Bumped by every order: views keyed on it know the match beyond the playhead changed. */
+  version = 0
 
   constructor(home: TeamDef, away: TeamDef, seed: number, fitness?: Record<string, number>, knockout?: MatchConfig['knockout']) {
     this.state = createMatch(home, away, { seed, fitness, knockout })
@@ -71,6 +87,54 @@ export class Timeline {
 
   get lastTick(): number {
     return this.recorded - 1
+  }
+
+  /**
+   * Gives an order as the match stands at `tick` (the playhead), between that tick and the next.
+   * The match from there on is played afresh: back to the last copy at or before `tick`, on to
+   * `tick` exactly as before (the same frames, the same events), then the order, then on as the
+   * viewer asks. Orders given earlier for later ticks (after scrubbing back) are dropped, as that
+   * future is gone. The match is then `runMatch` with `orders` as `config.orders`.
+   * Returns why it can't be given then (changing nothing), or null.
+   */
+  order(tick: number, order: Order): string | null {
+    const t0 = performance.now()
+    const at = this.stateAt(tick)
+    const problem = orderProblem(at, order)
+    if (problem) return problem
+    this.orders = [...this.orders.filter((o) => o.tick <= at.tick), { tick: at.tick, order }]
+    this.rewind(at)
+    giveOrder(this.state, order)
+    this.lastOrderMs = performance.now() - t0
+    this.version++
+    return null
+  }
+
+  /**
+   * The match as it stands at `tick` (after it, with the orders given then), as a copy to look at
+   * or to play on from: the last copy at or before it, played on to it.
+   */
+  stateAt(tick: number): MatchState {
+    const t = Math.max(0, Math.min(Math.floor(tick), this.lastTick))
+    if (t === this.state.tick) return cloneMatch(this.state)
+    const cp = [...this.checkpoints].reverse().find((c) => c.tick <= t)!
+    const s = cloneMatch(cp)
+    s.orders = this.orders.filter((o) => o.tick >= cp.tick && o.tick < t)
+    while (s.tick < t) step(s)
+    for (const o of this.orders) if (o.tick === t) giveOrder(s, o.order)
+    return s
+  }
+
+  /** Plays on from `s`, a copy of the match at a recorded tick: everything recorded after it is forgotten. */
+  private rewind(s: MatchState): void {
+    this.state = s
+    this.recorded = s.tick + 1
+    this.done = false
+    // Copies up to this tick still hold (one at it was taken before any order given at it).
+    this.checkpoints = this.checkpoints.filter((c) => c.tick <= s.tick)
+    this.stats.length = Math.floor(s.tick / STATS_EVERY) + 1
+    for (const w of [...this.whistleTicks]) if (w > s.tick) this.whistleTicks.delete(w)
+    if (this.halfTimeTick !== null && this.halfTimeTick > s.tick) this.halfTimeTick = null
   }
 
   private record(): void {
@@ -109,6 +173,7 @@ export class Timeline {
       f[o + PLAYERS_AT + 1 + i * 2] = p.onPitch ? p.pos.y : NaN
     })
     if (s.tick % STATS_EVERY === 0) this.stats.push(structuredClone(s.stats))
+    if (s.tick % CHECKPOINT_EVERY === 0) this.checkpoints.push(cloneMatch(s))
     this.recorded = s.tick + 1
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createMatch, frameOf, ownGoalX, randomTeam, step } from '../engine/index.ts'
+import { createMatch, frameOf, ownGoalX, randomTeam, runMatch, step } from '../engine/index.ts'
 import { buildCommentary } from './commentary.ts'
 import { advancePlayhead } from './playback.ts'
 import { ANIMATION_LEAD, CAPTION_TICKS, animationsAt, captionsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
@@ -270,5 +270,53 @@ describe('match ratings', () => {
     expect(st).toBeGreaterThanOrEqual(6.8)
     expect(keeper).toBeGreaterThanOrEqual(8)
     expect(blank).toBeLessThan(6.5)
+  })
+})
+
+describe('orders while watching', () => {
+  const field = (t: Timeline, team: 0 | 1) => t.state.players.filter((p) => p.team === team && p.onPitch && p.slot.role !== 'GK')
+  const bench = (t: Timeline, team: 0 | 1) => t.state.players.filter((p) => p.team === team && !p.onPitch && p.def.role !== 'GK')
+
+  it('play on from the playhead, and the match is runMatch with the same orders', () => {
+    const t = new Timeline(home, away, SEED)
+    t.advance(12000) // simulated well ahead of the playhead
+    const off = field(t, 0)
+    const on = bench(t, 0)
+    expect(t.order(4321, { kind: 'formation', team: 0, formation: home.formation === '3-5-2' ? '4-3-3' : '3-5-2' })).toBeNull()
+    expect(t.lastTick).toBe(4321)
+    expect(t.order(4321, { kind: 'block', team: 0, block: home.block === 'low' ? 'high' : 'low' })).toBeNull()
+    expect(t.order(4321, { kind: 'sub', team: 0, offIdx: off[3].idx, onIdx: on[0].idx })).toBeNull()
+    t.advance(15000)
+    // Scrubbed back and changed again: the later future is replaced.
+    expect(t.order(9876, { kind: 'sub', team: 0, offIdx: off[6].idx, onIdx: on[1].idx })).toBeNull()
+    while (!t.done) t.advance(5000)
+    expect(t.orders.map((o) => o.tick)).toEqual([4321, 4321, 4321, 9876])
+    const headless = runMatch(home, away, { seed: SEED, orders: t.orders })
+    expect(t.state.events).toEqual(headless.events)
+    expect(t.state.stats).toEqual(headless.stats)
+    const last = frameOf(headless)
+    const f = t.frame(t.lastTick)
+    last.players.forEach((p, i) => p.onPitch && expect(f[PLAYERS_AT + i * 2]).toBeCloseTo(p.x, 3))
+    // Up to the first order, frames and events are the order-free match's.
+    for (const tick of [0, 2000, 4321]) expect(Array.from(t.frame(tick))).toEqual(Array.from(full.frame(tick)))
+    expect(t.state.events.filter((e) => e.tick < 4321)).toEqual(full.state.events.filter((e) => e.tick < 4321))
+    expect(t.state.events.filter((e) => e.type === 'sub' && e.reason === 'manager').length).toBe(2)
+  })
+
+  it('refuses an order the laws do not allow, changing nothing', () => {
+    const t = new Timeline(home, away, SEED)
+    t.advance(3000)
+    const keeper = t.state.players.find((p) => p.team === 0 && p.slot.role === 'GK')!
+    expect(t.order(1000, { kind: 'sub', team: 0, offIdx: keeper.idx, onIdx: bench(t, 0)[0].idx })).toMatch(/keeper/)
+    expect(t.lastTick).toBe(3000)
+    expect(t.orders).toEqual([])
+  })
+
+  it('an order is quick: back to the last copy and on to the playhead', () => {
+    const t = new Timeline(home, away, SEED)
+    t.advance(30000)
+    t.order(29999, { kind: 'block', team: 1, block: away.block === 'high' ? 'low' : 'high' })
+    // At most CHECKPOINT_EVERY ticks played again (~10-20 ms on a desktop core).
+    expect(t.lastOrderMs).toBeLessThan(500)
   })
 })

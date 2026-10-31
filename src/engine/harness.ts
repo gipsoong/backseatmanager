@@ -174,7 +174,7 @@ export function checkMatch(
         if (e.reason === 'manager') {
           const asked = orders.some((o) => o.tick <= e.tick && o.order.kind === 'sub' && o.order.team === e.team && o.order.offIdx === e.offIdx && o.order.onIdx === e.onIdx)
           if (!asked) v('sub-order', `a manager's substitution (${e.onIdx} for ${e.offIdx}) nobody asked for`)
-        } else if (e.tick >= managedFrom[e.team]) v('sub-staff', `team ${e.team}'s staff substituted after the manager took over`)
+        } else if (e.tick > managedFrom[e.team]) v('sub-staff', `team ${e.team}'s staff substituted after the manager took over`)
       }
       if (e.type === 'restart') stoppage++
     }
@@ -183,7 +183,7 @@ export function checkMatch(
       for (const key of ['formation', 'block'] as const) {
         if (t[key] === shape[team][key]) continue
         const ev = events.some((e) => e.type === key && e.team === team && e[key as never] === t[key])
-        const asked = orders.some((o) => o.tick === s.tick && o.order.kind === key && o.order.team === team && (o.order as Record<string, unknown>)[key] === t[key])
+        const asked = orders.some((o) => o.tick === s.tick - 1 && o.order.kind === key && o.order.team === team && (o.order as Record<string, unknown>)[key] === t[key])
         if (!ev || !asked) v('order-' + key, `team ${team} went to ${t[key]} without ${ev ? 'an order that tick' : 'an event'}`)
         shape[team][key] = t[key] as never
       }

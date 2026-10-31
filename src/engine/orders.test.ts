@@ -129,8 +129,8 @@ describe('orders', () => {
     let before: ReturnType<typeof frameOf> | null = null
     let after: ReturnType<typeof frameOf> | null = null
     const x = runMatch(h, a, { seed: 9, orders }, (s) => {
-      if (s.tick === 3999) before = frameOf(s)
-      if (s.tick === 4000) after = frameOf(s)
+      if (s.tick === 4000) before = frameOf(s)
+      if (s.tick === 4001) after = frameOf(s)
     })
     expect(x.tick).toBeGreaterThan(4000)
     // Within a tick's running (the harness checks every tick against each man's top speed).

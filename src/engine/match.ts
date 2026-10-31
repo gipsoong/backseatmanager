@@ -290,8 +290,9 @@ const LOOSENERS = new Set<MatchEvent['type']>(['pass', 'shot', 'clearance', 'def
 export function step(s: MatchState): MatchEvent[] {
   const out: MatchEvent[] = []
   if (s.phase.kind === 'fullTime') return out
+  // The manager's orders for the tick just played (as `giveOrder` would have given them then).
+  while (s.orders.length && s.orders[0].tick <= s.tick) out.push(...giveOrder(s, s.orders.shift()!.order))
   s.tick++
-  if (s.orders.length && s.orders[0].tick <= s.tick) applyOrders(s, out)
 
   // 1. decisions
   if (s.phase.kind === 'restart') tryTakeRestart(s, out)
@@ -1343,27 +1344,32 @@ function atStoppage(s: MatchState, team: Side): boolean {
   return false
 }
 
-function applyOrders(s: MatchState, out: MatchEvent[]): void {
-  while (s.orders.length && s.orders[0].tick <= s.tick) {
-    const order = s.orders.shift()!.order
-    if (orderProblem(s, order)) continue
-    const team = order.team
-    if (order.kind === 'block') {
-      if (s.teams[team].block === order.block) continue
-      s.teams[team] = { ...s.teams[team], block: order.block }
-      emit(s, out, { type: 'block', team, block: order.block })
-    } else if (order.kind === 'formation') {
-      if (s.teams[team].formation === order.formation) continue
-      s.teams[team] = { ...s.teams[team], formation: order.formation }
-      reslot(s, team, FORMATIONS[order.formation])
-      emit(s, out, { type: 'formation', team, formation: order.formation })
-    } else {
-      s.managed[team] = true
-      s.pendingSubs[team].push({ offIdx: order.offIdx, onIdx: order.onIdx })
-      // Already at a stoppage that hasn't been taken: on he comes now.
-      if (s.phase.kind === 'restart' && s.phase.restart.subsDone) managerSubs(s, s.phase.restart, team, out)
-    }
+/**
+ * Gives an order now, between ticks (after `s.tick`, before the next): a shape or block at once, a
+ * substitution at this stoppage if play is stopped and the restart's changes have been made, else
+ * at the next. Returns the events it made (also in `s.events`, at `s.tick`); none if it's refused
+ * (see `orderProblem`). `config.orders` at tick t is the same as calling this after tick t.
+ */
+export function giveOrder(s: MatchState, order: Order): MatchEvent[] {
+  const out: MatchEvent[] = []
+  if (orderProblem(s, order)) return out
+  const team = order.team
+  if (order.kind === 'block') {
+    if (s.teams[team].block === order.block) return out
+    s.teams[team] = { ...s.teams[team], block: order.block }
+    emit(s, out, { type: 'block', team, block: order.block })
+  } else if (order.kind === 'formation') {
+    if (s.teams[team].formation === order.formation) return out
+    s.teams[team] = { ...s.teams[team], formation: order.formation }
+    reslot(s, team, FORMATIONS[order.formation])
+    emit(s, out, { type: 'formation', team, formation: order.formation })
+  } else {
+    s.managed[team] = true
+    s.pendingSubs[team].push({ offIdx: order.offIdx, onIdx: order.onIdx })
+    // Already at a stoppage, its changes made and the restart not yet taken: on he comes now.
+    if (s.phase.kind === 'restart' && s.phase.restart.subsDone) managerSubs(s, s.phase.restart, team, out)
   }
+  return out
 }
 
 /**

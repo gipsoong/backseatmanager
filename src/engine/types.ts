@@ -398,7 +398,7 @@ export interface MatchConfig {
    */
   knockout?: { carried?: [number, number] }
   /**
-   * The manager's orders, each applied at the start of its tick (before anything else that tick).
+   * The manager's orders, each given just after its tick (as `giveOrder` then), before the next.
    * None: the match plays exactly as it always has.
    */
   orders?: TimedOrder[]
@@ -415,7 +415,7 @@ export type Order =
   | { kind: 'block'; team: Side; block: Block }
 
 export interface TimedOrder {
-  /** The tick it applies at: the start of this tick's step. */
+  /** Given once this tick has been played, before the next. */
   tick: number
   order: Order
 }
