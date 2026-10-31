@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CENTER, type MatchEvent, type Side, ownGoalX } from '../engine/index.ts'
 import { ChangePanel } from './ChangePanel.tsx'
-import { buildCommentary, surname } from './commentary.ts'
+import { buildCommentary, matchNames } from './commentary.ts'
 import {
   ANIMATION_LEAD,
   type ReplayMoment,
   type ViewMode,
   animationsAt,
   captionsAt,
+  celebrationPose,
   flightAt,
   highlightWindows,
   replayMoments,
   runsAt,
 } from './highlights.ts'
-import { type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
+import { type Animation, type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
 import { type NetState, netAt } from './net.ts'
 import { Commentary, Players, Stats } from './panels.tsx'
 import { playerLines } from './players.ts'
@@ -167,6 +168,18 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
         const prev = timeline.frame(pending.tick - 1)
         net = netAt({ ...pending.pos, z: pending.height }, { x: prev[0], y: prev[1], z: prev[2] }, (ph - pending.tick + 1) / 10 - 0.05)
       }
+      const animations: Animation[] = animationsAt(events, timeline.indexAfter(t + ANIMATION_LEAD), ph)
+      // The scorer's celebration, once he's got where he was running.
+      const celebrating = pending
+      if (celebrating) {
+        const i = celebrating.scorerIdx
+        const pose = celebrationPose(celebrating, ph, (tk) => {
+          if (tk > timeline.lastTick) return null
+          const f = timeline.frame(tk)
+          return { x: f[PLAYERS_AT + i * 2], y: f[PLAYERS_AT + i * 2 + 1] }
+        })
+        if (pose && !animations.some((an) => an.idx === i)) animations.push(pose)
+      }
       drawFrame(canvas.getContext('2d')!, viewRef.current, cam, timeline, ph, {
         kits,
         keeperKits,
@@ -174,7 +187,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
         net,
         captions: live.current.showCaptions ? captionsAt(events, upTo, ph, attacksHigh, teamOf) : [],
         flight: pending ? null : flightAt(events, upTo),
-        animations: animationsAt(events, timeline.indexAfter(t + ANIMATION_LEAD), ph),
+        animations,
         runs: runsAt(events, upTo, ph).map((r) => {
           const end = timeline.frame(Math.min(r.until, timeline.lastTick))
           return {
@@ -301,7 +314,26 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
   }, [timeline, events, tick])
   // Rough full length so the scrubber doesn't jump around while the rest simulates.
   const total = timeline.done ? timeline.lastTick : Math.max(recorded, Math.round(match.halfTicks * 2 * 0.68))
-  const name = (idx: number): string => surname(match.players[idx].def.name)
+  // Short names, with an initial where two men in the match share one.
+  const names = useMemo(() => matchNames(match), [match])
+  const name = (idx: number): string => names[idx]
+  const finished = status === 'FT' || status === 'AET' || status === 'Pens'
+  // The man of the match, once it's over: the best rating on either side.
+  const motm = useMemo(() => {
+    if (!finished) return null
+    const all = playerLines(match, events)
+    let best = -1
+    all.forEach((l, i) => {
+      if (l.played && (best < 0 || l.rating > all[best].rating)) best = i
+    })
+    return best < 0 ? null : { idx: best, rating: all[best].rating }
+  }, [finished, match, events])
+  const replayGoal = (m: ReplayMoment | undefined): void => {
+    if (!m) return
+    setChanging(false)
+    startReplay(m)
+    wrapRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }
 
   return (
     <div className="viewer">
@@ -338,7 +370,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
           {replayAngle && (
             <div className="replay-chip">
               <span className="replay-label">Replay</span>
-              <span>{replayAngle}</span>
+              <span className="replay-angle">{replayAngle}</span>
               <button type="button" onClick={endReplay}>
                 Skip
               </button>
@@ -430,6 +462,53 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
               onOrder?.()
             }}
           />
+        )}
+        {(goalsSoFar.length > 0 || finished) && (
+          <section className={`goal-reel${finished ? ' final' : ''}`} aria-label={finished ? 'Full-time summary' : 'Goals'}>
+            {finished && (
+              <header className="reel-head">
+                <p className="eyebrow">{status === 'FT' ? 'Full-time' : status === 'AET' ? 'After extra time' : 'Full-time · penalties'}</p>
+                <p className="reel-score">
+                  <span className="swatch" style={{ background: kits[0].shirt }} /> {home.name} {score[0]}–{score[1]} {away.name}{' '}
+                  <span className="swatch" style={{ background: kits[1].shirt }} />
+                  {pens && <small className="pens"> ({pens[0]}–{pens[1]} on penalties)</small>}
+                </p>
+                {motm && (
+                  <p className="meta">
+                    Player of the match: {match.players[motm.idx].def.name} ({match.teams[match.players[motm.idx].team].shortName}, {motm.rating.toFixed(1)})
+                  </p>
+                )}
+              </header>
+            )}
+            {goalsSoFar.length > 0 ? (
+              <>
+                <p className="eyebrow reel-title">{finished ? 'Goals · watch any again' : 'Goals'}</p>
+                <ol className="reel">
+                  {goalsSoFar.map((g) => {
+                    const m = replayable.get(g.tick)
+                    return (
+                      <li key={g.tick}>
+                        <button type="button" className="reel-goal" disabled={!m} onClick={() => replayGoal(m)} title={m ? 'Watch the replay' : 'After the live replay'}>
+                          <span className="swatch" style={{ background: kits[g.team].shirt }} />
+                          <span className="reel-min">{g.clock}</span>
+                          <span className="reel-who">
+                            {name(g.scorerIdx)}
+                            {g.ownGoal ? ' (og)' : ''}
+                            {g.assistIdx !== null && <small> · {name(g.assistIdx)}</small>}
+                          </span>
+                          <span className="reel-play" aria-hidden="true">
+                            <PlayIcon /> Replay
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ol>
+              </>
+            ) : (
+              <p className="meta reel-none">No goals to replay.</p>
+            )}
+          </section>
         )}
       </div>
 

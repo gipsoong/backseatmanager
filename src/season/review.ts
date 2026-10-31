@@ -37,19 +37,20 @@ export interface Review {
 const avgOf = (st: SeasonStats): number => avgRating(st) ?? 0
 const signed = (v: number): string => (v >= 0 ? `+${v.toFixed(1)}` : v.toFixed(1))
 const per90 = (v: number, st: SeasonStats): number => (v / Math.max(1, count(st, 'minutes'))) * 90
+const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
 
 /** What a player's season was, in a few numbers suited to his position. */
 export function seasonLine(p: PlayerDef, st: SeasonStats, rate: number): string {
   const bits = [`${avgOf(st).toFixed(2)} avg`, `${st.apps} apps`]
   const g = ratingGroup(p.role)
   if (g === 'GK') {
-    bits.push(`${count(st, 'cleanSheets')} clean sheets`, `${signed(goalsPrevented(st, rate))} goals prevented`)
+    bits.push(`${plural(count(st, 'cleanSheets'), 'clean sheet')}`, `${signed(goalsPrevented(st, rate))} goals prevented`)
   } else if (g === 'DEF' || g === 'DM') {
     bits.push(`${per90(count(st, 'tackles') + count(st, 'interceptions'), st).toFixed(1)} tackles + interceptions per 90`)
     if (count(st, 'blocks') + count(st, 'clearances') > 0) bits.push(`${count(st, 'blocks')} blocks, ${count(st, 'clearances')} clearances`)
     if (st.goals + st.assists) bits.push(`${st.goals} G, ${st.assists} A`)
   } else {
-    bits.push(`${st.goals} goals (${count(st, 'xg').toFixed(1)} xG)`, `${st.assists} assists (${count(st, 'xa').toFixed(1)} xA)`)
+    bits.push(`${plural(st.goals, 'goal')} (${count(st, 'xg').toFixed(1)} xG)`, `${plural(st.assists, 'assist')} (${count(st, 'xa').toFixed(1)} xA)`)
   }
   return bits.join(' · ')
 }

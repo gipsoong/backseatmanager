@@ -256,13 +256,14 @@ export function captionFor(e: MatchEvent, attacksHigh: (team: 0 | 1, tick: numbe
       return null
     }
     case 'possession':
+      if (e.via === 'save' && e.dive) return { idx: e.idx, text: 'Diving save' }
       return e.won === 'cut' ? { idx: e.idx, text: 'Interception' } : null
     case 'tackle':
       if (e.won) return { idx: e.byIdx, text: e.style === 'slide' ? 'Sliding tackle' : 'Tackle' }
       return e.beaten ? { idx: e.onIdx, text: MOVES[e.beaten] } : null
     case 'deflection':
       if (e.kind === 'block') return { idx: e.idx, text: 'Block' }
-      if (e.kind === 'parry') return { idx: e.idx, text: 'Save' }
+      if (e.kind === 'parry') return { idx: e.idx, text: e.height > 1.9 ? 'Fingertip save' : e.dive ? 'Diving save' : 'Save' }
       return null
     default:
       return null
@@ -287,4 +288,67 @@ export function captionsAt(
     if (c && !out.some((o) => o.idx === c.idx)) out.push({ ...c, age })
   }
   return out
+}
+
+// ---------------------------------------------------------------------------
+// Celebrations
+
+type Goal = Extract<MatchEvent, { type: 'goal' }>
+type Pos = { x: number; y: number }
+
+/**
+ * The scorer's pose as he celebrates, from where he actually ran (`posAt`: his recorded position,
+ * null where not simulated yet): a knee slide carrying him the last few metres, arms out at the
+ * corner flag, or a punch of the air, twice. Starts once he's come to a stop after his run.
+ */
+export function celebrationPose(
+  goal: Goal,
+  playhead: number,
+  posAt: (tick: number) => Pos | null,
+): { kind: 'slide' | 'jump' | 'arms'; idx: number; toward: { x: number; y: number; z: number }; age: number } | null {
+  if (!goal.celebration || goal.ownGoal) return null
+  const arrival = arrivalOf(goal, posAt)
+  if (arrival === null) return null
+  const { tick, at, dir } = arrival
+  const idx = goal.scorerIdx
+  const toward = { x: at.x + dir.x * 2, y: at.y + dir.y * 2, z: 0 }
+  const since = playhead - tick
+  if (goal.celebration === 'kneeSlide') {
+    const age = (since + 8) / 16
+    return age >= 0 && age <= 1 ? { kind: 'slide', idx, toward, age } : null
+  }
+  if (goal.celebration === 'cornerFlag') {
+    const age = since / 40
+    return age >= 0 && age <= 1 ? { kind: 'arms', idx, toward, age } : null
+  }
+  for (const start of [0, 11]) {
+    const age = (since - start) / 9
+    if (age >= 0 && age <= 1) return { kind: 'jump', idx, toward: { ...toward, z: 1 }, age }
+  }
+  return null
+}
+
+const arrivals = new WeakMap<Goal, { tick: number; at: Pos; dir: Pos } | null>()
+
+/** When the scorer, having run off to celebrate, comes to a stop; where, and which way he was going. */
+function arrivalOf(goal: Goal, posAt: (tick: number) => Pos | null): { tick: number; at: Pos; dir: Pos } | null {
+  const known = arrivals.get(goal)
+  if (known !== undefined) return known
+  let ran = false
+  for (let t = goal.tick + 1; t < goal.tick + 160; t++) {
+    const a = posAt(t - 1)
+    const b = posAt(t)
+    if (!a || !b) return null // not simulated that far yet: look again next time
+    const speed = Math.hypot(b.x - a.x, b.y - a.y) * 10
+    if (speed > 4) ran = true
+    if (ran && speed < 1.2) {
+      const back = posAt(Math.max(goal.tick, t - 10)) ?? a
+      const d = Math.hypot(b.x - back.x, b.y - back.y) || 1
+      const found = { tick: t, at: b, dir: { x: (b.x - back.x) / d, y: (b.y - back.y) / d } }
+      arrivals.set(goal, found)
+      return found
+    }
+  }
+  arrivals.set(goal, null)
+  return null
 }

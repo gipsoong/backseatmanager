@@ -245,7 +245,7 @@ function drawGoals(ctx: CanvasRenderingContext2D, cam: Camera, net: NetState['bu
 
 /** A short movement that says what a player just did: slid in, dived, struck the ball, jumped. */
 export interface Animation {
-  kind: 'slide' | 'dive' | 'kick' | 'jump'
+  kind: 'slide' | 'dive' | 'kick' | 'jump' | 'arms'
   idx: number
   /** Where the body stretches towards (pitch metres, z for a dive's height). */
   toward: { x: number; y: number; z: number }
@@ -526,6 +526,27 @@ function drawPlayer(
     ctx.strokeStyle = kit.shirt
     ctx.lineWidth = r * 1.7
     ctx.stroke()
+  }
+  if (anim?.kind === 'arms') {
+    // Arms out wide, across the way he was running: opening out, held, then dropped.
+    const open = Math.min(1, anim.age * 5) * Math.min(1, (1 - anim.age) * 6)
+    const ahead = cam.project(anim.toward.x, anim.toward.y)
+    if (ahead && open > 0.02) {
+      const ux = ahead.x - base.x
+      const uy = ahead.y - base.y
+      const ul = Math.hypot(ux, uy) || 1
+      const [px, py] = [(-uy / ul) * r * 1.9 * open, (ux / ul) * r * 1.9 * open]
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.moveTo(base.x - px, base.y - py)
+      ctx.lineTo(base.x + px, base.y + py)
+      ctx.strokeStyle = 'rgba(0,0,0,0.3)'
+      ctx.lineWidth = r * 0.5 + 2
+      ctx.stroke()
+      ctx.strokeStyle = kit.shirt
+      ctx.lineWidth = r * 0.5
+      ctx.stroke()
+    }
   }
   ctx.beginPath()
   ctx.arc(base.x, base.y, r, 0, Math.PI * 2)

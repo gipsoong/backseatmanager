@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { createMatch, frameOf, ownGoalX, randomTeam, runMatch, step } from '../engine/index.ts'
-import { buildCommentary } from './commentary.ts'
+import { type MatchEvent, createMatch, frameOf, ownGoalX, randomTeam, runMatch, step } from '../engine/index.ts'
+import { buildCommentary, matchNames } from './commentary.ts'
 import { advancePlayhead } from './playback.ts'
-import { ANIMATION_LEAD, CAPTION_TICKS, animationsAt, captionsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
+import { ANIMATION_LEAD, CAPTION_TICKS, animationsAt, celebrationPose, captionsAt, flightAt, highlightWindows, replayMoments, runsAt, windowAt } from './highlights.ts'
 import { GOAL_DEPTH, netAt } from './net.ts'
 import { describeTraits, playerLines, rate } from './players.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
@@ -56,6 +56,55 @@ describe('commentary', () => {
 
   it('reads the same every time', () => {
     expect(buildCommentary(full.state, full.state.events)).toEqual(lines)
+  })
+
+  it('never changes a line once written', () => {
+    const events = full.state.events
+    const half = buildCommentary(full.state, events.slice(0, Math.floor(events.length / 2)))
+    expect(lines.slice(0, half.length)).toEqual(half)
+  })
+
+  it("doesn't read the same twice running", () => {
+    // With the players' names taken out, no line is the one before it.
+    const shape = (t: string): string => names.reduce((s, n) => s.split(n).join('N'), t).replace(/\d+/g, '#')
+    const names = [...matchNames(full.state)].sort((a, b) => b.length - a.length)
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].kind === 'period') continue
+      expect(shape(lines[i].text)).not.toBe(shape(lines[i - 1].text))
+    }
+  })
+
+  it('tells apart two men in the match who share a surname', () => {
+    const names = matchNames(full.state)
+    const short = full.state.players.map((p) => p.def.name.split(' ').at(-1))
+    full.state.players.forEach((_, i) => {
+      const twin = short.findIndex((s, j) => j !== i && s === short[i])
+      if (twin >= 0) expect(names[i]).not.toBe(names[twin])
+    })
+    expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+describe('celebrations', () => {
+  it("strikes a pose once the scorer has stopped, from where he ran", () => {
+    const goals = full.state.events.filter((e): e is Extract<MatchEvent, { type: 'goal' }> => e.type === 'goal' && e.celebration !== null && !e.ownGoal)
+    expect(goals.length).toBeGreaterThan(0)
+    for (const g of goals) {
+      const posAt = (t: number) => {
+        const f = full.frame(t)
+        return { x: f[PLAYERS_AT + g.scorerIdx * 2], y: f[PLAYERS_AT + g.scorerIdx * 2 + 1] }
+      }
+      let posed = 0
+      for (let t = g.tick; t < g.tick + 200; t++) {
+        const p = celebrationPose(g, t, posAt)
+        if (!p) continue
+        posed++
+        expect(p.idx).toBe(g.scorerIdx)
+        expect(p.kind).toBe(g.celebration === 'kneeSlide' ? 'slide' : g.celebration === 'cornerFlag' ? 'arms' : 'jump')
+      }
+      expect(posed).toBeGreaterThan(5)
+      expect(celebrationPose(g, g.tick, posAt)).toBeNull()
+    }
   })
 })
 

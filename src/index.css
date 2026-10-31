@@ -369,13 +369,158 @@ h1 .v {
 }
 
 .replay-chip button {
-  min-height: 32px;
+  min-height: 40px;
+  min-width: 48px;
   padding: 0 10px;
   border: 1px solid rgba(243, 245, 241, 0.3);
   border-radius: 3px;
   background: transparent;
   color: inherit;
   font: inherit;
+}
+
+/* On a phone the pitch is narrow: the replay chip sits at the foot, clear of the scorebug. */
+@media (max-width: 560px) {
+  .replay-chip {
+    top: auto;
+    bottom: 8px;
+    right: 8px;
+    font-size: 0.9rem;
+  }
+  .scorebug {
+    top: 6px;
+    left: 6px;
+    gap: 6px;
+    padding: 2px 8px;
+    font-size: 0.95rem;
+  }
+  .goal-strip {
+    left: 6px;
+    bottom: 6px;
+    max-width: calc(100% - 12px);
+    padding: 6px 10px;
+    font-size: 1rem;
+  }
+}
+
+/* Goals so far, each replayable; at full time, the match's summary. */
+.goal-reel {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.goal-reel .eyebrow {
+  margin: 0;
+}
+
+.reel-head {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.reel-head .meta {
+  margin: 0;
+}
+
+.reel-score {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.reel-score .pens {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.reel {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.reel-goal {
+  width: 100%;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 10px 3.2em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.reel-goal:not(:disabled):hover {
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.reel-goal:disabled {
+  cursor: default;
+}
+
+.reel-goal:disabled .reel-play {
+  visibility: hidden;
+}
+
+.reel-min {
+  font-family: var(--display);
+  font-weight: 600;
+  color: var(--goal);
+  font-variant-numeric: tabular-nums;
+}
+
+.reel-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.reel-who small {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.reel-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.reel-play svg {
+  width: 12px;
+  height: 12px;
+}
+
+.reel-none {
+  margin: 0;
 }
 
 /* Playback controls */
@@ -688,6 +833,8 @@ h1 .v {
 
 .tabs {
   position: relative;
+  /* Never squeezed by a tall panel below it (overflow-x makes its min-height 0 in a flex column). */
+  flex: none;
   display: flex;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
@@ -2062,7 +2209,9 @@ td.style {
 button.name-link {
   border: 0;
   background: none;
-  padding: 0;
+  /* A 40px touch target that doesn't make the row any taller. */
+  padding: 9px 0;
+  margin: -9px 0;
   font: inherit;
   color: inherit;
   text-align: left;
