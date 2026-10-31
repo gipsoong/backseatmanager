@@ -10,8 +10,73 @@ team selection and a 38-0-style draft mode (session 9); a January swap window in
 seasons that carry on (session 19); career stage 2, the market (session 19); one overall scale for
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
-more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27).
+more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28).
 Next: in-match management (on hold at the owner's request).
+
+## Done (session 28): draft leagues' goals, full benches
+
+On branch `wip/draft-goals`. Tool: `scripts/diag-draft-goals.ts` (draft leagues of each league next to
+career leagues, full fitness, random pairs: goals, xG, shots, conversion, xG by the elevens' gap, the
+lines' sub-attributes and traits). Draft-only changes: club, career and knockout fingerprints are
+unchanged (only the draft matches' hashes moved), so calibrate, career sims, formations and blocks
+play exactly as before.
+
+- **What was wrong.** At full fitness (500 a kind, seed 11) career leagues scored 3.08 (xG 3.01) and
+  draft leagues 3.40-3.43 (seed 1: career 2.98, draft 3.51-3.79). Three things, each a way draft sides
+  differed from the made-up players the engine (and session 24's shooting retune) was tuned on:
+  1. **Blocks**: every club-season sat in a mid block; career clubs are a third each. Mid v mid is
+     the most open pairing: a career league all in mid blocks made +0.23 xG a match. Session 24 levelled
+     the blocks and raised shooting to keep careers at ~2.7, which draft leagues got on top.
+  2. **Cards by position**: a FIFA card gives a striker ~4 points more skill than a made-up striker of
+     the same standing (that's `ROLE_OFFSET`, which `qualityGap` already nets out): draft forwards had
+     pace 13.5 and finishing 13.5 against career forwards' 12.6 and 12.8, keepers and defenders alike.
+  3. **Traits**: archetype leans (`TRAIT_LEAN`) put draft forwards' flair and directness at ~0.65
+     (made-up 0.55 / 0.51), defenders' and keepers' flair at ~0.25 (0.44) and midfielders' work rate
+     at 0.65 (0.55). Made-up traits instead: -0.13 xG a match.
+  Not the quality gap by itself: even matches (elevens within 2) were ~0.4 above careers too.
+- **Fixes.** Club-seasons' blocks by their eleven's rank (strongest third high/mid/low 50/35/15%,
+  middle 30/40/30, weakest 15/35/50; the drafted side stays mid). A draft player plays his card moved
+  by `ROLE_OFFSET` (`cardShift`), shown as FIFA's (`shownRatings`; old draft saves are remade once in
+  `upgradeSave`). Draft traits: the archetype's lean centred on the position's made-up mean
+  (`traitMean`), each archetype as different from the others as before.
+- Full fitness (diag-draft-goals 500 11), goals / xG a match:
+
+| | career | Premier League | La Liga | Serie A |
+|---|---|---|---|---|
+| before | 3.08 / 3.01 | 3.43 / 3.16* | 3.40 / 3.06* | 3.40 / 3.25* |
+| after | | 3.09 / 3.04 | 3.10 / 2.95 | 3.34 / 3.18 |
+
+  (*with the blocks and card shift already in; all three before, seed 1 at 300: PL 3.51 / 3.28,
+  Serie A 3.79 / 3.47.)
+- Seasons (sim-season, greedy classic draft, 38 matchdays), goals a match / top scorer / champions:
+
+| seed, league | before | blocks + cards | all three |
+|---|---|---|---|
+| 1 PL | 3.21 / 51 / 100 | 2.90 / 27 / 98 | 2.88 / 27 / 97 |
+| 2 La Liga | 3.47 / 43 / 107 | 2.90 / 34 / 95 | 2.99 / 33 / 85 |
+| 3 Serie A | 3.66 / 47 / 102 | 3.15 / 38 / 99 | 3.06 / 36 / 100 |
+| 4 Bundesliga | 3.12 / 49 / 103 | 3.01 / 38 / 99 | 2.96 / 38 / 105 |
+| 5 PL | | 3.10 / 39 / 95 | 2.88 / 32 / 94 |
+| 6 La Liga | | 2.91 / 29 / 101 | 2.89 / 21 / 87 |
+| 7 Serie A | | 2.96 / 29 / 105 | 2.80 / 28 / 98 |
+| 8 Ligue 1 | | 2.69 / 39 / 106 | 2.70 / 44 / 101 |
+
+  Now 2.70-3.06, mean 2.90 (was 3.12-3.66). Matches between even sides score 2.6-2.9; what's left
+  above that is the draft league's spread (strongest - weakest eleven 12-16, careers 7.5-11) and the
+  drafted side (its matches 3.1-3.9). Pichichi 21-44 (Zlatan 44 for a dominant drafted Ligue 1 side).
+- Stars (La Liga, Ronaldo 94 put in, greedy; seeds 1-8): Ronaldo 30, 43, 26, 25, 19, 33, 43, 25 (mean 31;
+  before, seeds 1/2/5/6: 12, 29, 37, 41); league 2.90-3.36 a match.
+  A dominant side (`dominant`, seeds 1/2/5/6): 97 (3rd to 101), 98, 94, 95 points, 93-134 goals; Ronaldo
+  21-48 (session 26: 96-108 points).
+- **Benches**: a classic league's club-seasons had 0-8 subs (a squad file is ~20 men: 75% of sides were
+  short, 1-2 a side in Serie A). `fillBench` makes every bench nine with a keeper: the club's other
+  seasons nearest first, no better than its weakest starter, then made-up players 2 below it. Filled
+  after every side has its own men, so the elevens are as before. ~1 made-up player a side (Serie A ~2).
+  Benches alone didn't move goals (seeds 1-4: 3.39, 3.35, 3.78, 3.20). Tests: draft.test.ts (nine,
+  a keeper, fill-ins no better than the weakest starter, in every league; blocks by rank; an old save
+  remade, cards shown as FIFA's), variety.test.ts (themed leagues: nine).
+- Checks: tsc; vitest 118/118. fingerprint: club, career and knockout hashes unchanged.
+  calibrate 80 1 / 201: 31/31 and 30/31, zero violations (as session 26: the same matches).
 
 ## Done (session 27): draft variety
 
@@ -54,7 +119,8 @@ draft of one league stays the default and plays exactly as before (same rounds f
 - Mobile: Playwright at 390x844 and 1280x800 through options, a budget draft's first picks: no
   horizontal scroll, no console errors, every button ≥ 40px.
 - Seen, not changed: in a classic league the last sides drawn can have thin benches (0-3 subs once
-  earlier sides have taken shared players; Serie A worst); themed leagues are fuller (4+).
+  earlier sides have taken shared players; Serie A worst); themed leagues are fuller (4+). (Fixed in
+  session 28.)
 
 ## Done (session 26, later): 4-2-3-1 levelled
 

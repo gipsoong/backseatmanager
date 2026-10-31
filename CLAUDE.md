@@ -183,7 +183,20 @@ pulling the repo.
   `node scripts/check-cards.ts` prints table vs card (all within 2). A man under 6 interceptions
   (forwards) can let an opponent's ground pass by him (`readsPass`, match.ts). The `falseNine`
   archetype shows as "Deep-lying forward" (DLF). Saved players keep
-  their attributes. Club and career players (session 21, `madeCard` in teams.ts) get their archetype's
+  their attributes (except a draft save's club-season players, remade once, below).
+  Session 28 (draft leagues scored 3.1-3.8 a match): a draft player plays his card moved by his
+  position's `ROLE_OFFSET` (strikers -4, wingers -2, centre-midfielders +2: what a FIFA card gives
+  a position beyond the made-up players the engine was tuned on; `PlayerDef.cardShift`, put back
+  on screen by `shownRatings`, so cards still show FIFA's numbers; check-cards reads it); draft
+  traits are the archetype's lean centred on the made-up players of his position (`traitMean`,
+  teams.ts); club-seasons get blocks by where their eleven ranks (`BLOCK_ODDS`, `withBlocks`: the
+  strongest third press more, the weakest sit deeper; all were mid). `upgradeSave` (`shifted`)
+  remakes an old draft save's pool players (`p<pool>-<i>` ids) as they're made now. Benches:
+  `fillBench` makes every club-season's bench nine with a keeper (the club's other seasons, nearest
+  first, no better than its weakest starter, then `makePlayerAt` made-up men 2 below it), after
+  every side has its own men. Measure draft goals with `node scripts/diag-draft-goals.ts [n a kind]
+  [seed] [kinds]` (draft leagues of each league next to career leagues at full fitness: goals, xG,
+  shots, conversion, by eleven gap, lines' attributes; 500 a kind for ±0.07) and sim-season. Club and career players (session 21, `madeCard` in teams.ts) get their archetype's
   card too, at the level that puts their position's skills where the old profiles' were (`CARD_LEVEL`),
   varied by group and build (quick and slight vs slow and strong); `PlayerDef.card` marks them.
   Since session 22 every made-up player's overall (`playerRating`) is on the draft's FIFA-like scale:
