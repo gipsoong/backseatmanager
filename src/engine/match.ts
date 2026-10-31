@@ -110,6 +110,7 @@ import {
   slideReach,
   qualityGap,
   COUNTER_PRESS_SPAN,
+  carryCaches,
 } from './ai.ts'
 import { restartConditionsMet } from './rules.ts'
 import { Rng } from './rng.ts'
@@ -125,6 +126,7 @@ import type {
   MatchConfig,
   MatchEvent,
   MatchState,
+  Order,
   PlayerState,
   Restart,
   Shootout,
@@ -224,6 +226,9 @@ export function createMatch(home: TeamDef, away: TeamDef, config: MatchConfig): 
     subbedOn: [[], []],
     subWindows: [0, 0],
     subbedOff: [[], []],
+    orders: config.orders ? [...config.orders].sort((a, b) => a.tick - b.tick) : [],
+    pendingSubs: [[], []],
+    managed: [false, false],
     possessedSince: 0,
     dribbleTarget: null,
   }
@@ -286,6 +291,7 @@ export function step(s: MatchState): MatchEvent[] {
   const out: MatchEvent[] = []
   if (s.phase.kind === 'fullTime') return out
   s.tick++
+  if (s.orders.length && s.orders[0].tick <= s.tick) applyOrders(s, out)
 
   // 1. decisions
   if (s.phase.kind === 'restart') tryTakeRestart(s, out)
@@ -1260,6 +1266,10 @@ const isBench = (s: MatchState, p: PlayerState): boolean => s.teams[p.team].benc
 function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
   const minute = (s.half - 1) * 45 + halfElapsed(s) / TICKS_PER_MINUTE
   for (const team of [0, 1] as const) {
+    if (s.managed[team]) {
+      managerSubs(s, r, team, out)
+      continue
+    }
     let made = 0
     // As the laws have it: five substitutions, in no more than three stoppages.
     if (s.subWindows[team] >= 3) continue
@@ -1274,21 +1284,200 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       const bench = unusedSubs(s, team)
       const on = bench.sort((a, b) => fitFor(b.def, off.slot) * ability(b.def) - fitFor(a.def, off.slot) * ability(a.def))[0]
       if (!on || fitFor(on.def, off.slot) === 0) break
-      on.onPitch = true
-      on.slot = off.slot
-      on.attrs = playingAttributes(on.def, on.slot)
-      on.archetype = archetypeOf(on.def, on.slot.role)
-      on.pos = { ...off.pos }
-      on.vel = vec(0, 0)
-      off.onPitch = false
-      off.vel = vec(0, 0)
-      s.stats[team].subs++
-      s.subbedOn[team].push(on.idx)
-      s.subbedOff[team].push(off.idx)
+      swap(s, team, off, on)
       if (made++ === 0) s.subWindows[team]++
       emit(s, out, { type: 'sub', team, offIdx: off.idx, onIdx: on.idx, reason: off.injured ? 'injury' : 'tired' })
     }
   }
+}
+
+/** `on` comes on into `off`'s slot, where he stands. */
+function swap(s: MatchState, team: Side, off: PlayerState, on: PlayerState): void {
+  on.onPitch = true
+  on.slot = off.slot
+  on.attrs = playingAttributes(on.def, on.slot)
+  on.archetype = archetypeOf(on.def, on.slot.role)
+  on.pos = { ...off.pos }
+  on.vel = vec(0, 0)
+  off.onPitch = false
+  off.vel = vec(0, 0)
+  s.stats[team].subs++
+  s.subbedOn[team].push(on.idx)
+  s.subbedOff[team].push(off.idx)
+}
+
+// ---------------------------------------------------------------------------
+// The manager's orders
+
+/**
+ * Why `order` can't be given now (null if it can). A substitution: five a side in three stoppages,
+ * counting those already asked for; a man on the pitch for one on the bench who hasn't played; a
+ * keeper only for a keeper. None once the match is over or at penalties.
+ */
+export function orderProblem(s: MatchState, order: Order): string | null {
+  if (s.phase.kind === 'fullTime') return 'The match is over'
+  if (s.shootout) return 'Not during penalties'
+  if (order.kind !== 'sub') return null
+  const { team } = order
+  const pending = s.pendingSubs[team]
+  if (s.stats[team].subs + pending.length >= MAX_SUBS) return 'No substitutions left'
+  if (s.subWindows[team] >= 3 && !(pending.length && atStoppage(s, team))) return 'No stoppages left for substitutions'
+  const off = s.players[order.offIdx]
+  const on = s.players[order.onIdx]
+  if (!off || off.team !== team || !off.onPitch) return 'He isn\'t on the pitch'
+  if (!on || on.team !== team || on.onPitch || s.subbedOn[team].includes(on.idx) || s.subbedOff[team].includes(on.idx) || !isBench(s, on)) return 'He can\'t come on'
+  if (pending.some((p) => p.offIdx === off.idx)) return 'He is already coming off'
+  if (pending.some((p) => p.onIdx === on.idx)) return 'He is already coming on'
+  if ((off.slot.role === 'GK') !== (on.def.role === 'GK')) return 'Only a keeper can replace a keeper'
+  return null
+}
+
+/** This stoppage has already used one of the side's three: a substitution made since it began. */
+function atStoppage(s: MatchState, team: Side): boolean {
+  if (s.phase.kind !== 'restart') return false
+  const since = s.phase.restart.since
+  for (let i = s.events.length - 1; i >= 0 && s.events[i].tick >= since; i--) {
+    const e = s.events[i]
+    if (e.type === 'sub' && e.team === team) return true
+  }
+  return false
+}
+
+function applyOrders(s: MatchState, out: MatchEvent[]): void {
+  while (s.orders.length && s.orders[0].tick <= s.tick) {
+    const order = s.orders.shift()!.order
+    if (orderProblem(s, order)) continue
+    const team = order.team
+    if (order.kind === 'block') {
+      if (s.teams[team].block === order.block) continue
+      s.teams[team] = { ...s.teams[team], block: order.block }
+      emit(s, out, { type: 'block', team, block: order.block })
+    } else if (order.kind === 'formation') {
+      if (s.teams[team].formation === order.formation) continue
+      s.teams[team] = { ...s.teams[team], formation: order.formation }
+      reslot(s, team, FORMATIONS[order.formation])
+      emit(s, out, { type: 'formation', team, formation: order.formation })
+    } else {
+      s.managed[team] = true
+      s.pendingSubs[team].push({ offIdx: order.offIdx, onIdx: order.onIdx })
+      // Already at a stoppage that hasn't been taken: on he comes now.
+      if (s.phase.kind === 'restart' && s.phase.restart.subsDone) managerSubs(s, s.phase.restart, team, out)
+    }
+  }
+}
+
+/**
+ * The substitutions the manager asked for, at a stoppage: all of them, in one of the three
+ * stoppages (or one already used by this stoppage). The man taking the restart waits for the next.
+ */
+function managerSubs(s: MatchState, r: Restart, team: Side, out: MatchEvent[]): void {
+  const pending = s.pendingSubs[team]
+  if (!pending.length) return
+  const counted = atStoppage(s, team)
+  if (!counted && s.subWindows[team] >= 3) return
+  const waiting: { offIdx: number; onIdx: number }[] = []
+  let made = 0
+  for (const p of pending) {
+    const off = s.players[p.offIdx]
+    const on = s.players[p.onIdx]
+    if (off.idx === r.takerIdx && off.onPitch) {
+      waiting.push(p)
+      continue
+    }
+    // Sent off since, or someone else came on first: the order lapses.
+    if (!off.onPitch || on.onPitch || s.subbedOn[team].includes(on.idx) || s.stats[team].subs >= MAX_SUBS) continue
+    swap(s, team, off, on)
+    made++
+    emit(s, out, { type: 'sub', team, offIdx: off.idx, onIdx: on.idx, reason: 'manager' })
+  }
+  if (made && !counted) s.subWindows[team]++
+  s.pendingSubs[team] = waiting
+}
+
+/**
+ * A new shape: the men on the pitch take its slots where they stand (nobody moves until the shape
+ * pulls them). The keeper keeps his; the outfield men go where they fit best, staying near the slot
+ * they had (an exact assignment over the slots, as there are at most ten). Ten men leave a slot empty.
+ */
+function reslot(s: MatchState, team: Side, slots: Slot[]): void {
+  const men = s.players.filter((p) => p.onPitch && p.team === team)
+  const keeper = men.find((p) => p.slot.role === 'GK')
+  const field = men.filter((p) => p !== keeper)
+  const open = slots.filter((sl) => sl.role !== 'GK')
+  const score = (p: PlayerState, sl: Slot): number => 2 * fitFor(p.def, sl) - Math.abs(sl.depth - p.slot.depth) - Math.abs(sl.y - p.slot.y) / 40
+  // best[i][mask]: the best total for men i.. given the slots in `mask` are taken.
+  const n = field.length
+  const full = 1 << open.length
+  const best: Float64Array[] = Array.from({ length: n + 1 }, () => new Float64Array(full))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let mask = 0; mask < full; mask++) {
+      let b = -Infinity
+      for (let j = 0; j < open.length; j++) {
+        if (mask & (1 << j)) continue
+        const v = score(field[i], open[j]) + best[i + 1][mask | (1 << j)]
+        if (v > b) b = v
+      }
+      best[i][mask] = b
+    }
+  }
+  let mask = 0
+  for (let i = 0; i < n; i++) {
+    let pick = -1
+    let b = -Infinity
+    for (let j = 0; j < open.length; j++) {
+      if (mask & (1 << j)) continue
+      const v = score(field[i], open[j]) + best[i + 1][mask | (1 << j)]
+      if (v > b) (b = v), (pick = j)
+    }
+    mask |= 1 << pick
+    const p = field[i]
+    p.slot = open[pick]
+    p.attrs = playingAttributes(p.def, p.slot)
+    p.archetype = archetypeOf(p.def, p.slot.role)
+  }
+  const gk = slots.find((sl) => sl.role === 'GK')
+  if (keeper && gk) keeper.slot = gk
+}
+
+/** A deep copy of plain data (objects, arrays, numbers and the like). */
+function plainCopy<T>(v: T): T {
+  if (v === null || typeof v !== 'object') return v
+  if (Array.isArray(v)) return v.map(plainCopy) as T
+  const o: Record<string, unknown> = {}
+  for (const k in v) o[k] = plainCopy((v as Record<string, unknown>)[k])
+  return o as T
+}
+
+/**
+ * A copy of a match that plays on exactly as the original would (same draws, same everything):
+ * for going back to a tick and playing on from there with new orders. Players' definitions and the
+ * sides' squads are shared, as the engine never changes them.
+ */
+export function cloneMatch(s: MatchState): MatchState {
+  const rng = new Rng(0)
+  rng.state = s.rng.state
+  const c: MatchState = {
+    ...s,
+    teams: [s.teams[0], s.teams[1]],
+    rng,
+    players: s.players.map((p) => ({ ...p, pos: { ...p.pos }, vel: { ...p.vel }, runTo: p.runTo && { ...p.runTo } })),
+    ball: plainCopy(s.ball),
+    score: [s.score[0], s.score[1]],
+    carried: s.carried && [s.carried[0], s.carried[1]],
+    shootout: s.shootout && plainCopy(s.shootout),
+    phase: plainCopy(s.phase),
+    stats: plainCopy(s.stats),
+    events: s.events.slice(),
+    subbedOn: [s.subbedOn[0].slice(), s.subbedOn[1].slice()],
+    subbedOff: [s.subbedOff[0].slice(), s.subbedOff[1].slice()],
+    subWindows: [s.subWindows[0], s.subWindows[1]],
+    orders: s.orders.slice(),
+    pendingSubs: [s.pendingSubs[0].slice(), s.pendingSubs[1].slice()],
+    managed: [s.managed[0], s.managed[1]],
+    dribbleTarget: s.dribbleTarget && { ...s.dribbleTarget },
+  }
+  carryCaches(s, c)
+  return c
 }
 
 function sendOff(s: MatchState, p: PlayerState, out: MatchEvent[]): void {

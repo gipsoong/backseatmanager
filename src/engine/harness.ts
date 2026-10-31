@@ -50,6 +50,7 @@ import {
   CLEAR_WIDE,
 } from './constants.ts'
 import { frameOf, runMatch } from './match.ts'
+import { FORMATIONS } from './teams.ts'
 import type { Frame, MatchConfig, MatchEvent, MatchState, Side, TeamDef } from './types.ts'
 
 export interface Violation {
@@ -130,6 +131,13 @@ export function checkMatch(
   const subsMade: [number, number] = [0, 0]
   // Each player's top speed going into the tick being checked.
   let topSpeed: number[] = []
+  // The manager's orders: stoppages (counted by restarts taken) each side has subbed in, when each
+  // side first asked for a substitution, and the shape and block each side had last tick.
+  const orders = config.orders ?? []
+  let stoppage = 0
+  const subStoppages: [Set<number>, Set<number>] = [new Set(), new Set()]
+  const managedFrom = [0, 1].map((team) => Math.min(...orders.filter((o) => o.order.kind === 'sub' && o.order.team === team).map((o) => o.tick)))
+  const shape = [home, away].map((t) => ({ formation: t.formation, block: t.block }))
 
   const v0 = (tick: number, rule: string, detail: string): void => {
     violations.push({ tick, rule, detail })
@@ -138,6 +146,7 @@ export function checkMatch(
     opts.tamper?.(s)
     const cur = frameOf(s)
     if (opts.keepFrames) frames.push(cur)
+    checkOrders(s, events)
     if (!prev) cur.players.forEach((p, i) => p.onPitch && everOn.add(i))
     if (prev) {
       const v = (rule: string, detail: string): void => {
@@ -149,6 +158,45 @@ export function checkMatch(
     prev = cur
     topSpeed = s.players.map((p) => p.maxSpeed)
   })
+
+  /**
+   * Orders take effect only when they may: a manager's substitution only once asked for, and the
+   * staff's none after that; five a side, in no more than three stoppages; a shape or block only
+   * as ordered, on the order's tick; every man on the pitch in a slot of his side's shape, one each.
+   * (Positions staying continuous through a change is the movement check's.)
+   */
+  function checkOrders(s: MatchState, events: MatchEvent[]): void {
+    const v = (rule: string, detail: string): void => v0(s.tick, rule, detail)
+    for (const e of events) {
+      if (e.type === 'sub') {
+        const used = subStoppages[e.team].add(stoppage)
+        if (used.size > 3) v('sub-window', `team ${e.team} substituted in a fourth stoppage`)
+        if (e.reason === 'manager') {
+          const asked = orders.some((o) => o.tick <= e.tick && o.order.kind === 'sub' && o.order.team === e.team && o.order.offIdx === e.offIdx && o.order.onIdx === e.onIdx)
+          if (!asked) v('sub-order', `a manager's substitution (${e.onIdx} for ${e.offIdx}) nobody asked for`)
+        } else if (e.tick >= managedFrom[e.team]) v('sub-staff', `team ${e.team}'s staff substituted after the manager took over`)
+      }
+      if (e.type === 'restart') stoppage++
+    }
+    for (const team of [0, 1] as const) {
+      const t = s.teams[team]
+      for (const key of ['formation', 'block'] as const) {
+        if (t[key] === shape[team][key]) continue
+        const ev = events.some((e) => e.type === key && e.team === team && e[key as never] === t[key])
+        const asked = orders.some((o) => o.tick === s.tick && o.order.kind === key && o.order.team === team && (o.order as Record<string, unknown>)[key] === t[key])
+        if (!ev || !asked) v('order-' + key, `team ${team} went to ${t[key]} without ${ev ? 'an order that tick' : 'an event'}`)
+        shape[team][key] = t[key] as never
+      }
+      const slots = FORMATIONS[t.formation]
+      const taken = new Set<unknown>()
+      for (const p of s.players) {
+        if (!p.onPitch || p.team !== team) continue
+        if (!slots.includes(p.slot)) v('shape-slots', `player ${p.idx} in a slot that isn't in ${t.formation}`)
+        if (taken.has(p.slot)) v('shape-slots', `player ${p.idx} shares a slot`)
+        taken.add(p.slot)
+      }
+    }
+  }
 
   function checkTick(s: MatchState, P: Frame, C: Frame, events: MatchEvent[], v: (rule: string, detail: string) => void): void {
     // Players are repositioned for a new period or the shootout, so positions can't be checked on that tick.

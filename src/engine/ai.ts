@@ -1420,6 +1420,17 @@ export function qualityGap(s: MatchState, team: Side): number {
   return g[team]
 }
 
+/**
+ * A copy of a match (`cloneMatch`) keeps what was worked out once at kick-off (each side's edge and
+ * quality gap): worked out afresh from the copy's players, after substitutions, they'd differ.
+ */
+export function carryCaches(from: MatchState, to: MatchState): void {
+  const e = edges.get(from)
+  if (e) edges.set(to, e)
+  const g = gaps.get(from)
+  if (g) gaps.set(to, g)
+}
+
 /** The block a side is playing right now: a high one between its bursts plays as a mid one. */
 function blockNow(s: MatchState, team: Side): Block {
   const block = s.teams[team].block

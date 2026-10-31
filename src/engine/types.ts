@@ -357,7 +357,10 @@ export type MatchEvent = EventBase &
     | { type: 'foul'; byIdx: number; onIdx: number; pos: Vec; award: 'freeKick' | 'penalty'; style: TackleStyle; aerial?: boolean }
     | { type: 'card'; idx: number; color: 'yellow' | 'red' }
     /** A substitution at a stoppage: `on` takes `off`'s place (and his spot on the pitch). */
-    | { type: 'sub'; team: Side; offIdx: number; onIdx: number; reason: 'tired' | 'injury' }
+    | { type: 'sub'; team: Side; offIdx: number; onIdx: number; reason: 'tired' | 'injury' | 'manager' }
+    /** The manager's orders (see `Order`): a new shape, re-slotting the men on the pitch where they stand. */
+    | { type: 'formation'; team: Side; formation: Formation }
+    | { type: 'block'; team: Side; block: Block }
     /** Hurt, and out for `weeks` matchdays after this one. */
     | { type: 'injury'; idx: number; weeks: number }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }
@@ -394,6 +397,27 @@ export interface MatchConfig {
    * brings from a first leg) goes to extra time, then penalties.
    */
   knockout?: { carried?: [number, number] }
+  /**
+   * The manager's orders, each applied at the start of its tick (before anything else that tick).
+   * None: the match plays exactly as it always has.
+   */
+  orders?: TimedOrder[]
+}
+
+/**
+ * An in-match instruction for one side. A substitution waits for the next stoppage (the five in
+ * three stoppages rule still holds); a formation or block change applies at once. Once a side has
+ * asked for a substitution its staff make no more of their own.
+ */
+export type Order =
+  | { kind: 'sub'; team: Side; offIdx: number; onIdx: number }
+  | { kind: 'formation'; team: Side; formation: Formation }
+  | { kind: 'block'; team: Side; block: Block }
+
+export interface TimedOrder {
+  /** The tick it applies at: the start of this tick's step. */
+  tick: number
+  order: Order
 }
 
 export interface Shootout {
@@ -446,6 +470,12 @@ export interface MatchState {
   subbedOff: [number[], number[]]
   /** Stoppages used to make substitutions, by team (three allowed). */
   subWindows: [number, number]
+  /** Orders still to apply, in tick order (see `MatchConfig.orders`). */
+  orders: TimedOrder[]
+  /** Substitutions the manager has asked for, made at the next stoppage, by team. */
+  pendingSubs: [{ offIdx: number; onIdx: number }[], { offIdx: number; onIdx: number }[]]
+  /** A side whose manager has asked for a substitution: its staff make no more. */
+  managed: [boolean, boolean]
   events: MatchEvent[]
   /** Next tick the ball carrier makes a decision. */
   /** Tick the ball last came loose (a kick, a deflection, a tackle); null while someone has it. */
