@@ -951,6 +951,13 @@ h1 .v {
   border-color: var(--accent);
 }
 
+/* A booking's line is `.line.card`: not one of the boxed `.card` panels. */
+.commentary .line.card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .line.goal .text {
   font-weight: 700;
 }
@@ -3237,7 +3244,7 @@ div.draft-hint .meta {
 
 .history > .meta {
   margin: 0;
-  padding: 0 12px;
+  padding: 0 16px;
 }
 
 .history .trophy {
@@ -3373,7 +3380,7 @@ div.draft-hint .meta {
 }
 
 .manager-record {
-  padding: 0 12px;
+  padding: 0 16px;
 }
 
 .manager-record .meta {

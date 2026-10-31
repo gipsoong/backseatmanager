@@ -325,6 +325,22 @@ pulling the repo.
   results, scorers, squad), reached from the league review's "On to the European Cup"
   (`Season.cupEntered`); App shows it instead of Hub while entered.
 - `src/viewer/playback.ts`: the highlight-mode skip as a pure step function (tested).
+- Viewer polish (session 30). Replays: every goal seen so far is in the goal reel under the controls
+  (`.goal-reel`, MatchViewer), one tap replays it from all its angles; at full time the reel is the
+  match summary (score, player of the match, goals). Commentary lines still offer Replay too.
+  Commentary variety (`commentary.ts`): every kind of line has several phrasings, chosen by
+  `Phrases.pick(key, mix(tick, idx))` and never the one the same key used last, so a line never
+  changes once written and none repeats back to back (tests); goals read by how they were scored
+  (header, curler, long range, tap-in, penalty) and set up (through ball, cross); celebrations by
+  the engine's style and, within it, the scorer's flair and temper (and a nod to the assister).
+  `matchNames` gives "J. Keane" where two men in a match share a short name (career leagues only
+  keep surnames apart within a squad); use it for any name the viewer shows. `celebrationPose`
+  (highlights.ts) draws the scorer's celebration from where he actually ran (slide, arms out, fist
+  pump; pitch.ts `arms`). All of it viewer-only: fingerprints unchanged.
+  Audit tool for the UI: a Playwright script that screenshots every screen at 390x844 and
+  1280x800 and lists horizontal overflow, targets under 40px and console errors (session 30 kept
+  it in /tmp; a finished career season to load is made by "Just the result" 38 times and saved
+  with `storageState({ indexedDB: true })`).
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
   are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Session 23 levelled them (all within ~0.1 xGD a match at equal strength, was
   -0.49 to +0.24): 4-4-2's centre-midfielders get forward a little (`attackDepth` 0.15), 4-2-3-1's

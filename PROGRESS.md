@@ -11,9 +11,56 @@ seasons that carry on (session 19); career stage 2, the market (session 19); one
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
 more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28);
-in-match changes while watching (session 29).
-Next: the owner's call (in-match changes are in; options: a mentality setting, changes for
-"Just the result" matches).
+in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30).
+Next: the owner's call (options: a mentality setting, changes for "Just the result" matches, the
+polish items left in session 30's list).
+
+## Done (session 30): polish pass
+
+On branch `wip/polish`. Viewer and UI only: fingerprint.ts all `9d880d58a297` (as session 29).
+**Audit** (Playwright at 390x844 and 1280x800: start, pick, every hub tab, a watched match in each
+view mode, the Change panel, a goal and its three replay angles, a replay from the commentary, full
+time, the draft, a finished career season's review and every tab of season 2). It found:
+- Broken: the match panel's tab bar (Commentary / Stats / Players) collapsed to a sliver once the
+  commentary grew (a flex column squeezed a box with overflow-x to nothing); a booking's commentary
+  line drew a boxed border (its `card` kind picked up the `.card` panel style).
+- Replays: goals could only be rewatched from their commentary line, hard to find once the match
+  moved on; nothing at full time; on a phone the replay chip covered the scorebug's clock; Skip was
+  32px.
+- Repetitive: phrasings chosen by `tick % n`, so 5-16 lines a match read the same as the one before
+  ("Late sliding challenge from Walsh." twice in a minute; "Corner to Dunmore." three times); one
+  phrasing for every goal, corner, offside and booking; only two of the three celebrations mentioned.
+- Confusing: "Keane knocks it past Keane and is away": career leagues keep surnames apart within a
+  squad, not between the two sides.
+- Small: table name links 22px tall (review, stats, squad); "1 goals" in the review; the start screen
+  still said a career league is ten clubs (it's twenty); the History tab's padding off by 4px.
+- Checked and fine: no horizontal scroll anywhere, no console errors, every other target ≥ 40px,
+  the draft's bottom sheet, layout-based zoom in the close-up and behind-the-goal angles.
+
+**Fixed**:
+1. Replays: a goal reel under the playback controls lists every goal seen (minute, scorer, assist)
+   with Replay (all its angles); at full time it's the match summary (score, penalties, player of the
+   match, every goal). On phones the replay chip sits at the foot of the pitch, the scorebug and goal
+   strip are tighter; Skip is 40px.
+2. Variety (viewer and commentary only): several phrasings for every kind of line, never the same
+   one twice running (`Phrases`); goals by finish and assist; saves by height, dive and range; blocks,
+   woodwork (post or bar), over/wide, corners, fouls (aerial ones too), second yellows, offsides;
+   dribble moves three ways each; a strong man's tackle in his box; hat-tricks; celebrations from
+   style plus flair/temper (aeroplane, finger to the lips, a quiet nod, pointing to the assister);
+   a weak-foot shot now and then. Distinct line shapes a match: ~35 → ~100; back-to-back repeats
+   5-16 → 0. Celebration poses on the pitch (knee slide, arms out, fist pump) from where the scorer
+   ran. Save captions: "Diving save", "Fingertip save".
+3. Phone UI: the tab bar fix, 40px name links (padding and negative margin, rows unchanged), the
+   booking line, the start screen's text, plurals, History padding.
+Tests: commentary never changes a written line, never repeats back to back, tells apart namesakes;
+celebration poses appear only after the scorer stops. tsc, vitest (137), Playwright pass at both
+sizes: no overflow, no target under 40px, no console errors.
+
+**Left** (not done): the match screen on a phone puts "Continue to results" and the header above the
+pitch (the pitch starts ~150px down) and the controls wrap to three rows; the replay scorebug shows
+the live score, not the score at the time; a replay can't be started at a chosen angle; standing
+tackles have no animation (slides do); tables on phones are long single columns (squad and contract
+rows give 4.4em to positions); replays exist only for a watched match (none from the hub's results).
 
 ## Done (session 29): in-match changes
 
