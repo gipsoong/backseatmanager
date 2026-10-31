@@ -1433,7 +1433,10 @@ function reslot(s: MatchState, team: Side, slots: Slot[]): void {
     for (let j = 0; j < open.length; j++) {
       if (mask & (1 << j)) continue
       const v = score(field[i], open[j]) + best[i + 1][mask | (1 << j)]
-      if (v > b) (b = v), (pick = j)
+      if (v > b) {
+        b = v
+        pick = j
+      }
     }
     mask |= 1 << pick
     const p = field[i]

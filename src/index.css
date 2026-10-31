@@ -502,6 +502,178 @@ h1 .v {
   box-shadow: 0 0 0 1px var(--bg);
 }
 
+/* The manager's changes while watching: under the playback controls */
+
+.changes {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  animation: rise var(--dur-base) var(--ease-out) backwards;
+}
+
+.changes-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.changes-head h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.changes-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.changes-label {
+  min-width: 3.4em;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.segmented.wrap {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  flex: 1 1 18em;
+  max-width: 30em;
+}
+
+.segmented.wrap button {
+  min-width: 0;
+  border-left: 0;
+  box-shadow: -1px -1px 0 var(--line);
+}
+
+@media (min-width: 560px) {
+  .segmented.wrap {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.changes-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.changes-note.took {
+  font-variant-numeric: tabular-nums;
+}
+
+.changes-subs {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pending {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.92rem;
+}
+
+.pending li {
+  padding: 4px 0;
+}
+
+.sub-lists {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.sub-lists fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-width: 0;
+}
+
+.sub-lists legend {
+  padding: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.pick {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 2.1em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  min-width: 0;
+}
+
+.pick[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.pick:disabled {
+  opacity: 0.45;
+}
+
+.pick-role {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pick-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fitness: a thin bar along the foot of the button. */
+.pick-energy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 70%, transparent) var(--energy), transparent var(--energy));
+}
+
+.pick-hurt {
+  color: #b3412e;
+  font-size: 0.8rem;
+}
+
+.changes-go {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Side panel: commentary and stats as tabs */
 
 .panel {

@@ -426,7 +426,7 @@ function Friendly({ onBack }: { onBack: () => void }) {
           </button>
         </form>
       </header>
-      <MatchViewer key={seed} timeline={timeline} />
+      <MatchViewer key={seed} timeline={timeline} manage={0} />
     </>
   );
 }

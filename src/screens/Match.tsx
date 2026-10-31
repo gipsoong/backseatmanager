@@ -1,4 +1,5 @@
 /** Watching the manager's match, with the way back to the season. */
+import { useState } from 'react'
 import type { Season } from '../season/season.ts'
 import { matchdayDate } from '../season/season.ts'
 import { CUP_NAME, ROUND_NAMES, isCupDay, userCupFixture } from '../draft/cup.ts'
@@ -9,7 +10,11 @@ import type { Timeline } from '../viewer/timeline.ts'
 const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
 
 export function Match({ season, timeline, busy, onDone }: { season: Season; timeline: Timeline; busy: boolean; onDone: () => void }) {
+  // Re-rendered when the manager changes shape or block: the header shows the shapes as they stand.
+  const [, setOrders] = useState(0)
   const [home, away] = timeline.state.teams
+  const mine = season.teams[season.userTeam].name
+  const side = home.name === mine ? 0 : away.name === mine ? 1 : undefined
   const cup = isCupDay(season) ? userCupFixture(season) : undefined
   const tie = userCupTie(season)
   return (
@@ -34,7 +39,7 @@ export function Match({ season, timeline, busy, onDone }: { season: Season; time
           </button>
         </div>
       </header>
-      <MatchViewer timeline={timeline} />
+      <MatchViewer timeline={timeline} manage={side} onOrder={() => setOrders((n) => n + 1)} />
     </>
   )
 }

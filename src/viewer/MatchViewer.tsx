@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CENTER, type MatchEvent, ownGoalX } from '../engine/index.ts'
+import { CENTER, type MatchEvent, type Side, ownGoalX } from '../engine/index.ts'
+import { ChangePanel } from './ChangePanel.tsx'
 import { buildCommentary, surname } from './commentary.ts'
 import {
   ANIMATION_LEAD,
@@ -64,10 +65,17 @@ interface Replay {
 
 type Tab = 'commentary' | 'stats' | 'players'
 
-export function MatchViewer({ timeline }: { timeline: Timeline }) {
+/**
+ * `manage`: the side whose manager may make changes while watching (subs, shape, block); `onOrder`
+ * hears when one is made (the match from the playhead on has changed).
+ */
+export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline; manage?: Side; onOrder?: () => void }) {
+  const [version, setVersion] = useState(timeline.version)
+  const [changing, setChanging] = useState(false)
   const match = timeline.state
   const [home, away] = match.teams
-  const { kits, keeperKits } = useMemo(() => fixtureKits(home.kit, away.kit), [home, away])
+  // By kit: an order gives a side a new definition (its shape), with the same kit.
+  const { kits, keeperKits } = useMemo(() => fixtureKits(home.kit, away.kit), [home.kit, away.kit])
 
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1)
@@ -132,9 +140,9 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     let raf = 0
     let lastRecordedUpdate = 0
     let windows: [number, number][] = []
-    let windowsFor = { events: -1, mode: '' }
+    let windowsFor = { events: -1, mode: '', version: -1 }
     let moments: ReplayMoment[] = []
-    let momentsFor = -1
+    let momentsFor = { events: -1, version: -1 }
     const replayed = new Set<number>()
     // A cut in progress: when it started, where from, and where to (null until the next moment is known).
     let cut: Cut | null = null
@@ -220,9 +228,9 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
       }
 
       const events = timeline.state.events
-      if (windowsFor.events !== events.length || windowsFor.mode !== view) {
+      if (windowsFor.events !== events.length || windowsFor.mode !== view || windowsFor.version !== timeline.version) {
         windows = highlightWindows(events, view)
-        windowsFor = { events: events.length, mode: view }
+        windowsFor = { events: events.length, mode: view, version: timeline.version }
       }
       if (view === 'full' && cut) {
         cut = null
@@ -242,9 +250,9 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
 
         // Replay a moment once it has played out (a goal once the celebration is over).
         if (!cut) {
-          if (momentsFor !== events.length) {
+          if (momentsFor.events !== events.length || momentsFor.version !== timeline.version) {
             moments = momentsOf(timeline, events)
-            momentsFor = events.length
+            momentsFor = { events: events.length, version: timeline.version }
           }
           const due = moments.find((m) => !replayed.has(m.tick) && before < m.autoAt && playhead.current >= m.autoAt)
           if (due) {
@@ -273,7 +281,8 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
     setTick(Math.floor(playhead.current))
   }
 
-  const events = useMemo(() => timeline.eventsUpTo(tick), [timeline, tick])
+  // `version`: the match changed under the same timeline (an order).
+  const events = useMemo(() => timeline.eventsUpTo(tick), [timeline, tick, version])
   const lines = useMemo(() => buildCommentary(match, events), [match, events])
   const playerStats = useMemo(() => (tab === 'commentary' ? null : playerLines(match, events)), [tab, match, events])
   const score = timeline.scoreAt(tick)
@@ -350,7 +359,7 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
         </div>
 
         <div className="controls">
-          <button type="button" className="play" onClick={() => setPlaying(!playing)} aria-label={playing ? 'Pause' : 'Play'}>
+          <button type="button" className="play" onClick={() => (setPlaying(!playing), setChanging(false))} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? <PauseIcon /> : <PlayIcon />}
           </button>
           <div className="segmented" role="group" aria-label="Playback speed">
@@ -367,6 +376,21 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
               </button>
             ))}
           </div>
+          {manage !== undefined && (
+            <button
+              type="button"
+              className="btn ghost slim change"
+              aria-expanded={changing}
+              onClick={() => {
+                if (changing) return setChanging(false)
+                if (replay.current) endReplay()
+                setPlaying(false)
+                setChanging(true)
+              }}
+            >
+              Change
+            </button>
+          )}
           <label className="toggle">
             <input id="show-roles" type="checkbox" checked={showRoles} onChange={(e) => setShowRoles(e.target.checked)} />
             Roles
@@ -394,6 +418,19 @@ export function MatchViewer({ timeline }: { timeline: Timeline }) {
             ))}
           </div>
         </div>
+        {changing && manage !== undefined && (
+          <ChangePanel
+            timeline={timeline}
+            tick={tick}
+            side={manage}
+            onClose={() => setChanging(false)}
+            onOrder={() => {
+              setVersion(timeline.version)
+              setRecorded(timeline.recorded)
+              onOrder?.()
+            }}
+          />
+        )}
       </div>
 
       <aside className="panel">

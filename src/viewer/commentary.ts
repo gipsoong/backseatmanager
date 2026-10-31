@@ -194,7 +194,24 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
           e,
           e.reason === 'injury'
             ? `${teamName(e.team)} change: ${name(e.onIdx)} replaces the injured ${name(e.offIdx)}.`
-            : `${teamName(e.team)} change: ${name(e.onIdx)} on for ${name(e.offIdx)}.`,
+            : e.reason === 'manager'
+              ? `Change for ${teamName(e.team)}: ${name(e.onIdx)} on for ${name(e.offIdx)}.`
+              : `${teamName(e.team)} change: ${name(e.onIdx)} on for ${name(e.offIdx)}.`,
+          'info',
+          e.team,
+        )
+        break
+      case 'formation':
+        add(e, `${teamName(e.team)} go to a ${e.formation}.`, 'info', e.team)
+        break
+      case 'block':
+        add(
+          e,
+          e.block === 'high'
+            ? `${teamName(e.team)} push up into a high block.`
+            : e.block === 'low'
+              ? `${teamName(e.team)} drop into a low block.`
+              : `${teamName(e.team)} settle into a mid block.`,
           'info',
           e.team,
         )
