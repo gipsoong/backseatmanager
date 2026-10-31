@@ -200,17 +200,38 @@ export function makeAttributes(rng: Rng, role: Role, quality: number, traits: Tr
   return expandAttributes(profile, role, archetypeFrom(profile, traits, role), () => rng.gauss() * 0.8)
 }
 
-/** Hidden traits, spread across the whole range but leaning the way players in a role tend to. */
-export function makeTraits(rng: Rng, role: Role): Traits {
-  const lean = (k: number): number => clamp(rng.next() * 0.8 + k * 0.2 + rng.gauss() * 0.05, 0, 1)
+/** How a role's made-up players lean, trait by trait (0-1): see makeTraits. */
+export function traitLean(role: Role): Traits {
   const attacker = role === 'W' || role === 'WM' || role === 'ST'
   const defender = role === 'CB' || role === 'DM' || role === 'FB'
   return {
-    flair: lean(attacker ? 0.8 : role === 'CM' ? 0.5 : 0.2),
-    temper: lean(defender ? 0.6 : 0.4),
-    aggression: lean(defender ? 0.8 : role === 'GK' ? 0.3 : 0.4),
-    workRate: lean(role === 'CM' || role === 'FB' || role === 'DM' ? 0.8 : 0.5),
-    directness: lean(role === 'ST' || role === 'W' ? 0.7 : role === 'CB' || role === 'GK' ? 0.3 : 0.5),
+    flair: attacker ? 0.8 : role === 'CM' ? 0.5 : 0.2,
+    temper: defender ? 0.6 : 0.4,
+    aggression: defender ? 0.8 : role === 'GK' ? 0.3 : 0.4,
+    workRate: role === 'CM' || role === 'FB' || role === 'DM' ? 0.8 : 0.5,
+    directness: role === 'ST' || role === 'W' ? 0.7 : role === 'CB' || role === 'GK' ? 0.3 : 0.5,
+  }
+}
+
+/**
+ * The average made-up player of a role, trait by trait: what the engine's behaviour was tuned on
+ * (a draft player's archetype lean is centred on it).
+ */
+export const traitMean = (role: Role): Traits => {
+  const k = traitLean(role)
+  return { flair: 0.4 + k.flair * 0.2, temper: 0.4 + k.temper * 0.2, aggression: 0.4 + k.aggression * 0.2, workRate: 0.4 + k.workRate * 0.2, directness: 0.4 + k.directness * 0.2 }
+}
+
+/** Hidden traits, spread across the whole range but leaning the way players in a role tend to. */
+export function makeTraits(rng: Rng, role: Role): Traits {
+  const lean = (k: number): number => clamp(rng.next() * 0.8 + k * 0.2 + rng.gauss() * 0.05, 0, 1)
+  const k = traitLean(role)
+  return {
+    flair: lean(k.flair),
+    temper: lean(k.temper),
+    aggression: lean(k.aggression),
+    workRate: lean(k.workRate),
+    directness: lean(k.directness),
   }
 }
 

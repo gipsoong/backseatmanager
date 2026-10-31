@@ -4,7 +4,7 @@
  * club-seasons, one per club. A player can be in several seasons' squads, but only ever turns up
  * once: in your side, or for one opponent.
  */
-import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, ROLE_OFFSET, archetypeOf, cardAttributes, cardFor, fitFor, freshName, makeAttributes, makePlayerAt, makeTraits, shapedAttributes, type Archetype, type Card, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
+import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, ROLE_OFFSET, archetypeOf, cardAttributes, cardFor, fitFor, freshName, makeAttributes, makePlayerAt, makeTraits, shapedAttributes, traitMean, type Archetype, type Card, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
 import { cardOf } from './cards.ts'
 import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, SIDE, TIRELESS, WEAK_FOOT } from './pools.ts'
 
@@ -187,9 +187,13 @@ function hash(text: string): number {
 /**
  * A real player's personality: his archetype's, a little varied, then what we know of him (a
  * flair player, a hot head, a tireless runner). Not rolled at random: Hazard plays like Hazard.
+ * The archetypes' leans are centred on the made-up players of his position (`traitMean`, what the
+ * engine was tuned on; session 28): uncentred, draft forwards had more flair and directness than
+ * any made-up ones, defenders less, midfielders worked harder, and draft leagues scored ~0.15 a
+ * match more. Each archetype still differs from the others of his position as much as before.
  */
-function draftTraits(rng: Rng, name: string, archetype: Archetype): Traits {
-  const lean = TRAIT_LEAN[archetype]
+function draftTraits(rng: Rng, name: string, archetype: Archetype, role: Role): Traits {
+  const lean = centredLean(archetype, role)
   const vary = (v: number): number => Math.max(0, Math.min(1, v + rng.gauss() * 0.1))
   return {
     flair: FLAIR.has(name) ? Math.max(0.85, vary(lean.flair)) : vary(lean.flair),
@@ -198,6 +202,17 @@ function draftTraits(rng: Rng, name: string, archetype: Archetype): Traits {
     workRate: TIRELESS.has(name) ? Math.max(0.9, vary(lean.workRate)) : vary(lean.workRate),
     directness: vary(lean.directness),
   }
+}
+
+const TRAIT_KEYS: (keyof Traits)[] = ['flair', 'temper', 'aggression', 'workRate', 'directness']
+
+/** An archetype's lean, moved so his position's archetypes average its made-up players. */
+function centredLean(archetype: Archetype, role: Role): Traits {
+  const mean = traitMean(role)
+  const kinds = ARCHETYPES[role]
+  const out = { ...TRAIT_LEAN[archetype] }
+  for (const k of TRAIT_KEYS) out[k] = TRAIT_LEAN[archetype][k] + mean[k] - kinds.reduce((n, a) => n + TRAIT_LEAN[a][k], 0) / kinds.length
+  return out
 }
 
 /**
@@ -223,7 +238,7 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   // Players without a curated archetype get one read off a random profile for his position.
   const known = ARCHETYPE[name]
   const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)
-  const traits = draftTraits(rng, name, archetype)
+  const traits = draftTraits(rng, name, archetype, role)
   // He plays as a made-up player of his position does at the same standing (ROLE_OFFSET: a FIFA
   // card gives a striker ~4 more points of skill than the engine's positions were tuned with, a
   // centre-midfielder ~2 fewer), so a draft league plays like a career one; his card shows as FIFA's
