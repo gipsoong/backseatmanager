@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FORMATIONS, Rng, cardOverall, shownRatings, type Role } from '../engine/index.ts'
+import { FORMATIONS, ROLE_OFFSET, Rng, cardOverall, shownRatings, type Role } from '../engine/index.ts'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
 import { upgradeSave } from '../season/store.ts'
 import { LEFT_FOOTED } from '../draft/pools.ts'
@@ -7,7 +7,7 @@ import { CARDS } from '../draft/cards.ts'
 import { shortName } from '../names.ts'
 import { elevenRating, leagueLevel, nextSeason, shiftTo, startCareer, startRealCareer } from './career.ts'
 import { fakePlayed } from './fake.ts'
-import { REAL_LEAGUES, realPotential, realTeams, squadLines } from './real.ts'
+import { REAL_BALANCE, REAL_LEAGUES, balanceOf, balanceShift, realPotential, realTeams, squadLines } from './real.ts'
 import { createSeason, matchdays } from '../season/season.ts'
 import { cupSchedule } from './cup.ts'
 import { aimFor, relegationPlaces } from './career.ts'
@@ -87,9 +87,12 @@ describe('a real career', () => {
     expect(order.slice(-3)).toContain('Southampton')
   })
 
-  it('plays his card moved by ROLE_OFFSET, showing FIFA\'s', () => {
+  it('plays his card moved by ROLE_OFFSET and toward the league\'s middle, showing FIFA\'s', () => {
     const haaland = s.teams.flatMap(squadOf).find((p) => p.name === 'Erling Haaland')!
-    expect(haaland.cardShift).toBe(-4)
+    const b = s.career!.balance!
+    expect(b.factor).toBe(REAL_BALANCE)
+    expect(haaland.cardShift).toBeCloseTo(ROLE_OFFSET.ST + balanceShift(haaland.overall!, b))
+    expect(haaland.cardShift).toBeLessThan(-4)
     // His card on screen is his own (cards.ts), not the shifted one he plays with.
     expect(shownRatings(haaland).map((g) => g.value)[1]).toBeGreaterThanOrEqual(90)
   })
@@ -116,6 +119,41 @@ describe('a real career', () => {
     const down = shiftTo(p, playerRating(p) - 3, new Rng(2), true)
     expect(playerRating(down)).toBe(playerRating(p) - 3)
     expect(Math.round(cardOverall(down.attrs, down.role))).toBe(Math.round(cardOverall(p.attrs, p.role)) - 3)
+  })
+
+  it('plays the elevens closer together than their overalls', () => {
+    const spread = (xs: number[]): number => Math.max(...xs) - Math.min(...xs)
+    const shown = s.teams.map((_, i) => elevenRating(s, i))
+    const played = s.teams.map((t) => t.players.reduce((n, p) => n + cardOverall(p.attrs, p.role) - ROLE_OFFSET[p.role], 0) / 11)
+    expect(spread(played)).toBeLessThan(spread(shown) * (REAL_BALANCE + 0.2))
+    expect(spread(played)).toBeGreaterThan(spread(shown) * (REAL_BALANCE - 0.2))
+  })
+
+  it('moves the balance with his overall as he develops', () => {
+    const b = s.career!.balance!
+    const p = s.teams[0].players[3]
+    const down = shiftTo(p, playerRating(p) - 4, new Rng(2), true, false, b.factor)
+    expect(playerRating(down)).toBe(playerRating(p) - 4)
+    expect(down.cardShift).toBeCloseTo((p.cardShift ?? 0) + 4 * (1 - b.factor))
+    const read = (q: typeof p): number => Math.round(cardOverall(q.attrs, q.role))
+    expect(read(p) - read(down)).toBe(4 - (Math.round(down.cardShift!) - Math.round(p.cardShift ?? 0)))
+  })
+
+  it('balances a real save from before the balance on loading, once', () => {
+    const old = JSON.parse(JSON.stringify(s)) as Season
+    delete old.career!.balance
+    const up = upgradeSave(old)
+    expect(up.career!.balance).toEqual(balanceOf(PL))
+    const before = s.teams.flatMap(squadOf)
+    const after = up.teams.flatMap(squadOf)
+    after.forEach((p, i) => {
+      const was = before[i]
+      expect(p.overall).toBe(was.overall)
+      const lean = balanceShift(was.overall!, up.career!.balance!)
+      expect(p.cardShift ?? 0).toBeCloseTo((was.cardShift ?? 0) + lean)
+      expect(Math.abs(cardOverall(p.attrs, p.role) - cardOverall(was.attrs, was.role) - lean)).toBeLessThan(1.6)
+    })
+    expect(upgradeSave(JSON.parse(JSON.stringify(up)))).toEqual(up)
   })
 
   it('saves and loads unchanged', () => {

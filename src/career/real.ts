@@ -77,13 +77,30 @@ export const REAL_KNOWN_AS: [string, string][] = REAL_LEAGUES.flatMap((l) =>
 const playerId = (league: RealLeague, club: number, i: number): string => `${league.key}-${club}-${i}`
 
 /**
- * The league's clubs as teams, in the file's order: for each place in the club's formation its best
- * fit (overall by fit), the rest of the squad behind them (the season's staff pick the eleven again);
- * blocks by where the eleven ranks, as a draft league's are (`withBlocks`).
+ * How far a real player plays from his league's middle, against how far his overall says (session 34):
+ * FIFA-like overalls spread a real league's elevens 11-16 points from best to worst, made-up careers
+ * (which the engine was tuned on) 8-9, so real champions ran away with it (95-110 points) and lopsided
+ * games lifted goals. Each real player plays his card moved toward the league's mean eleven by this
+ * share of the gap (`balanceShift`), on top of ROLE_OFFSET, in `cardShift`, so cards and overalls on
+ * screen are FIFA's. The career keeps it (`Career.balance`), newcomers are made the same way, and
+ * development moves the shift with the overall (`shiftTo`).
  */
-export function realTeams(league: RealLeague, seed: number): TeamDef[] {
-  const teams = league.clubs.map((c, club): TeamDef => {
-    const left: PlayerDef[] = squadLines(c.players).map((p, i) => cardPlayer(playerId(league, club, i), p.name, p.positions, p.overall, league.season, p.foot))
+export const REAL_BALANCE = Number((globalThis as any).process?.env?.REAL_BALANCE ?? 0.75) // TUNING
+
+export interface Balance {
+  /** The share of a player's distance from the league's middle that he plays (REAL_BALANCE). */
+  factor: number
+  /** The league's mean eleven overall when the career began. */
+  mean: number
+}
+
+/** What a player of this overall plays beyond his card (card points, + below the middle). */
+export const balanceShift = (overall: number, b: Balance): number => (b.factor - 1) * (overall - b.mean)
+
+/** The clubs' squads, each player made by `make`, elevens picked by overall by fit. */
+function teamsOf(league: RealLeague, make: (id: string, p: RealPlayer) => PlayerDef): TeamDef[] {
+  return league.clubs.map((c, club): TeamDef => {
+    const left: PlayerDef[] = squadLines(c.players).map((p, i) => make(playerId(league, club, i), p))
     const players = FORMATIONS[c.formation].map((slot, i) => {
       const best = left.reduce((a, b) => ((b.overall ?? 0) * fitFor(b, slot) > (a.overall ?? 0) * fitFor(a, slot) ? b : a))
       left.splice(left.indexOf(best), 1)
@@ -92,7 +109,33 @@ export function realTeams(league: RealLeague, seed: number): TeamDef[] {
     const bench = left.sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0)).map((p, i) => ({ ...p, shirt: 12 + i }))
     return { name: c.club, shortName: c.shortName, kit: c.kit, formation: c.formation, block: 'mid', players, bench }
   })
-  return withBlocks(teams, new Rng(seed * 13 + 5))
+}
+
+const card = (league: RealLeague, extra: (overall: number) => number) => (id: string, p: RealPlayer): PlayerDef =>
+  cardPlayer(id, p.name, p.positions, p.overall, league.season, p.foot, extra(p.overall))
+
+const balances = new Map<string, Balance>()
+
+/** The league's balance: REAL_BALANCE about the mean overall of the elevens as `realTeams` picks them. */
+export function balanceOf(league: RealLeague): Balance {
+  let b = balances.get(league.id)
+  if (!b) {
+    const elevens = teamsOf(league, card(league, () => 0)).flatMap((t) => t.players)
+    b = { factor: REAL_BALANCE, mean: elevens.reduce((n, p) => n + (p.overall ?? 0), 0) / elevens.length }
+    balances.set(league.id, b)
+  }
+  return b
+}
+
+/**
+ * The league's clubs as teams, in the file's order: for each place in the club's formation its best
+ * fit (overall by fit), the rest of the squad behind them (the season's staff pick the eleven again);
+ * every player balanced toward the league's middle (`balanceOf`); blocks by where the eleven ranks,
+ * as a draft league's are (`withBlocks`).
+ */
+export function realTeams(league: RealLeague, seed: number): TeamDef[] {
+  const b = balanceOf(league)
+  return withBlocks(teamsOf(league, card(league, (o) => balanceShift(o, b))), new Rng(seed * 13 + 5))
 }
 
 /** Each real player's birth year, by id. */

@@ -5,7 +5,7 @@
  * the season: `nextSeason` turns a finished season into the next one.
  */
 import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, ability, cardOverall, freshName, makePlayerAt } from '../engine/index.ts'
-import { birthYears, realLeague, realPotential, realTeams } from './real.ts'
+import { type Balance, balanceOf, balanceShift, birthYears, realLeague, realPotential, realTeams } from './real.ts'
 import { type Finance, ROLE_OFFSET, WAGE_BUDGET, settle, startFinance, wageAt } from './money.ts'
 import { type Cup, type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 import { POINT_VALUE, sideOf } from '../draft/transfers.ts'
@@ -112,6 +112,11 @@ export interface Career {
    * one carries his overall on the FIFA-like scale, newcomers too (`newcomer`).
    */
   league?: string
+  /**
+   * A real career's balance (session 34, real.ts): its players play nearer the league's middle than
+   * their overalls say. A real save from before it gets it on loading (`balanced`).
+   */
+  balance?: Balance
 }
 
 /** A squad's largest size: the eleven, nine on the bench and a few reserves. */
@@ -158,7 +163,7 @@ export function startCareer(s: Season, league?: string): Season {
     }
   const year = seasonYear(s)
   for (const p of s.teams.flatMap(squadOf)) people[p.id].contract = firstContract(rng, p, people[p.id], year)
-  const career: Career = { number: 1, people, aim: 'topHalf', history: [], levels: s.teams.map((_, i) => elevenRating(s, i)), freeAgents: [], ...(real ? { league: real.id } : {}) }
+  const career: Career = { number: 1, people, aim: 'topHalf', history: [], levels: s.teams.map((_, i) => elevenRating(s, i)), freeAgents: [], ...(real ? { league: real.id, balance: balanceOf(real) } : {}) }
   const started = { ...s, career: { ...career, aim: aimFor(s, s.userTeam) } }
   return { ...started, career: { ...started.career, finance: startFinance(started), cup: startCup(started) } }
 }
@@ -229,16 +234,31 @@ const BODY_RELEVANCE = 1.5
 
 /**
  * His attributes moved a point at a time until his overall is `target` (or as near as 1-20 allows):
- * the legs first on the way down, and for a young player (`young`) on the way up too.
+ * the legs first on the way down, and for a young player (`young`) on the way up too. With a real
+ * career's `balance` factor, an overall-carrier's attributes move that share of the way (his
+ * `cardShift` takes the rest, so he stays as near the league's middle as a player made at it).
  */
-export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boolean, young = false): PlayerDef {
+export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boolean, young = false, balance?: number): PlayerDef {
   // A player who carries his overall (a real one, or anyone in a real career): his attributes move
   // until their reading (`cardOverall`) has moved as far as his overall is to, and it moves with them.
   if (p.overall !== undefined) {
     const read = (q: PlayerDef): number => Math.round(cardOverall(q.attrs, q.role))
     const from = read(p)
-    const moved = shiftTo({ ...p, overall: undefined, card: true }, from + target - p.overall, rng, declining, young)
-    const out: PlayerDef = { ...moved, overall: p.overall + read(moved) - from }
+    const step = target - p.overall
+    if (balance === undefined) {
+      const moved = shiftTo({ ...p, overall: undefined, card: true }, from + step, rng, declining, young)
+      const out: PlayerDef = { ...moved, overall: p.overall + read(moved) - from }
+      if (!p.card) delete out.card
+      return out
+    }
+    // The shift is fractional; his attributes follow its whole part.
+    const shift = p.cardShift ?? 0
+    const next = shift - (1 - balance) * step
+    const lean = Math.round(next) - Math.round(shift)
+    const moved = shiftTo({ ...p, overall: undefined, card: true }, from + step + lean, rng, declining, young)
+    const out: PlayerDef = { ...moved, overall: p.overall + read(moved) - from - lean }
+    if (next) out.cardShift = next
+    else delete out.cardShift
     if (!p.card) delete out.card
     return out
   }
@@ -345,11 +365,17 @@ function madeAt(rng: Rng, id: string, name: string, shirt: number, role: Role, o
  * (what a made-up player of that standing reads) and carries the overall, his card shown as a real
  * player's is (`cardShift`), so he reads and plays as a real player of that overall would.
  */
-function newcomer(rng: Rng, id: string, name: string, shirt: number, role: Role, overall: number, real: boolean): PlayerDef {
+function newcomer(rng: Rng, id: string, name: string, shirt: number, role: Role, overall: number, real: boolean, balance?: Balance): PlayerDef {
   if (!real) return madeAt(rng, id, name, shirt, role, overall)
-  const off = ROLE_OFFSET[role]
-  const p = madeAt(rng, id, name, shirt, role, overall + off)
-  return { ...p, overall: playerRating(p) - off, ...(off ? { cardShift: off } : {}) }
+  if (!balance) {
+    const off = ROLE_OFFSET[role]
+    const p = madeAt(rng, id, name, shirt, role, overall + off)
+    return { ...p, overall: playerRating(p) - off, ...(off ? { cardShift: off } : {}) }
+  }
+  // Balanced as the league's real players are (real.ts `balanceShift`).
+  const off = ROLE_OFFSET[role] + balanceShift(overall, balance)
+  const p = madeAt(rng, id, name, shirt, role, Math.round(overall + off))
+  return { ...p, overall: Math.round(playerRating(p) - off), ...(off ? { cardShift: off } : {}) }
 }
 
 /** Free agents made up each summer: players from elsewhere, around the league's level. */
@@ -420,7 +446,7 @@ export function nextSeason(s: Season): Season {
       const age = who.age + 1
       const keeper = p.role === 'GK'
       const delta = development(who.age, now, who.potential, played, keeper, rng)
-      const next = shiftTo(p, Math.max(1, Math.round(now + delta)), rng, delta < 0, who.age <= 23)
+      const next = shiftTo(p, Math.max(1, Math.round(now + delta)), rng, delta < 0, who.age <= 23, c.balance?.factor)
       if (retires(age, keeper, played, rng)) {
         left.push(p)
         if (mine) summer.retired.push({ name: p.name, age })
@@ -474,7 +500,7 @@ export function nextSeason(s: Season): Season {
       const role = squad.filter((p) => p.role === 'GK').length < 2 ? 'GK' : rng.pick(ACADEMY_ROLES)
       const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + lift + off(role))
       const potential = Math.max(overall + 2, Math.round(potential0 + off(role)))
-      const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(squad), shirt(), role, overall, real)
+      const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(squad), shirt(), role, overall, real, c.balance)
       squad.push(q)
       const who: Person = { age: rng.int(16, 18), potential, academy: true }
       people[q.id] = { ...who, contract: newContract(q, who, year, 3) }
@@ -525,7 +551,7 @@ export function nextSeason(s: Season): Season {
   for (let i = 0; i < OUTSIDE_FREE_AGENTS; i++) {
     const role = rng.pick(ACADEMY_ROLES)
     const overall = Math.round(level - 8 + rng.next() * 9 + off(role))
-    const p = newcomer(rng, `${s.seed}-c${c.number}-f${i}`, fresh([]), 30, role, overall, real)
+    const p = newcomer(rng, `${s.seed}-c${c.number}-f${i}`, fresh([]), 30, role, overall, real, c.balance)
     pool.push(freeAgent(p, { age: rng.int(23, 32), potential: overall }, null))
   }
 
@@ -539,7 +565,7 @@ export function nextSeason(s: Season): Season {
   for (const club of rng.shuffle(s.teams.map((_, i) => i))) {
     wanted[club].forEach((w, i) => {
       if (club === s.userTeam) {
-        const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall, real)
+        const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall, real, c.balance)
         const who: Person = { age: rng.int(24, 29), potential: w.overall }
         next = addToClub(next, club, q, { ...who, contract: newContract(q, who, year, 2) })
         summer.signed.push(q.name)
@@ -566,7 +592,7 @@ export function nextSeason(s: Season): Season {
         next = addToClub(next, club, pick.player, { ...pick.person, contract: { until: year + contractLength(pick.person.age), wage: pick.wage } })
         return
       }
-      const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall, real)
+      const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall, real, c.balance)
       const who: Person = { age: rng.int(24, 29), potential: w.overall }
       next = addToClub(next, club, q, { ...who, contract: newContract(q, who, year, rng.int(2, 4)) })
     })
@@ -697,7 +723,35 @@ export function upgradeCareer(s: Season): Season {
   if (!v5.career) return startCareer(v5)
   const c = (s.version as number) === 3 ? rescaled(v5, v5.career) : v5.career
   const v4 = { ...v5, career: c.finance ? c : { ...c, finance: startFinance({ ...v5, career: c }) } }
-  return (s.version as number) < 5 ? withContracts(v4) : v4
+  return balanced((s.version as number) < 5 ? withContracts(v4) : v4)
+}
+
+/**
+ * A real career from before session 34 (no `balance`): everyone carrying an overall, in the clubs
+ * and among the free agents, has his attributes moved toward the league's middle as a new career's
+ * players are made (to the nearest point), his `cardShift` with them, his overall unchanged.
+ */
+function balanced(s: Season): Season {
+  const c = s.career!
+  const league = realLeague(c.league)
+  if (!league || c.balance) return s
+  const b = balanceOf(league)
+  const rng = new Rng(s.seed * 37 + 3 + c.number)
+  const up = (p: PlayerDef): PlayerDef => {
+    if (p.overall === undefined) return p
+    const lean = balanceShift(p.overall, b)
+    const from = Math.round(cardOverall(p.attrs, p.role))
+    const moved = shiftTo({ ...p, overall: undefined, card: true }, from + Math.round(lean), rng, lean < 0)
+    const shift = (p.cardShift ?? 0) + lean
+    const out: PlayerDef = { ...moved, overall: p.overall, ...(shift ? { cardShift: shift } : {}) }
+    if (!p.card) delete out.card
+    return out
+  }
+  return {
+    ...s,
+    teams: s.teams.map((t) => ({ ...t, players: t.players.map(up), bench: t.bench.map(up) })),
+    career: { ...c, balance: b, freeAgents: (c.freeAgents ?? []).map((f) => ({ ...f, player: up(f.player) })) },
+  }
 }
 
 /**

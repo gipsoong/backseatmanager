@@ -239,7 +239,7 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
  * A real player as the engine sees him, in the season starting `year` (a draft pool's, or a real
  * career's): see `poolPlayer`. `foot` overrides what pools.ts knows of his feet.
  */
-export function cardPlayer(id: string, name: string, positions: string, overall: number, year: number, foot?: 'left' | 'right'): PlayerDef {
+export function cardPlayer(id: string, name: string, positions: string, overall: number, year: number, foot?: 'left' | 'right', extra = 0): PlayerDef {
   const [role, ...others] = positions.split('/') as Role[]
   const rng = new Rng(hash(name))
   const quality = levelOf(overall)
@@ -250,8 +250,9 @@ export function cardPlayer(id: string, name: string, positions: string, overall:
   // He plays as a made-up player of his position does at the same standing (ROLE_OFFSET: a FIFA
   // card gives a striker ~4 more points of skill than the engine's positions were tuned with, a
   // centre-midfielder ~2 fewer), so a draft league plays like a career one; his card shows as FIFA's
-  // (`cardShift`, put back by `shownRatings`).
-  const off = ROLE_OFFSET[role]
+  // (`cardShift`, put back by `shownRatings`). `extra` moves what he plays further (a real career's
+  // balance, real.ts).
+  const off = ROLE_OFFSET[role] + extra
   const card = (cardOf(name, year, overall, role === 'GK') ?? cardFor(archetype, overall)).map((v) => v + off) as Card
   return {
     id,
