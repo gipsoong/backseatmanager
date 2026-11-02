@@ -21,7 +21,7 @@ export function PickTeam({
 }) {
   const order = teams.map((t, i) => ({ t, i, rating: Math.round(ratingOf(i)) })).sort((a, b) => b.rating - a.rating)
   return (
-    <div className="pick-team">
+    <div className="pick">
       <header className="top">
         <div className="fixture">
           <p className="eyebrow">New season</p>

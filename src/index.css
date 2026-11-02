@@ -1362,17 +1362,6 @@ h1 .swatch,
   gap: 20px;
 }
 
-/* (Its own class: `.pick` is also the Change panel's and Squad's pick buttons.) */
-.pick-team {
-  display: grid;
-  gap: 20px;
-  min-width: 0;
-}
-
-.pick-team .draft-options {
-  margin-bottom: 0;
-}
-
 .clubs {
   list-style: none;
   margin: 0;
