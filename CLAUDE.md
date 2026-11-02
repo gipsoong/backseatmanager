@@ -577,8 +577,8 @@ pulling the repo.
   the panel ("Change", by the playback controls; `MatchViewer` `manage` side).
 
 - Real careers (session 32, `src/career/real.ts`, `src/career/leagues/`): a career can start from a real
-  league season; the start's pick screen offers "Premier League 2024/25 (real clubs)" first and "Made-up
-  league" second. A league is one file in `leagues/` (`CLUBS`: club, shortName, kit, formation, and a
+  league season; the start's pick screen offers the five real leagues of 2024/25 (Premier League first,
+  the default; then La Liga, Bundesliga, Serie A, Ligue 1, session 33) and "Made-up league" last. A league is one file in `leagues/` (`CLUBS`: club, shortName, kit, formation, and a
   squad a line, `Name, POS[/POS…], overall, born, L|R[, known as]`; `SEASON`, the year it starts) listed
   in `REAL_LEAGUES` (id, name, season, `key` for player ids `pl24-<club>-<i>`). Squads are the first team
   at the end of the summer window (loans at the club they went to); names as in the draft's squads
@@ -597,7 +597,16 @@ pulling the repo.
   unlike the squads files, feet and birth years against pools.ts and cards.ts, each club's eleven, block,
   aim, wages. `sim-career.ts <seed> <seasons> [out] --real[=id]` plays one and prints the table (with each
   club's starting eleven rank) and top scorers. `node scripts/check-real-growth.ts [seed] [summers] [names…]`:
-  named players' overall/potential over fake summers. To add a league: a file in `leagues/` (twenty clubs,
-  22-25 a squad, two keepers), an entry in `REAL_LEAGUES`, `real.test.ts` checks the data.
+  named players' overall/potential over fake summers. To add a league: a file in `leagues/` (18 or 20
+  clubs, 22-25 a squad, two keepers), an entry in `REAL_LEAGUES`, `real.test.ts` checks the data (and
+  that nobody is in two leagues: a man who moved in the window is only at his new club; two different
+  men with one name get a full name and a known-as, e.g. Juventus's "Danilo Luiz da Silva, … Danilo").
+  Everything is generic in the number of clubs: 18 clubs play 34 matchdays, a five-round cup (two
+  first-round ties, then the last 16) before matchdays 5, 11, 17, 23, 29, three title aims and three
+  going down (`real.test.ts` checks it). Squads were checked against fbref's roster pages
+  (aws.fbref.com/en/squads/<id>/2024-2025/roster/…, found by a web search limited to fbref.com; the
+  league pages are blocked): a player with two 2024-25 clubs there moved in the season, so check when.
+  Real leagues' elevens spread ~11-16 overall (made-up careers ~8-9), so champions run higher than
+  made-up ones: see PROGRESS (session 33).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

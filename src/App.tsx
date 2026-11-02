@@ -306,7 +306,7 @@ export default function App() {
           onBack={() => setScreen({ kind: "start" })}
           leagues={{
             options: [
-              ...REAL_LEAGUES.map((l) => ({ id: l.id, name: `${l.name} (real clubs)` })),
+              ...REAL_LEAGUES.map((l) => ({ id: l.id, name: l.name })),
               { id: MADE_UP, name: "Made-up league" },
             ],
             chosen: screen.league,

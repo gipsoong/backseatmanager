@@ -8,7 +8,9 @@ import { shortName } from '../names.ts'
 import { elevenRating, leagueLevel, nextSeason, shiftTo, startCareer, startRealCareer } from './career.ts'
 import { fakePlayed } from './fake.ts'
 import { REAL_LEAGUES, realPotential, realTeams, squadLines } from './real.ts'
-import { createSeason } from '../season/season.ts'
+import { createSeason, matchdays } from '../season/season.ts'
+import { cupSchedule } from './cup.ts'
+import { aimFor, relegationPlaces } from './career.ts'
 
 const ROLES: Role[] = ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 const PL = REAL_LEAGUES[0]
@@ -129,6 +131,24 @@ describe('a real career', () => {
     expect(avg(24)).toBeLessThan(4)
     expect(avg(27)).toBe(0)
   })
+})
+
+describe('an 18-club real league', () => {
+  for (const league of REAL_LEAGUES.filter((l) => l.clubs.length === 18)) {
+    it(`${league.name}: 34 matchdays, a five-round cup, three title aims and three going down`, () => {
+      const s = startRealCareer(2, league.id)
+      expect(s.teams).toHaveLength(18)
+      expect(matchdays(s)).toBe(34)
+      expect(s.fixtures).toHaveLength(18 * 17)
+      expect(cupSchedule(s)).toEqual([5, 11, 17, 23, 29])
+      // Four weakest play a first round; the other fourteen join for the last 16.
+      expect(s.career!.cup!.fixtures).toHaveLength(2)
+      const aims = s.teams.map((_, i) => aimFor(s, i))
+      expect(aims.filter((a) => a === 'title')).toHaveLength(3)
+      expect(aims.filter((a) => a === 'topHalf')).toHaveLength(6)
+      expect(relegationPlaces(18)).toBe(3)
+    })
+  }
 })
 
 describe('a made-up career', () => {
