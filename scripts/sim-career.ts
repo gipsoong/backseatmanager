@@ -30,7 +30,6 @@ function report(s: Season): void {
   const played = s.fixtures.filter((f) => f.result)
   const goals = played.reduce((n, f) => n + f.result!.score[0] + f.result!.score[1], 0)
   const rows = table(s)
-  const scale = 38 / matchdays(s)
   const all = s.teams.flatMap((t, club) => squadOf(t).map((p) => ({ p, club, st: s.stats[p.id], age: s.career!.people[p.id].age })))
   const top = all.reduce((a, b) => (b.st.goals > a.st.goals ? b : a))
   const regular = all.filter((x) => (x.st.minutes ?? 0) >= matchdays(s) * 45)
@@ -40,7 +39,7 @@ function report(s: Season): void {
   }
   const line = (label: string, xs: typeof all): string => `${label} n${xs.length} g ${per90(xs, 'goals')} sh ${per90(xs, 'shots')} xg ${per90(xs, 'xg')}`
   console.log(
-    `S${s.career!.number} ${s.startDate.slice(0, 4)}: goals/match ${(goals / played.length).toFixed(2)} | top ${top.p.name} ${top.st.goals} (x38/${matchdays(s)}: ${Math.round(top.st.goals * scale)}) | best ${rows[0].points} pts (x: ${Math.round(rows[0].points * scale)}) | worst ${rows.at(-1)!.points} | level XI ${leagueLevel(s).toFixed(2)} squads ${squadsLevel(s.teams).toFixed(2)}`,
+    `S${s.career!.number} ${s.startDate.slice(0, 4)}: goals/match ${(goals / played.length).toFixed(2)} | ${matchdays(s)} matchdays | top ${top.p.name} ${top.st.goals} | best ${rows[0].points} pts | worst ${rows.at(-1)!.points} | level XI ${leagueLevel(s).toFixed(2)} squads ${squadsLevel(s.teams).toFixed(2)}`,
   )
   console.log('   ', Object.entries(GROUPS).map(([g, roles]) => line(g, regular.filter((x) => roles.includes(x.p.role)))).join(' | '))
   const young = regular.filter((x) => x.age <= 21)

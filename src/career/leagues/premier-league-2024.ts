@@ -422,7 +422,6 @@ export const CLUBS: RealClub[] = [
     Nikola Milenković, CB, 81, 1997, R
     Morato, CB, 74, 2001, L
     Willy Boly, CB, 74, 1991, R
-    Andrew Omobamidele, CB, 70, 2002, R
     Ola Aina, FB, 78, 1996, R
     Neco Williams, FB, 75, 2001, R
     Álex Moreno, FB, 75, 1993, L

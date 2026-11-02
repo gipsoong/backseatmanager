@@ -41,6 +41,7 @@ export const CLUBS: RealClub[] = [
     club: 'Bayer Leverkusen', shortName: 'B04', kit: kit('#e32221', '#111111', 'red'), formation: '3-4-3', players: `
     Lukáš Hrádecký, GK, 84, 1989, R
     Matěj Kovář, GK, 76, 2000, R
+    Niklas Lomb, GK, 62, 1993, R
     Jonathan Tah, CB, 86, 1996, R
     Edmond Tapsoba, CB, 82, 1999, R
     Piero Hincapié, CB/FB, 82, 2002, L
@@ -56,7 +57,6 @@ export const CLUBS: RealClub[] = [
     Florian Wirtz, CM/W, 88, 2003, R
     Jonas Hofmann, CM/W, 81, 1992, R
     Amine Adli, W, 77, 2000, L
-    Martin Terrier, W/ST, 79, 1997, R
     Nathan Tella, W, 76, 1999, R
     Patrik Schick, ST, 81, 1996, L
     Victor Boniface, ST, 82, 2000, L
@@ -201,6 +201,7 @@ export const CLUBS: RealClub[] = [
     Anthony Caci, FB, 74, 1997, L
     Silvan Widmer, FB, 75, 1993, R
     Phillipp Mwene, FB, 72, 1994, R
+    Nikolas Veratschnig, FB, 68, 2003, R
     Kaishu Sano, DM, 75, 2000, R
     Nadiem Amiri, CM, 77, 1996, R
     Lee Jae-sung, CM/W, 76, 1992, R, Lee
@@ -209,7 +210,6 @@ export const CLUBS: RealClub[] = [
     Gabriel Vidović, W/CM, 70, 2003, R
     Armindo Sieb, W, 70, 2003, R
     Jonathan Burkardt, ST, 78, 2000, R
-    Ludovic Ajorque, ST, 75, 1994, L
     Nelson Weiper, ST, 69, 2005, R
   ` },
   {
