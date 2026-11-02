@@ -576,4 +576,27 @@ pulling the repo.
   `stateAt(tick)`; `timeline.orders` reproduces the match with `runMatch`. `viewer/ChangePanel.tsx` is
   the panel ("Change", by the playback controls; `MatchViewer` `manage` side).
 
+- Real careers (session 32, `src/career/real.ts`, `src/career/leagues/`): a career can start from a real
+  league season; the start's pick screen offers "Premier League 2024/25 (real clubs)" first and "Made-up
+  league" second. A league is one file in `leagues/` (`CLUBS`: club, shortName, kit, formation, and a
+  squad a line, `Name, POS[/POS…], overall, born, L|R[, known as]`; `SEASON`, the year it starts) listed
+  in `REAL_LEAGUES` (id, name, season, `key` for player ids `pl24-<club>-<i>`). Squads are the first team
+  at the end of the summer window (loans at the club they went to); names as in the draft's squads
+  files (285 of the PL's 475 are there), overalls our FC 25 estimate. `realTeams` makes each player with
+  the draft's `cardPlayer` (poolPlayer's body: his `CARDS` card or his archetype's, moved by `ROLE_OFFSET`,
+  `cardShift`), the eleven by fit, blocks by eleven rank (`withBlocks`). `startRealCareer(seed, id)`:
+  the season starts in that year, ages are year - born, potential `realPotential` (nothing from 26;
+  ~+2 at 24, +8 at 20, +14 at 17, ±1.5, varied by seed). `Career.league` marks it; no save version bump
+  (an optional field). In a real career every player carries `overall` on the FIFA-like scale, newcomers
+  too: `newcomer` (career.ts) makes a made-up player at overall + ROLE_OFFSET and gives him the overall
+  and `cardShift`, so `nextSeason`'s formulas drop their ROLE_OFFSET there (`off`). `shiftTo` moves an
+  overall-carrying player's attributes until `cardOverall` has moved as far, and his overall with them.
+  money.ts prices by `standingOf` (made-up players net of ROLE_OFFSET, overall-carriers as they are);
+  `wageAt(o, role, standing)`. Made-up careers are byte-identical (`node scripts/fingerprint-career.ts`:
+  two fake summers, seeds 1-3, `all 079b6011db15`). `node scripts/check-real.ts [id]`: names spelled
+  unlike the squads files, feet and birth years against pools.ts and cards.ts, each club's eleven, block,
+  aim, wages. `sim-career.ts <seed> <seasons> [out] --real[=id]` plays one and prints the table (with each
+  club's starting eleven rank) and top scorers. To add a league: a file in `leagues/` (twenty clubs,
+  22-25 a squad, two keepers), an entry in `REAL_LEAGUES`, `real.test.ts` checks the data.
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
