@@ -251,6 +251,8 @@ export interface Animation {
   toward: { x: number; y: number; z: number }
   /** 0 at the moment it happens, 1 when it's over. */
   age: number
+  /** A standing tackle: the man he's going in on, whose spot each frame gives the direction. */
+  target?: number
 }
 
 export interface DrawOptions {
@@ -378,7 +380,11 @@ export function drawFrame(
     .map((p, i) => ({ p, i, at: mix(PLAYERS_AT + i * 2, 3) }))
     .filter(({ at }) => !Number.isNaN(at[0]))
   const depthOf = (x: number, y: number): number => cam.project(x, y)?.k ?? 0
-  players.sort((u, w) => depthOf(u.at[0], u.at[1]) - depthOf(w.at[0], w.at[1]))
+  // Seen from above, a man going in for the ball (a slide or a standing tackle) is drawn over the
+  // man he's challenging, or the challenge is hidden under him.
+  const challenging = (i: number): number =>
+    !cam.perspective && opts.animations.some((an) => an.idx === i && (an.kind === 'slide' || an.kind === 'lunge')) ? 1 : 0
+  players.sort((u, w) => challenging(u.i) - challenging(w.i) || depthOf(u.at[0], u.at[1]) - depthOf(w.at[0], w.at[1]))
 
   // A ball in the goal sits behind the netting.
   if (opts.net && !cam.perspective) drawBall(ctx, cam, bx, by, bz)
@@ -398,7 +404,10 @@ export function drawFrame(
       ballDrawn = true
     }
     const kit = p.slot.role === 'GK' ? opts.keeperKits[p.team] : opts.kits[p.team]
-    const anim = opts.animations.find((an) => an.idx === i)
+    let anim = opts.animations.find((an) => an.idx === i)
+    // A standing tackle goes in towards the carrier where he is this frame (they both move on).
+    const on = anim?.kind === 'lunge' && anim.target !== undefined ? players.find((q) => q.i === anim!.target) : undefined
+    if (anim && on && Math.hypot(on.at[0] - at[0], on.at[1] - at[1]) > 0.2) anim = { ...anim, toward: { x: on.at[0], y: on.at[1], z: 0 } }
     drawPlayer(ctx, cam, at[0], at[1], kit, p.def.shirt, anim, opts.showRoles ? ARCHETYPE_NAMES[p.archetype].short : null)
   }
   if (!ballDrawn) drawBall(ctx, cam, bx, by, bz)

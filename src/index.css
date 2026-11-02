@@ -3565,53 +3565,34 @@ p.meta,
   font-size: 0.95rem;
 }
 
-@media (max-width: 560px) {
+/* By the controls' own width (the pitch beside the panel can be narrow on a desktop too):
+   under 800px Roles and Captions go into a small menu under the dots; under 600px the speeds are
+   one button and the view modes short, so it all stays one row on a phone. */
+.controls {
+  container-type: inline-size;
+}
+
+@container (max-width: 800px) {
   .control-row {
     flex-wrap: nowrap;
-    gap: 5px;
   }
-  .control-row .play {
-    width: 44px;
-    flex: none;
-  }
-  .speeds {
-    display: none;
-  }
-  .speed-step,
   .view-opts-btn {
     display: grid;
     place-items: center;
     flex: none;
     min-width: 44px;
     min-height: 40px;
+    margin-left: auto;
     padding: 0 6px;
     border: 1px solid var(--line);
     border-radius: 6px;
     background: var(--surface);
-    color: var(--ink);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .view-opts-btn {
-    margin-left: auto;
     color: var(--muted);
   }
   .view-opts-btn[aria-expanded='true'] {
     border-color: var(--accent);
     color: var(--ink);
   }
-  .control-row .modes {
-    flex: none;
-  }
-  .control-row .modes button {
-    min-width: 42px;
-    padding: 0 7px;
-  }
-  .control-row .change-btn {
-    flex: none;
-    padding: 0 8px;
-  }
-  /* Roles and captions: a small menu under the dots. */
   .view-opts {
     display: none;
     position: absolute;
@@ -3628,6 +3609,50 @@ p.meta,
   .view-opts.open {
     display: flex;
     animation: rise var(--dur-fast) var(--ease-out) backwards;
+  }
+}
+
+@container (max-width: 600px) {
+  .control-row {
+    gap: 5px;
+  }
+  .control-row .play {
+    width: 44px;
+    flex: none;
+  }
+  .speeds {
+    display: none;
+  }
+  .speed-step {
+    display: grid;
+    place-items: center;
+    flex: none;
+    min-width: 44px;
+    min-height: 40px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .control-row .modes {
+    flex: none;
+  }
+  .control-row .modes button {
+    min-width: 42px;
+    padding: 0 7px;
+  }
+  .control-row .modes .label-long {
+    display: none;
+  }
+  .control-row .modes .label-short {
+    display: inline;
+  }
+  .control-row .change-btn {
+    flex: none;
+    padding: 0 8px;
   }
 }
 

@@ -71,7 +71,12 @@ export default function App() {
   const others = useRef<Promise<Map<number, Result>> | null>(null);
 
   useEffect(() => {
-    loadSeason()
+    // Storage that never answers (seen in some embedded frames) mustn't leave the game on
+    // "Loading…": after a few seconds it starts without a save.
+    Promise.race([
+      loadSeason(),
+      new Promise<null>((r) => setTimeout(() => r(null), 4000)),
+    ])
       .then((s) => setSeason(s && advanceCup(s)))
       .catch(() => setSeason(null))
       .finally(() => setScreen({ kind: "start" }));
@@ -79,7 +84,11 @@ export default function App() {
 
   const commit = async (s: Season): Promise<void> => {
     setSeason(s);
-    await saveSeason(s).catch(() => undefined); // a private window may refuse storage; play on regardless
+    // A private window may refuse storage, or never answer: play on regardless.
+    await Promise.race([
+      saveSeason(s).catch(() => undefined),
+      new Promise((r) => setTimeout(r, 4000)),
+    ]);
   };
 
   /**

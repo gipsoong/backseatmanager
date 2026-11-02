@@ -92,7 +92,7 @@ export function animationsAt(
   events: MatchEvent[],
   upTo: number,
   playhead: number,
-): { kind: 'slide' | 'lunge' | 'dive' | 'kick' | 'jump'; idx: number; toward: { x: number; y: number; z: number }; age: number }[] {
+): { kind: 'slide' | 'lunge' | 'dive' | 'kick' | 'jump'; idx: number; toward: { x: number; y: number; z: number }; age: number; target?: number }[] {
   const SLIDE_TICKS = 10
   const LUNGE_TICKS = 8
   const DIVE_TICKS = 13
@@ -109,7 +109,7 @@ export function animationsAt(
     }
     const standing = (e.type === 'tackle' || (e.type === 'foul' && !e.aerial)) && e.style === 'standing'
     if (standing && since < LUNGE_TICKS) {
-      out.push({ kind: 'lunge', idx: e.byIdx, toward: { ...e.pos, z: 0 }, age: since / LUNGE_TICKS })
+      out.push({ kind: 'lunge', idx: e.byIdx, toward: { ...e.pos, z: 0 }, age: since / LUNGE_TICKS, target: e.onIdx })
     }
     // Every strike of the ball: a pass, shot or clearance with the foot, or a header (he goes up for it).
     const kick = e.type === 'pass' || e.type === 'shot' || e.type === 'clearance'
