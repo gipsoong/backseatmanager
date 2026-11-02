@@ -596,7 +596,8 @@ pulling the repo.
   two fake summers, seeds 1-3, `all 079b6011db15`). `node scripts/check-real.ts [id]`: names spelled
   unlike the squads files, feet and birth years against pools.ts and cards.ts, each club's eleven, block,
   aim, wages. `sim-career.ts <seed> <seasons> [out] --real[=id]` plays one and prints the table (with each
-  club's starting eleven rank) and top scorers. To add a league: a file in `leagues/` (twenty clubs,
+  club's starting eleven rank) and top scorers. `node scripts/check-real-growth.ts [seed] [summers] [names…]`:
+  named players' overall/potential over fake summers. To add a league: a file in `leagues/` (twenty clubs,
   22-25 a squad, two keepers), an entry in `REAL_LEAGUES`, `real.test.ts` checks the data.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

@@ -12,9 +12,54 @@ every mode (session 22); formations levelled (session 23); blocks levelled (sess
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
 more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28);
 in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
-a layout pass at every width and standing-tackle animation (session 31).
-Next: the owner's call (options: a mentality setting, changes for "Just the result" matches,
-replays from the hub's results).
+a layout pass at every width and standing-tackle animation (session 31); a career in the real
+Premier League 2024/25 (session 32).
+Next: the owner's call (options: La Liga, Bundesliga, Serie A and Ligue 1 2024/25 for real careers;
+a mentality setting; changes for "Just the result" matches; replays from the hub's results).
+
+## Done (session 32): real careers
+
+On branch `wip/real-career-rebased` (rebased on session 31; `wip/real-career` is the same work
+before the rebase). The owner: "career mode with real teams/players makes more sense".
+- **Data** (`src/career/leagues/premier-league-2024.ts`): the 20 clubs of 2024/25 and their first
+  teams at the end of the summer window, 22-25 a squad (475 players), each with positions, our FC 25
+  overall, birth year, foot and known-as name. Names as in the draft's squads files (285 already there;
+  the four 2024/25 club-seasons keep their overalls; 62 have a `CARDS` card). Kits like the draft's.
+  `node scripts/check-real.ts`: no birth year or foot disagrees with cards.ts / pools.ts; every
+  same-surname name it flags is a different man.
+- **Career** (`src/career/real.ts`, career.ts): `startRealCareer(seed, id)`; the career start offers
+  "Premier League 2024/25 (real clubs)" first and "Made-up league" second (PickTeam `leagues`); the
+  hub's eyebrow reads "Premier League · Season 1 · 2024–25". Players are draft-made (`cardPlayer`,
+  poolPlayer's body: ROLE_OFFSET shift, `shownRatings`), real ages, potential by age and overall
+  (`realPotential`), contracts 1-5 years by age, blocks by eleven rank. Everything else is the
+  career as it was: development, values and wages, the market, free agents, the cup, the board
+  (from the real elevens: City, Liverpool, Arsenal "title"; Wolves down "survive"), academy and
+  retirement regens. Every player in a real career carries `overall` (FIFA-like scale), newcomers too
+  (`newcomer`), so `shiftTo` moves an overall-carrier's attributes and overall together and money.ts
+  prices by `standingOf`. Made-up careers byte-identical (`fingerprint-career.ts`, two summers on
+  three seeds, all `079b6011db15`); fingerprint.ts all `9d880d58a297`. No engine change, so no
+  calibrate run. Saves: `Career.league` is optional, no version bump; old saves load unchanged; a real
+  career round-trips through `upgradeSave` (test).
+- **Measured** (`sim-career.ts <seed> 5 --real`, seeds 1-3, every match played, 15 seasons):
+  goals a match 2.77-3.04, mean 2.89 (two seasons at 3.01 and 3.04); top scorer 23-43, mean 33
+  (Haaland 13 of 15; 43 twice in seed 2 with City on 100+ points: variance, his overall stays 91,
+  `check-real-growth.ts`); champions 87-103, mean 94 (three seasons at 100-103); the league's eleven
+  level 79.7 → 80.0-80.2 after five seasons (within ±1); wages/income 0.87-0.91; regulars per 90:
+  defenders 0.03-0.05 goals, midfielders 0.15-0.17, forwards 0.28-0.33. Season 1: the real top three
+  (City, Arsenal, Liverpool by eleven) finish in the top three or four every time, Newcastle (#8) the
+  one regular gatecrasher of the top six. The bottom is harsh: last place 10-17 points in season 1
+  (real 2024/25: Southampton 12), 18-32 later as the league evens out (strongest - weakest eleven
+  13.3 → 9.4-12.2).
+- **Checks**: tsc; vitest 148 (`real.test.ts`: 20 clubs, squads with two keepers, ages, nobody
+  twice, data agrees with cards.ts and pools.ts, the career's ages/potentials/contracts, newcomers on
+  the real scale, `shiftTo`, the save round trip, a made-up career untouched); Playwright at 390x844
+  and 1280x800 on the built page (`<!doctype html>`, standards mode): the pick screen in both leagues,
+  every hub tab of a real career, a watched match: no horizontal scroll, no console errors, no target
+  under 40px tall (the Squad tab's "Neto" link is 32px wide: a short name).
+- **Left**: the other four leagues' 2024/25 seasons (same file shape; La Liga, Bundesliga, Serie A
+  and Ligue 1 pools already hold many of the names); real shirt numbers; overalls are recalled
+  estimates, worth a pass by someone with FC 25 to hand; squads are as of 1 September 2024, so
+  January moves (Marmoush, Dorgu, Asensio) aren't there.
 
 ## Done (session 31): layout pass, standing tackles
 
