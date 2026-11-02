@@ -145,10 +145,10 @@ const slotOrder = (p: PlayerState): number => ORDER.indexOf(p.slot.role) * 100 +
 function PlayerPick({ p, bench, chosen, disabled, onPick }: { p: PlayerState; bench?: boolean; chosen: boolean; disabled: boolean; onPick: () => void }) {
   const role = bench ? p.def.role : p.slot.role
   return (
-    <button type="button" className="pick" aria-pressed={chosen} disabled={disabled} onClick={onPick}>
-      <span className="pick-role">{role}</span>
-      <span className="pick-name">{surname(p.def.name)}</span>
-      {p.injured ? <span className="pick-hurt">Injured</span> : <span className="pick-energy" style={{ ['--energy' as string]: `${Math.round(p.energy * 100)}%` }} aria-label={`Fitness ${Math.round(p.energy * 100)}%`} />}
+    <button type="button" className="sub-pick" aria-pressed={chosen} disabled={disabled} onClick={onPick}>
+      <span className="sub-pick-role">{role}</span>
+      <span className="sub-pick-name">{surname(p.def.name)}</span>
+      {p.injured ? <span className="sub-pick-hurt">Injured</span> : <span className="sub-pick-energy" style={{ ['--energy' as string]: `${Math.round(p.energy * 100)}%` }} aria-label={`Fitness ${Math.round(p.energy * 100)}%`} />}
     </button>
   )
 }

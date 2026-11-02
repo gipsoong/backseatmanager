@@ -160,6 +160,23 @@ describe('animations', () => {
     expect(thisOne(slide.tick - ANIMATION_LEAD - 1)).toBe(false)
     expect(thisOne(slide.tick + 30)).toBe(false)
   })
+
+  it('shows a standing tackle as a short lunge from the tackler towards the carrier', () => {
+    const tackle = events.find((e) => e.type === 'tackle' && e.style === 'standing')
+    if (!tackle || tackle.type !== 'tackle') throw new Error('no standing tackle in this match')
+    const lunge = (ph: number) =>
+      animationsAt(events, full.indexAfter(ph + ANIMATION_LEAD), ph).find(
+        (a) => a.kind === 'lunge' && a.idx === tackle.byIdx && a.toward.x === tackle.pos.x && a.toward.y === tackle.pos.y,
+      )
+    const at = lunge(tackle.tick)
+    expect(at).toBeDefined()
+    expect(at!.age).toBeGreaterThan(0)
+    expect(at!.age).toBeLessThan(1)
+    expect(lunge(tackle.tick - ANIMATION_LEAD - 1)).toBeUndefined()
+    expect(lunge(tackle.tick + 10)).toBeUndefined()
+    // Never a slide for the same challenge.
+    expect(animationsAt(events, full.indexAfter(tackle.tick + ANIMATION_LEAD), tackle.tick).some((a) => a.kind === 'slide' && a.idx === tackle.byIdx && a.toward.x === tackle.pos.x)).toBe(false)
+  })
 })
 
 describe('strikes and headers', () => {

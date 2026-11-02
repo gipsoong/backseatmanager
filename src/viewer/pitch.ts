@@ -243,9 +243,9 @@ function drawGoals(ctx: CanvasRenderingContext2D, cam: Camera, net: NetState['bu
 // ---------------------------------------------------------------------------
 // Frame
 
-/** A short movement that says what a player just did: slid in, dived, struck the ball, jumped. */
+/** A short movement that says what a player just did: slid in, put a foot in, dived, struck the ball, jumped. */
 export interface Animation {
-  kind: 'slide' | 'dive' | 'kick' | 'jump' | 'arms'
+  kind: 'slide' | 'lunge' | 'dive' | 'kick' | 'jump' | 'arms'
   idx: number
   /** Where the body stretches towards (pitch metres, z for a dive's height). */
   toward: { x: number; y: number; z: number }
@@ -464,6 +464,17 @@ function drawPlayer(
     const zUp = anim.kind === 'dive' ? Math.min(anim.toward.z, 1.5) * stretch : 0
     lean = cam.project(x + (dx / d) * reach, y + (dy / d) * reach, cam.perspective ? zUp + 0.4 : zUp)
   }
+  // A standing tackle: he leans in a little and pokes a leg out at the man on the ball, then
+  // recovers; quicker than a slide and staying on his feet.
+  const poke = anim?.kind === 'lunge' ? Math.sin(Math.PI * Math.min(1, anim.age * 1.25)) : 0
+  let leg: { x: number; y: number } | null = null
+  if (anim?.kind === 'lunge' && poke > 0.02) {
+    const dx = anim.toward.x - x
+    const dy = anim.toward.y - y
+    const d = Math.hypot(dx, dy) || 1
+    lean = cam.project(x + (dx / d) * Math.min(0.5, d) * poke, y + (dy / d) * Math.min(0.5, d) * poke, cam.perspective ? 1.5 : 0)
+    leg = cam.project(x + dx / d, y + dy / d)
+  }
 
   if (cam.perspective) {
     // Standing figure: a rounded bar from the feet to head height, leaning when he slides or dives.
@@ -484,6 +495,20 @@ function drawPlayer(
     ctx.moveTo((feet ?? base).x, (feet ?? base).y - w / 2)
     ctx.lineTo(lean ? lean.x : head.x, lean ? lean.y : head.y)
     ctx.stroke()
+    if (anim?.kind === 'lunge' && poke > 0.02) {
+      // The leg, along the grass towards the ball.
+      const dx = anim.toward.x - x
+      const dy = anim.toward.y - y
+      const d = Math.hypot(dx, dy) || 1
+      const foot = cam.project(x + (dx / d) * 0.9 * poke, y + (dy / d) * 0.9 * poke, 0.1)
+      if (foot) {
+        ctx.lineWidth = w * 0.6
+        ctx.beginPath()
+        ctx.moveTo(base.x, base.y - w / 2)
+        ctx.lineTo(foot.x, foot.y)
+        ctx.stroke()
+      }
+    }
     return
   }
 
@@ -514,6 +539,23 @@ function drawPlayer(
       ctx.lineWidth = r * 0.55
       ctx.stroke()
     }
+  }
+  if (leg && poke > 0.02) {
+    // The tackling leg, out past his disc towards the ball by up to about one and a half radii.
+    const ux = leg.x - base.x
+    const uy = leg.y - base.y
+    const ul = Math.hypot(ux, uy) || 1
+    const reach = r * (0.6 + 1.1 * poke)
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'
+    ctx.lineWidth = r * 0.5 + 2
+    ctx.beginPath()
+    ctx.moveTo(base.x, base.y)
+    ctx.lineTo(base.x + (ux / ul) * reach, base.y + (uy / ul) * reach)
+    ctx.stroke()
+    ctx.strokeStyle = kit.shirt
+    ctx.lineWidth = r * 0.5
+    ctx.stroke()
   }
   if (lean) {
     ctx.lineCap = 'round'

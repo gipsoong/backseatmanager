@@ -82,7 +82,9 @@ const isKick = (e: MatchEvent): e is Kick => e.type === 'pass' || e.type === 'sh
 export const ANIMATION_LEAD = 3
 
 /**
- * Slides and dives happening around `playhead`: who, towards where, and how far through (0..1).
+ * Slides, lunges, dives, strikes and jumps happening around `playhead`: who, towards where, and how
+ * far through (0..1). A standing tackle (or a foul with one) is a lunge: a leg put in from where the
+ * tackler stands towards where the carrier was when they met (the event's `pos`).
  * `upTo` is the index just past the last event at or before `playhead + ANIMATION_LEAD`, so a
  * dive can start a moment before the keeper gets to the ball.
  */
@@ -90,8 +92,9 @@ export function animationsAt(
   events: MatchEvent[],
   upTo: number,
   playhead: number,
-): { kind: 'slide' | 'dive' | 'kick' | 'jump'; idx: number; toward: { x: number; y: number; z: number }; age: number }[] {
+): { kind: 'slide' | 'lunge' | 'dive' | 'kick' | 'jump'; idx: number; toward: { x: number; y: number; z: number }; age: number }[] {
   const SLIDE_TICKS = 10
+  const LUNGE_TICKS = 8
   const DIVE_TICKS = 13
   const KICK_TICKS = 5
   const JUMP_TICKS = 8
@@ -103,6 +106,10 @@ export function animationsAt(
     if (since < 0) continue
     if ((e.type === 'tackle' || e.type === 'foul') && e.style === 'slide' && since < SLIDE_TICKS) {
       out.push({ kind: 'slide', idx: e.byIdx, toward: { ...e.pos, z: 0 }, age: since / SLIDE_TICKS })
+    }
+    const standing = (e.type === 'tackle' || (e.type === 'foul' && !e.aerial)) && e.style === 'standing'
+    if (standing && since < LUNGE_TICKS) {
+      out.push({ kind: 'lunge', idx: e.byIdx, toward: { ...e.pos, z: 0 }, age: since / LUNGE_TICKS })
     }
     // Every strike of the ball: a pass, shot or clearance with the foot, or a header (he goes up for it).
     const kick = e.type === 'pass' || e.type === 'shot' || e.type === 'clearance'

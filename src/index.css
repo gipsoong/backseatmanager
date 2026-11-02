@@ -759,7 +759,7 @@ h1 .v {
   letter-spacing: 0.06em;
 }
 
-.pick {
+.sub-pick {
   position: relative;
   overflow: hidden;
   display: grid;
@@ -776,29 +776,29 @@ h1 .v {
   min-width: 0;
 }
 
-.pick[aria-pressed='true'] {
+.sub-pick[aria-pressed='true'] {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 
-.pick:disabled {
+.sub-pick:disabled {
   opacity: 0.45;
 }
 
-.pick-role {
+.sub-pick-role {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 600;
 }
 
-.pick-name {
+.sub-pick-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /* Fitness: a thin bar along the foot of the button. */
-.pick-energy {
+.sub-pick-energy {
   position: absolute;
   left: 0;
   right: 0;
@@ -807,7 +807,7 @@ h1 .v {
   background: linear-gradient(to right, color-mix(in srgb, var(--accent) 70%, transparent) var(--energy), transparent var(--energy));
 }
 
-.pick-hurt {
+.sub-pick-hurt {
   color: #b3412e;
   font-size: 0.8rem;
 }
