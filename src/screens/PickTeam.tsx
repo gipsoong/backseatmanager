@@ -9,16 +9,19 @@ export function PickTeam({
   ratingOf = (i) => squadRating(teams[i]),
   onPick,
   onBack,
+  leagues,
 }: {
   teams: TeamDef[]
   /** A club's strength as the board will judge it. */
   ratingOf?: (i: number) => number
   onPick: (i: number) => void
   onBack: () => void
+  /** A choice of league above the clubs: what each is called, which is chosen, and choosing one. */
+  leagues?: { options: { id: string; name: string }[]; chosen: string; onChoose: (id: string) => void }
 }) {
   const order = teams.map((t, i) => ({ t, i, rating: Math.round(ratingOf(i)) })).sort((a, b) => b.rating - a.rating)
   return (
-    <div className="pick">
+    <div className="pick-team">
       <header className="top">
         <div className="fixture">
           <p className="eyebrow">New season</p>
@@ -34,6 +37,18 @@ export function PickTeam({
           </button>
         </div>
       </header>
+      {leagues && (
+        <div className="draft-options">
+          <p className="eyebrow step">League</p>
+          <div className="segmented league-pick" role="group" aria-label="League">
+            {leagues.options.map((l) => (
+              <button key={l.id} type="button" aria-pressed={l.id === leagues.chosen} onClick={() => leagues.onChoose(l.id)}>
+                {l.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <ul className="clubs">
         {order.map(({ t, i, rating }, k) => (
           <li key={t.name} className="rise" style={stagger(k)}>

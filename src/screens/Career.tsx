@@ -1,5 +1,6 @@
 /** Career mode's pieces on screen: the summer's news, the board's target, past seasons, and a player's change and career. */
 import { AIM_LINE, CUP_TROPHY, aimMet, managerRecord } from '../career/career.ts'
+import { realLeague } from '../career/real.ts'
 import { type Season, squadOf, table } from '../season/season.ts'
 import { ordinal } from './format.ts'
 import { stagger } from './motion.ts'
@@ -32,7 +33,8 @@ export const ageOf = (season: Season, id: string): number | undefined => season.
 /** "Season 2 · 2027–28". */
 export function careerLabel(season: Season): string {
   const y = Number(season.startDate.slice(0, 4))
-  return `Season ${season.career!.number} · ${y}–${String(y + 1).slice(2)}`
+  const league = realLeague(season.career!.league)
+  return `${league ? `${league.name.replace(/ \d.*$/, '')} · ` : ''}Season ${season.career!.number} · ${y}–${String(y + 1).slice(2)}`
 }
 
 /** The board's target, and once the league is over whether it was met. */
