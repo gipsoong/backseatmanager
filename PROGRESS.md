@@ -11,9 +11,50 @@ seasons that carry on (session 19); career stage 2, the market (session 19); one
 every mode (session 22); formations levelled (session 23); blocks levelled (session 24); career depth:
 contracts, free agents, a domestic cup, the manager's record (session 25); quality counts a little
 more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28);
-in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30).
-Next: the owner's call (options: a mentality setting, changes for "Just the result" matches, the
-polish items left in session 30's list).
+in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
+a layout pass at every width and standing-tackle animation (session 31).
+Next: the owner's call (options: a mentality setting, changes for "Just the result" matches,
+replays from the hub's results).
+
+## Done (session 31): layout pass, standing tackles
+
+On branch `wip/ui`. Viewer and UI only: fingerprint.ts all `9d880d58a297` (as session 30); tsc,
+vitest 138.
+**Root cause of "Choose your club" overlapping on desktop** (the owner's screenshot): not the
+doctype. Session 29's Change panel named its player buttons `.pick`, the same class as the club
+picker's root, so the picker became a grid of `2.1em minmax(0,1fr) auto` with `overflow: hidden`
+and a border: the heading, text and buttons were forced into the 2.1em column and the clubs drawn
+over them, at every width and in either mode. Renamed `.sub-pick*`. A second collision: the match's
+Change button wore career's `.change` (small muted delta text); now `.change-btn`.
+**Audit** of the published shape (inlined, `<!DOCTYPE html>`) at 390, 560, 720, 900, 1024, 1300,
+1440, 1920 and in a cross-site 1300x750 iframe, 35 screens each (start, pick, career hub and every
+tab, history, contracts, summer, the draft from shape to name, a January draft season's tabs,
+player card, deals, the match with the Change panel, a replay, the goal reel, stats and players
+tabs, the review, the European Cup), with automatic checks for overlap, escaping or clipped
+content, long lines, horizontal scroll, small targets and console errors. Before: the club picker
+everywhere; the squad tab overflowed 37-163px at 900-1100px (the squad pitch went beside the list by
+viewport width, but the tab sits beside the hub's card); the draft pitch cut long names near its
+edge; phone tables pushed the points column off the card; long text 53-56em a line on wide
+screens. After: none of those, at every width and in the iframe.
+**Fixed / improved**:
+- Layout: the collisions above; the squad's pitch-beside-list by a container query; draft and squad
+  pitch slots size to their name; phone tables wrap long club names; `p.meta` keeps a 68ch measure;
+  the start screens centred on wide screens; player positions stacked (main over others) so squad,
+  contract, draft, deal rows give 3.2em instead of 4.4em to them.
+- Match on a phone: a compact header ("Results" beside the fixture, formations hidden), the
+  scrubber directly under the pitch and the controls on one row (play, a speed button stepping
+  1x/2x/4x, All/Key/Goals, Change, and Roles/Captions in a menu under the dots): the pitch starts
+  ~70px down, not ~165px. The same layout by the controls' own width on a desktop with a narrow
+  stage. On desktop the pitch is sized so pitch and controls fit the window (1300x750 iframe).
+- Replays: the scorebug shows the score and clock as they were at the replay's moment (0-0 until
+  the ball goes in); the chip offers the angles (Wide / Close-up / Behind the goal; short on phones).
+- Standing tackles animate: a short lunge, leaning in and a leg out towards the carrier where he is
+  that frame, 8 ticks from just before contact (fouls with a standing challenge too); slides and
+  lunges are drawn over the man challenged. Test in viewer.test.ts.
+- If IndexedDB never answers, the app starts without a save after 4 s instead of "Loading…"
+  forever (and saves don't hold up finishing a matchday).
+**Left**: replays exist only for a watched match; the phone replay chip covers the foot of the
+pitch while it plays; the commentary column's time and swatch columns are generous on desktop.
 
 ## Done (session 30): polish pass
 
@@ -56,7 +97,7 @@ Tests: commentary never changes a written line, never repeats back to back, tell
 celebration poses appear only after the scorer stops. tsc, vitest (137), Playwright pass at both
 sizes: no overflow, no target under 40px, no console errors.
 
-**Left** (not done): the match screen on a phone puts "Continue to results" and the header above the
+**Left** (not done; session 31 did all but the last): the match screen on a phone puts "Continue to results" and the header above the
 pitch (the pitch starts ~150px down) and the controls wrap to three rows; the replay scorebug shows
 the live score, not the score at the time; a replay can't be started at a chosen angle; standing
 tackles have no animation (slides do); tables on phones are long single columns (squad and contract

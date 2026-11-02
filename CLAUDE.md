@@ -341,6 +341,31 @@ pulling the repo.
   1280x800 and lists horizontal overflow, targets under 40px and console errors (session 30 kept
   it in /tmp; a finished career season to load is made by "Just the result" 38 times and saved
   with `storageState({ indexedDB: true })`).
+- Layout pass (session 31). `index.css` is one global sheet: a class name means the same thing on
+  every screen. Two collisions broke layouts: the Change panel's player buttons were `.pick`, the
+  club picker's root too, so "Choose your club" became a `2.1em 1fr auto` grid (heading squashed into
+  a 70px column under the clubs) at every width; and the match's Change button picked up career's
+  `.change` (an overall delta). Now `.sub-pick*` and `.change-btn`. Before adding a class, grep
+  `index.css` for it; `/tmp/ui-pass/dups.py src/index.css` lists bare classes defined far apart.
+  Match controls: scrubber under the pitch, then `.control-row`, laid out by its own width (container
+  queries on `.controls`): under 800px Roles/Captions go in a menu under the dots (`.view-opts`),
+  under 600px speeds become one stepping button (`.speed-step`) and the modes read All/Key/Goals, so
+  a phone has one row. The pitch is no taller than the window leaves room for beside the panel
+  (≥980px). The squad's pitch-beside-list is a container query on `.squad` (it sits beside the hub's
+  card, so viewport widths lied: 900-1100px overflowed). Phones: the match header is one tight block
+  with "Results". Replays: the scorebug shows the score and clock at the replay's tick
+  (`replayTick`), and the chip lets you pick the angle (`chooseAngle`, starts that angle from the
+  move's start). `Positions` (screens) stacks a player's main position over the others (3.2em
+  column). Standing tackles (and fouls with one) animate as a `lunge` (`animationsAt`, 8 ticks: a
+  short lean and a leg towards the carrier, `target` = his idx, so it points to him each frame); a
+  man sliding or lunging is drawn above the others in top-down cameras. Labels with a phone form:
+  `.label-long` / `.label-short`. App starts without a save if IndexedDB never answers (4 s).
+  Audit (session 31, in /tmp/ui-pass/pw/audit.mjs): the published shape (one inlined HTML file that
+  starts with `<!DOCTYPE html>`, built by /tmp/ui-pass/build.sh) at 390, 560, 720, 900, 1024, 1300,
+  1440, 1920 and inside a cross-site 1300x750 iframe; checks sibling overlap, children escaping their
+  parent, text clipped without an ellipsis, running text over ~48em a line, horizontal scroll,
+  targets under 40px, console errors. An iframe whose parent is about:blank never gets an IndexedDB
+  answer in headless Chromium: serve the wrapper from another origin.
 - Formations (session 10): 4-4-2, 4-3-3, 4-2-3-1, 4-1-4-1, 3-5-2, 3-4-3 (`FORMATIONS`); wing-backs
   are `FB` slots with a big `attackDepth` (> 0.6): out of possession the ball-side one steps up to press, and the far one attacks the back post (session 15). Session 23 levelled them (all within ~0.1 xGD a match at equal strength, was
   -0.49 to +0.24): 4-4-2's centre-midfielders get forward a little (`attackDepth` 0.15), 4-2-3-1's
@@ -409,7 +434,7 @@ pulling the repo.
   (`screens/motion.ts`), `.slot.placed`; `CountUp` for the review's numbers. One reduced-motion
   rule at the end of `index.css` flattens everything. Tabs: `TabBar` (`screens/Tabs.tsx`), scrolls
   sideways and keeps the chosen tab in view, optional badge. Breakpoints: 560px (tables drop `.wide`
-  columns, tabs tighten), 720px (squad pitch beside the list), 900px (hub and draft two-column;
+  columns, tabs tighten), a 640px container query (squad pitch beside the list, session 31), 900px (hub and draft two-column;
   below it the draft's side is a bottom sheet that rises when a player is chosen). Grid children
   need `minmax(0, 1fr)` / `min-width: 0` or a long name pushes the page sideways. Touch targets
   ≥ 40px. Check with a Playwright pass at 390x844 and 1280x800: no horizontal scroll, no console
