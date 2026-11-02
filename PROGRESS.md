@@ -33,7 +33,7 @@ before the rebase). The owner: "career mode with real teams/players makes more s
   poolPlayer's body: ROLE_OFFSET shift, `shownRatings`), real ages, potential by age and overall
   (`realPotential`), contracts 1-5 years by age, blocks by eleven rank. Everything else is the
   career as it was: development, values and wages, the market, free agents, the cup, the board
-  (from the real elevens: City, Liverpool, Arsenal "title"; Wolves down "survive"), academy and
+  (from the real elevens: City, Liverpool, Arsenal "title"; Forest and below "survive"), academy and
   retirement regens. Every player in a real career carries `overall` (FIFA-like scale), newcomers too
   (`newcomer`), so `shiftTo` moves an overall-carrier's attributes and overall together and money.ts
   prices by `standingOf`. Made-up careers byte-identical (`fingerprint-career.ts`, two summers on
