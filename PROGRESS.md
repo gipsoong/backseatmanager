@@ -14,9 +14,47 @@ more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily dra
 in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
 a layout pass at every width and standing-tackle animation (session 31); a career in the real
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
-(session 33).
-Next: the owner's call (options: champions in real leagues run ~10-20 points above real ones, see
-session 33; a mentality setting; changes for "Just the result" matches; replays from the hub's results).
+(session 33); real players balanced toward their league's middle (session 34).
+Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
+high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting; changes for "Just the
+result" matches; replays from the hub's results).
+
+## Done (session 34): real players play nearer their league's middle
+
+On branch `wip/real-balance` (from session 33, 3f4100d). The owner's default from session 33's options.
+- **Balance** (real.ts, career.ts, draft.ts `cardPlayer` `extra`): each real-career player plays his card
+  moved by `balanceShift` = (0.7 - 1) x (overall - the league's mean eleven), in `cardShift` with
+  ROLE_OFFSET; cards and overalls on screen unchanged. Newcomers are made the same way, development
+  (`shiftTo(..., factor)`) moves the attributes 0.7 of each overall step and the shift the rest, and a
+  session 32/33 real save is balanced once on loading (`Career.balance` absent; no version bump).
+  `qualityGap` (counter-press length, cynical fouls) read real players' shown overalls, so Real Madrid
+  still pressed as a side 15 points better: it now reads overall + (cardShift - ROLE_OFFSET), exact for
+  draft players. Made-up careers and drafts unchanged: fingerprint.ts `all 9d880d58a297`,
+  fingerprint-career.ts `all 079b6011db15`, calibrate 80 1 identical to session 33; tsc; vitest 158.
+- **Sims** (`sim-career <seed> 3 --real=<id>`, seeds 1 and 2, three seasons each, factor 0.7):
+
+| | goals a match (real) | champion pts (real) | top scorer | league XI S1 -> S3 | wages/income |
+|---|---|---|---|---|---|
+| Premier League | 2.74-2.96 (2.93) | 79-89 (84) | 24-27, Haaland 5 of 6 | 79.7 -> 80.3/80.0 | 0.89-0.92 |
+| La Liga | 3.01-3.18 (2.62) | 93-107 (88) | 31-37 (Mbappé, Lewandowski) | 77.4 -> 77.4/77.4 | 0.90-0.93 |
+| Bundesliga | 2.58-2.84 (3.14) | 76-87 (82) | 17-35 | 76.5 -> 76.8/76.6 | 0.90-0.93 |
+| Serie A | 2.86-3.28 (2.56) | 91-103 (82) | 23-33 | 76.5 -> 77.1/77.3 | 0.89-0.92 |
+| Ligue 1 | 2.56-2.80 (2.96) | 73-88 (84) | 18-30 | 74.9 -> 75.3/75.4 | 0.90-0.92 |
+
+  Was (session 33): PL 100-103, La Liga 97-110, Bundesliga 79-95, Serie A 96-105, Ligue 1 83-98. The
+  top of each table is still its strongest elevens (the top three by eleven take the first three
+  places most seasons; PSG wins every Ligue 1); the Premier League's top four is shuffled more
+  (City, the strongest eleven, 2nd-5th; Chelsea, #7, won one season).
+- **Why one factor doesn't land all five.** Tuning runs (season 1, seed 1): La Liga's champion 96-101
+  at 0.75, 93-97 at 0.6, 95 at 0.5; Serie A's 99 at 0.75, 101 at 0.6, 100 at 0.5, 94 at 0.4 (goals
+  3.15-3.23 throughout), while the Bundesliga's falls 85 -> 78 -> 73 and the PL's 94 -> 90 (with City
+  6th) from 0.75 to 0.5. Results saturate: Inter v Venezia is 2.90 points a game uncompressed and 2.85
+  at 0.5 (goal difference 3.9 -> 2.5, 60 matches); and real cards are worth more per reading point than
+  made-up ones (Real Madrid v Osasuna at a 5.5-point played gap: xGD 1.9; a made-up side 4.5 better:
+  0.9), most likely the stars' pace and dribbling. La Liga and Serie A goals don't come from the
+  spread (they stay ~3.0-3.2 at any factor; 4-4-2s in La Liga, back threes in Serie A?). Options: a
+  factor per league (La Liga/Serie A ~0.5 would still leave ~95), or look at what makes La Liga and
+  Serie A score.
 
 ## Done (session 33): four more real leagues
 

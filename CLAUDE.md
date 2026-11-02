@@ -606,7 +606,18 @@ pulling the repo.
   going down (`real.test.ts` checks it). Squads were checked against fbref's roster pages
   (aws.fbref.com/en/squads/<id>/2024-2025/roster/…, found by a web search limited to fbref.com; the
   league pages are blocked): a player with two 2024-25 clubs there moved in the season, so check when.
-  Real leagues' elevens spread ~11-16 overall (made-up careers ~8-9), so champions run higher than
-  made-up ones: see PROGRESS (session 33).
+  Real leagues' elevens spread ~11-16 overall (made-up careers ~8-9), so champions ran higher than
+  made-up ones (session 33). Balance (session 34, real.ts): every real-career player plays his card moved
+  toward the league's mean eleven (`balanceOf`: `REAL_BALANCE` 0.7 and the mean of the elevens
+  `realTeams` picks) by `balanceShift` = (factor - 1) x (overall - mean), added to his `cardShift` (now
+  fractional; `shownRatings` rounds), so cards and overalls on screen are FIFA's. `cardPlayer`'s `extra`
+  does it for the league's players, `newcomer` for signings, academy and free agents (`Career.balance`),
+  `shiftTo(..., balance)` keeps it as he develops (attributes move factor of the overall's step, the
+  shift takes the rest, its whole part followed). A real save without `Career.balance` is balanced once
+  on loading (`balanced`, in `upgradeCareer`; no version bump). `qualityGap` (counter-press, cynical
+  fouls) reads a real player's standing net of the shift beyond ROLE_OFFSET (a draft player's shift is
+  exactly ROLE_OFFSET, so drafts and fingerprints are unchanged). Points and goals respond less than
+  the spread suggests: real cards are worth more per reading point than made-up ones (stars' pace), and
+  results saturate (top v bottom still ~2.8 a game at 0.5). See PROGRESS (session 34) for the sims.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
