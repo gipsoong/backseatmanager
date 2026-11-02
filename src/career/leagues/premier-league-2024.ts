@@ -500,7 +500,6 @@ export const CLUBS: RealClub[] = [
     Max Kilman, CB, 78, 1997, L
     Jean-Clair Todibo, CB, 79, 1999, R
     Konstantinos Mavropanos, CB, 76, 1997, R
-    Nayef Aguerd, CB, 78, 1996, L
     Aaron Wan-Bissaka, FB, 78, 1997, R
     Vladimír Coufal, FB, 76, 1992, R
     Emerson Palmieri, FB, 76, 1994, L, Emerson

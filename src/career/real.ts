@@ -12,6 +12,9 @@
 import { FORMATIONS, Rng, type Formation, type Kit, type PlayerDef, type TeamDef, fitFor } from '../engine/index.ts'
 import { cardPlayer, withBlocks } from '../draft/draft.ts'
 import * as premierLeague2024 from './leagues/premier-league-2024.ts'
+import * as laLiga2024 from './leagues/la-liga-2024.ts'
+import * as bundesliga2024 from './leagues/bundesliga-2024.ts'
+import * as serieA2024 from './leagues/serie-a-2024.ts'
 
 export interface RealClub {
   club: string
@@ -36,6 +39,9 @@ export interface RealLeague {
 
 export const REAL_LEAGUES: RealLeague[] = [
   { id: 'premier-league-2024', name: 'Premier League 2024/25', season: premierLeague2024.SEASON, key: 'pl24', clubs: premierLeague2024.CLUBS },
+  { id: 'la-liga-2024', name: 'La Liga 2024/25', season: laLiga2024.SEASON, key: 'll24', clubs: laLiga2024.CLUBS },
+  { id: 'bundesliga-2024', name: 'Bundesliga 2024/25', season: bundesliga2024.SEASON, key: 'bl24', clubs: bundesliga2024.CLUBS },
+  { id: 'serie-a-2024', name: 'Serie A 2024/25', season: serieA2024.SEASON, key: 'sa24', clubs: serieA2024.CLUBS },
 ]
 
 export const realLeague = (id: string | undefined): RealLeague | undefined => REAL_LEAGUES.find((l) => l.id === id)

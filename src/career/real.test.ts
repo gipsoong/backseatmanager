@@ -15,8 +15,8 @@ const PL = REAL_LEAGUES[0]
 
 describe('real league data', () => {
   for (const league of REAL_LEAGUES)
-    it(`${league.name}: twenty clubs, full squads with keepers, real ages, nobody twice`, () => {
-      expect(league.clubs).toHaveLength(20)
+    it(`${league.name}: 18 or 20 clubs, full squads with keepers, real ages, nobody twice`, () => {
+      expect([18, 20]).toContain(league.clubs.length)
       const names = new Set<string>()
       for (const c of league.clubs) {
         expect(FORMATIONS[c.formation]).toBeDefined()
@@ -34,13 +34,23 @@ describe('real league data', () => {
           expect(p.overall, p.name).toBeLessThanOrEqual(95)
           const age = league.season - p.born
           expect(age, p.name).toBeGreaterThanOrEqual(16)
-          expect(age, p.name).toBeLessThanOrEqual(40)
+          expect(age, p.name).toBeLessThanOrEqual(42) // Pepe Reina, Como
           // What the draft already knows of him agrees.
           if (CARDS[p.name]) expect(CARDS[p.name][0], p.name).toBe(p.born)
           if (LEFT_FOOTED.has(p.name)) expect(p.foot, p.name).toBe('left')
         }
       }
     })
+
+  it('has nobody in two leagues', () => {
+    const seen = new Map<string, string>()
+    for (const league of REAL_LEAGUES)
+      for (const c of league.clubs)
+        for (const p of squadLines(c.players)) {
+          expect(seen.get(p.name), `${p.name}: ${seen.get(p.name)} and ${c.club}`).toBeUndefined()
+          seen.set(p.name, c.club)
+        }
+  })
 
   it('shows known-as names', () => {
     expect(shortName('Son Heung-min')).toBe('Son')
