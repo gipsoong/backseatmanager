@@ -13,9 +13,56 @@ contracts, free agents, a domestic cup, the manager's record (session 25); quali
 more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily drafts (session 27); draft leagues' goals and full benches (session 28);
 in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
 a layout pass at every width and standing-tackle animation (session 31); a career in the real
-Premier League 2024/25 (session 32).
-Next: the owner's call (options: La Liga, Bundesliga, Serie A and Ligue 1 2024/25 for real careers;
-a mentality setting; changes for "Just the result" matches; replays from the hub's results).
+Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
+(session 33).
+Next: the owner's call (options: champions in real leagues run ~10-20 points above real ones, see
+session 33; a mentality setting; changes for "Just the result" matches; replays from the hub's results).
+
+## Done (session 33): four more real leagues
+
+On branch `wip/real-leagues` (from session 32's merge, 4d6f992).
+- **Data** (`src/career/leagues/`): `la-liga-2024.ts` (20 clubs), `bundesliga-2024.ts` (18),
+  `serie-a-2024.ts` (20), `ligue-1-2024.ts` (18), each squad as of 1 September 2024 (22-25, two or
+  three keepers), the same line format and standard as the Premier League. Squads were checked against
+  fbref roster pages where they could be fetched (Getafe, Leganés, Holstein Kiel, Angers, Saint-Étienne,
+  Le Havre, Reims, Auxerre, Montpellier, Nantes, Toulouse) and otherwise from memory of the window;
+  January moves are at their summer club (Terrier at Rennes, Hermoso at Roma, Amougou at Saint-Étienne,
+  Kvaratskhelia at Napoli). `check-real.ts <id>` is clean but for different men who share a surname;
+  feet and births agree with pools.ts / cards.ts. Same name, two men: full name plus known-as
+  (Juventus's Danilo, Genoa's Vitinha, Fiorentina's Dodô, Leganés's Juan Cruz, Rennes's Jota).
+  `real.test.ts` now also checks that nobody is in two leagues (it caught Omobamidele, Terrier,
+  Ajorque, Krauß, Touré), the age bound is 42 (Pepe Reina), and an 18-club career: 34 matchdays, a
+  five-round cup before matchdays 5/11/17/23/29 (two first-round ties), three title aims, three down.
+- **Screens**: the start's league picker lists the five leagues by name (Premier League first and the
+  default), then "Made-up league". Playwright at 390x844 and 1280x800: each league's clubs, a Holstein
+  Kiel career's hub and tabs, no horizontal scroll, no small targets, no console errors.
+- **sim-career** prints points as played (it used to add a "x38" scaling, misleading at 34 matchdays).
+- **Checks**: tsc; vitest 155/155 (two engine tests time out at 60 s only while four sims share the
+  cores); fingerprint.ts `all 9d880d58a297` and fingerprint-career.ts `all 079b6011db15` unchanged.
+- **Sims** (`sim-career <seed> 3 --real=<id>`, seeds 1 and 2, three seasons each):
+
+| | goals a match (real 24/25) | champion pts (real) | top scorer | league XI S1 -> S3 | wages/income |
+|---|---|---|---|---|---|
+| La Liga | 2.93-3.21 (2.62) | 97-110, Real Madrid every time (88) | Mbappé 34-47, Bellingham 40 | 77.4 -> 77.3/77.4 | 0.90-0.92 |
+| Bundesliga | 2.65-2.95 (3.14) | 79-95; Bayern 4, Dortmund, Leverkusen (82) | Kane 23-24, Guirassy 26-28, Schick 24-30 | 76.6 -> 76.7/76.8 | 0.90-0.92 |
+| Serie A | 3.11-3.28 (2.56) | 96-105; Napoli 4, Inter 2 (82) | 23-35 (Lukaku, Dovbyk, Thuram) | 76.5 -> 77.1 | 0.90-0.92 |
+| Ligue 1 | 2.54-2.81 (2.96) | 83-98, PSG every time, 25+ points clear (84) | 22-29 (Kolo Muani, David, Ramos) | 74.9 -> 75.4/75.6 | 0.89-0.92 |
+
+  Clubs finish in the order of their elevens, give or take a place or two (Napoli, third-best eleven,
+  wins Serie A four times of six: its 4-3-3 against Inter's and Milan's). The league level holds.
+- **Champions run high, and why.** Champions' points follow the spread of the elevens: made-up
+  careers spread ~8-9 overall (strongest to weakest) and their champions make 85-90; the real Premier
+  League spreads 11-13 (City 100-103 in session 32), Ligue 1 and the Bundesliga ~13-14, La Liga and
+  Serie A 14-16 (champions 96-110). FIFA-style overalls do spread that wide, so the data isn't wrong;
+  the engine's points per overall point (~0.16, session 26, tuned on made-up leagues) is steeper than
+  real football's at the extremes, and real top sides also lose league points to European midweeks
+  and rotation, which a career doesn't play. The same lopsided games lift goals in La Liga and Serie A
+  (3.0-3.3 against real 2.6) and leave the Bundesliga short of its 3.0-3.2 (2.65-2.95). Blocks are no
+  lever for goals: a high block against a high block makes 2.84 xG a match, mid v mid 2.77
+  (diag-blocks, 80 matches). Not changed here (the Premier League's ceiling has the same cause; a fix
+  would change made-up careers or the cards on screen). Options for the owner: a European midweek for
+  the top four (fatigue and rotation), or real players playing a little nearer their league's middle
+  (cards on screen unchanged, as `cardShift` already does for position).
 
 ## Done (session 32): real careers
 
