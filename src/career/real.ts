@@ -9,7 +9,7 @@
  * In a real career every player carries his overall on the FIFA-like scale (`PlayerDef.overall`),
  * newcomers too (`newcomer` in career.ts), so the league reads as FC 25 does.
  */
-import { FORMATIONS, Rng, type Formation, type Kit, type PlayerDef, type TeamDef, fitFor } from '../engine/index.ts'
+import { FORMATIONS, Rng, type Block, type Formation, type Kit, type PlayerDef, type TeamDef, fitFor } from '../engine/index.ts'
 import { cardPlayer, withBlocks } from '../draft/draft.ts'
 import * as premierLeague2024 from './leagues/premier-league-2024.ts'
 import * as laLiga2024 from './leagues/la-liga-2024.ts'
@@ -22,6 +22,13 @@ export interface RealClub {
   shortName: string
   kit: Kit
   formation: Formation
+  /**
+   * How high it played out of possession in that season (session 35), where the league's style needs
+   * it: the block mix is what sets a league's goals in the engine (all low ~2.4 xG a match, all mid
+   * ~3.3), so La Liga's and Serie A's deep sides and the Bundesliga's pressing ones are in their files.
+   * Unset: drawn by where the eleven ranks (`withBlocks`), as the Premier League's and Ligue 1's are.
+   */
+  block?: Block
   /** One player a line: `Name, POS[/POS…], overall, born, L|R[, known as]`. */
   players: string
 }
@@ -131,11 +138,13 @@ export function balanceOf(league: RealLeague): Balance {
  * The league's clubs as teams, in the file's order: for each place in the club's formation its best
  * fit (overall by fit), the rest of the squad behind them (the season's staff pick the eleven again);
  * every player balanced toward the league's middle (`balanceOf`); blocks by where the eleven ranks,
- * as a draft league's are (`withBlocks`).
+ * as a draft league's are (`withBlocks`),
+ * unless the file gives the club's own (`RealClub.block`).
  */
 export function realTeams(league: RealLeague, seed: number): TeamDef[] {
   const b = balanceOf(league)
-  return withBlocks(teamsOf(league, card(league, (o) => balanceShift(o, b))), new Rng(seed * 13 + 5))
+  const drawn = withBlocks(teamsOf(league, card(league, (o) => balanceShift(o, b))), new Rng(seed * 13 + 5))
+  return drawn.map((t, i) => (league.clubs[i].block ? { ...t, block: league.clubs[i].block } : t))
 }
 
 /** Each real player's birth year, by id. */

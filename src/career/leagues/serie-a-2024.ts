@@ -11,7 +11,7 @@ export const SEASON = 2024
 
 export const CLUBS: RealClub[] = [
   {
-    club: 'Inter', shortName: 'INT', kit: kit('#1d3f9a', '#f0c330', 'blue'), formation: '3-5-2', players: `
+    club: 'Inter', shortName: 'INT', kit: kit('#1d3f9a', '#f0c330', 'blue'), formation: '3-5-2', block: 'mid', players: `
     Yann Sommer, GK, 86, 1988, R
     Josep Martínez, GK, 76, 1998, R
     Raffaele Di Gennaro, GK, 62, 1993, R
@@ -38,7 +38,7 @@ export const CLUBS: RealClub[] = [
     Joaquín Correa, ST/W, 76, 1994, R
   ` },
   {
-    club: 'AC Milan', shortName: 'MIL', kit: kit('#c8202f', '#f2f2ee', 'red'), formation: '4-2-3-1', players: `
+    club: 'AC Milan', shortName: 'MIL', kit: kit('#c8202f', '#f2f2ee', 'red'), formation: '4-2-3-1', block: 'mid', players: `
     Mike Maignan, GK, 87, 1995, R
     Marco Sportiello, GK, 74, 1992, R
     Lorenzo Torriani, GK, 64, 2005, R
@@ -66,7 +66,7 @@ export const CLUBS: RealClub[] = [
     Francesco Camarda, ST, 66, 2008, R
   ` },
   {
-    club: 'Napoli', shortName: 'NAP', kit: kit('#3a8ee0', '#ffffff', 'blue'), formation: '4-3-3', players: `
+    club: 'Napoli', shortName: 'NAP', kit: kit('#3a8ee0', '#ffffff', 'blue'), formation: '4-3-3', block: 'mid', players: `
     Alex Meret, GK, 80, 1997, L
     Elia Caprile, GK, 72, 2001, R
     Nikita Contini, GK, 62, 1996, R
@@ -91,7 +91,7 @@ export const CLUBS: RealClub[] = [
     Giovanni Simeone, ST, 74, 1995, R
   ` },
   {
-    club: 'Atalanta', shortName: 'ATA', kit: kit('#24489c', '#ffffff', 'blue'), formation: '3-4-3', players: `
+    club: 'Atalanta', shortName: 'ATA', kit: kit('#24489c', '#ffffff', 'blue'), formation: '3-4-3', block: 'high', players: `
     Marco Carnesecchi, GK, 80, 2000, R
     Rui Patrício, GK, 77, 1988, L
     Francesco Rossi, GK, 62, 1991, R
@@ -118,7 +118,7 @@ export const CLUBS: RealClub[] = [
     Gianluca Scamacca, ST, 80, 1999, R
   ` },
   {
-    club: 'Juventus', shortName: 'JUV', kit: kit('#232527', '#f2f2ee', 'black'), formation: '4-2-3-1', players: `
+    club: 'Juventus', shortName: 'JUV', kit: kit('#232527', '#f2f2ee', 'black'), formation: '4-2-3-1', block: 'mid', players: `
     Michele Di Gregorio, GK, 82, 1997, R
     Mattia Perin, GK, 78, 1992, R
     Carlo Pinsoglio, GK, 62, 1990, R
@@ -144,7 +144,7 @@ export const CLUBS: RealClub[] = [
     Arkadiusz Milik, ST, 76, 1994, L
   ` },
   {
-    club: 'Roma', shortName: 'ROM', kit: kit('#8e1f2f', '#f0b323', 'red'), formation: '3-4-3', players: `
+    club: 'Roma', shortName: 'ROM', kit: kit('#8e1f2f', '#f0b323', 'red'), formation: '3-4-3', block: 'mid', players: `
     Mile Svilar, GK, 80, 1999, R
     Mathew Ryan, GK, 74, 1992, R
     Renato Marin, GK, 64, 2006, R
@@ -172,7 +172,7 @@ export const CLUBS: RealClub[] = [
     Eldor Shomurodov, ST, 74, 1995, R
   ` },
   {
-    club: 'Lazio', shortName: 'LAZ', kit: kit('#8fc6ea', '#1b2a4a', 'blue'), formation: '4-2-3-1', players: `
+    club: 'Lazio', shortName: 'LAZ', kit: kit('#8fc6ea', '#1b2a4a', 'blue'), formation: '4-2-3-1', block: 'high', players: `
     Ivan Provedel, GK, 81, 1994, R
     Christos Mandas, GK, 74, 2001, R
     Alessio Romagnoli, CB, 80, 1995, L
@@ -198,7 +198,7 @@ export const CLUBS: RealClub[] = [
     Matteo Cancellieri, W, 72, 2002, L
   ` },
   {
-    club: 'Fiorentina', shortName: 'FIO', kit: kit('#5b2a86', '#ffffff', 'purple'), formation: '3-4-3', players: `
+    club: 'Fiorentina', shortName: 'FIO', kit: kit('#5b2a86', '#ffffff', 'purple'), formation: '3-4-3', block: 'low', players: `
     David de Gea, GK, 82, 1990, R
     Pietro Terracciano, GK, 74, 1990, R
     Tommaso Martinelli, GK, 62, 2006, R
@@ -226,7 +226,7 @@ export const CLUBS: RealClub[] = [
     Albert Guðmundsson, ST/W, 79, 1997, R
   ` },
   {
-    club: 'Bologna', shortName: 'BOL', kit: kit('#9b1b30', '#1b2a4a', 'red'), formation: '4-2-3-1', players: `
+    club: 'Bologna', shortName: 'BOL', kit: kit('#9b1b30', '#1b2a4a', 'red'), formation: '4-2-3-1', block: 'high', players: `
     Łukasz Skorupski, GK, 79, 1991, R
     Federico Ravaglia, GK, 70, 1999, R
     Jhon Lucumí, CB, 79, 1998, L
@@ -254,7 +254,7 @@ export const CLUBS: RealClub[] = [
     Jens Odgaard, CM/ST, 73, 1999, R
   ` },
   {
-    club: 'Como', shortName: 'COM', kit: kit('#1c4fa1', '#ffffff', 'blue'), formation: '4-2-3-1', players: `
+    club: 'Como', shortName: 'COM', kit: kit('#1c4fa1', '#ffffff', 'blue'), formation: '4-2-3-1', block: 'mid', players: `
     Pepe Reina, GK, 75, 1982, R
     Emil Audero, GK, 75, 1997, R
     Marc-Oliver Kempf, CB, 74, 1995, L
@@ -279,7 +279,7 @@ export const CLUBS: RealClub[] = [
     Alessandro Gabrielloni, ST, 68, 1994, R
   ` },
   {
-    club: 'Torino', shortName: 'TOR', kit: kit('#7a1f2b', '#ffffff', 'red'), formation: '3-5-2', players: `
+    club: 'Torino', shortName: 'TOR', kit: kit('#7a1f2b', '#ffffff', 'red'), formation: '3-5-2', block: 'low', players: `
     Vanja Milinković-Savić, GK, 78, 1997, R
     Alberto Paleari, GK, 70, 1992, R
     Antonio Donnarumma, GK, 62, 1990, R
@@ -304,7 +304,7 @@ export const CLUBS: RealClub[] = [
     Alieu Njie, ST, 66, 2005, R
   ` },
   {
-    club: 'Udinese', shortName: 'UDI', kit: kit('#232527', '#ffffff', 'black'), formation: '3-5-2', players: `
+    club: 'Udinese', shortName: 'UDI', kit: kit('#232527', '#ffffff', 'black'), formation: '3-5-2', block: 'low', players: `
     Maduka Okoye, GK, 75, 1999, R
     Razvan Sava, GK, 70, 2002, R
     Daniele Padelli, GK, 62, 1985, R
@@ -330,7 +330,7 @@ export const CLUBS: RealClub[] = [
     Brenner, ST, 70, 2000, R
   ` },
   {
-    club: 'Genoa', shortName: 'GEN', kit: kit('#9b1b30', '#1b2a4a', 'red'), formation: '3-5-2', players: `
+    club: 'Genoa', shortName: 'GEN', kit: kit('#9b1b30', '#1b2a4a', 'red'), formation: '3-5-2', block: 'low', players: `
     Nicola Leali, GK, 72, 1993, R
     Pierluigi Gollini, GK, 74, 1995, R
     Mattia Bani, CB, 75, 1993, R
@@ -355,7 +355,7 @@ export const CLUBS: RealClub[] = [
     Jeff Ekhator, ST, 64, 2006, R
   ` },
   {
-    club: 'Hellas Verona', shortName: 'HVE', kit: kit('#1b3b8f', '#f0c330', 'blue'), formation: '4-2-3-1', players: `
+    club: 'Hellas Verona', shortName: 'HVE', kit: kit('#1b3b8f', '#f0c330', 'blue'), formation: '4-2-3-1', block: 'low', players: `
     Lorenzo Montipò, GK, 76, 1996, R
     Simone Perilli, GK, 66, 1995, R
     Diego Coppola, CB, 72, 2003, R
@@ -380,7 +380,7 @@ export const CLUBS: RealClub[] = [
     Flavius Daniliuc, CB, 70, 2001, R
   ` },
   {
-    club: 'Cagliari', shortName: 'CAG', kit: kit('#8e1f2f', '#1b2a4a', 'red'), formation: '4-2-3-1', players: `
+    club: 'Cagliari', shortName: 'CAG', kit: kit('#8e1f2f', '#1b2a4a', 'red'), formation: '4-2-3-1', block: 'low', players: `
     Simone Scuffet, GK, 75, 1996, R
     Alen Sherri, GK, 66, 1997, R
     Yerry Mina, CB, 75, 1994, R
@@ -406,7 +406,7 @@ export const CLUBS: RealClub[] = [
     Leonardo Pavoletti, ST, 70, 1988, R
   ` },
   {
-    club: 'Parma', shortName: 'PAR', kit: kit('#f2f2ee', '#1b2a4a', 'white'), formation: '4-2-3-1', players: `
+    club: 'Parma', shortName: 'PAR', kit: kit('#f2f2ee', '#1b2a4a', 'white'), formation: '4-2-3-1', block: 'low', players: `
     Zion Suzuki, GK, 76, 2002, R
     Leandro Chichizola, GK, 70, 1990, R
     Edoardo Corvi, GK, 62, 2001, R
@@ -432,7 +432,7 @@ export const CLUBS: RealClub[] = [
     Antoine Hainaut, FB, 66, 2002, R
   ` },
   {
-    club: 'Lecce', shortName: 'LEC', kit: kit('#f0c330', '#c8102e', 'yellow'), formation: '4-3-3', players: `
+    club: 'Lecce', shortName: 'LEC', kit: kit('#f0c330', '#c8102e', 'yellow'), formation: '4-3-3', block: 'low', players: `
     Wladimiro Falcone, GK, 77, 1995, R
     Christian Früchtl, GK, 68, 2000, R
     Kialonda Gaspar, CB, 73, 1997, R
@@ -457,7 +457,7 @@ export const CLUBS: RealClub[] = [
     Nicola Sansone, W, 69, 1991, R
   ` },
   {
-    club: 'Empoli', shortName: 'EMP', kit: kit('#1d5fa8', '#ffffff', 'blue'), formation: '3-5-2', players: `
+    club: 'Empoli', shortName: 'EMP', kit: kit('#1d5fa8', '#ffffff', 'blue'), formation: '3-5-2', block: 'low', players: `
     Devis Vásquez, GK, 72, 1998, R
     Jacopo Seghetti, GK, 62, 2004, R
     Samuele Perisan, GK, 66, 1997, R
@@ -483,7 +483,7 @@ export const CLUBS: RealClub[] = [
     Pietro Pellegri, ST, 66, 2001, R
   ` },
   {
-    club: 'Venezia', shortName: 'VEN', kit: kit('#232527', '#f08a24', 'black'), formation: '3-5-2', players: `
+    club: 'Venezia', shortName: 'VEN', kit: kit('#232527', '#f08a24', 'black'), formation: '3-5-2', block: 'low', players: `
     Jesse Joronen, GK, 72, 1993, R
     Filip Stanković, GK, 70, 2002, R
     Joel Schingtienne, CB, 67, 2003, R
@@ -508,7 +508,7 @@ export const CLUBS: RealClub[] = [
     Nicholas Pierini, W, 66, 1998, R
   ` },
   {
-    club: 'Monza', shortName: 'MON', kit: kit('#c8102e', '#ffffff', 'red'), formation: '3-4-3', players: `
+    club: 'Monza', shortName: 'MON', kit: kit('#c8102e', '#ffffff', 'red'), formation: '3-4-3', block: 'low', players: `
     Stefano Turati, GK, 72, 2001, R
     Semuel Pizzignacco, GK, 66, 2001, R
     Pablo Marí, CB, 75, 1993, L

@@ -11,7 +11,7 @@ export const SEASON = 2024
 
 export const CLUBS: RealClub[] = [
   {
-    club: 'Bayern Munich', shortName: 'FCB', kit: kit('#c8202f', '#ffffff', 'red'), formation: '4-2-3-1', players: `
+    club: 'Bayern Munich', shortName: 'FCB', kit: kit('#c8202f', '#ffffff', 'red'), formation: '4-2-3-1', block: 'high', players: `
     Manuel Neuer, GK, 86, 1986, R
     Sven Ulreich, GK, 72, 1988, R
     Daniel Peretz, GK, 70, 2000, R
@@ -38,7 +38,7 @@ export const CLUBS: RealClub[] = [
     Mathys Tel, ST/W, 74, 2005, R
   ` },
   {
-    club: 'Bayer Leverkusen', shortName: 'B04', kit: kit('#e32221', '#111111', 'red'), formation: '3-4-3', players: `
+    club: 'Bayer Leverkusen', shortName: 'B04', kit: kit('#e32221', '#111111', 'red'), formation: '3-4-3', block: 'high', players: `
     Lukáš Hrádecký, GK, 84, 1989, R
     Matěj Kovář, GK, 76, 2000, R
     Niklas Lomb, GK, 62, 1993, R
@@ -63,7 +63,7 @@ export const CLUBS: RealClub[] = [
     Gustavo Puerta, CM, 70, 2003, R
   ` },
   {
-    club: 'Borussia Dortmund', shortName: 'BVB', kit: kit('#fde100', '#111111', 'yellow'), formation: '4-2-3-1', players: `
+    club: 'Borussia Dortmund', shortName: 'BVB', kit: kit('#fde100', '#111111', 'yellow'), formation: '4-2-3-1', block: 'high', players: `
     Gregor Kobel, GK, 87, 1997, R
     Alexander Meyer, GK, 72, 1991, R
     Nico Schlotterbeck, CB, 84, 1999, L
@@ -88,7 +88,7 @@ export const CLUBS: RealClub[] = [
     Serhou Guirassy, ST, 82, 1996, R
   ` },
   {
-    club: 'RB Leipzig', shortName: 'RBL', kit: kit('#f2f2ee', '#dd0741', 'white'), formation: '4-4-2', players: `
+    club: 'RB Leipzig', shortName: 'RBL', kit: kit('#f2f2ee', '#dd0741', 'white'), formation: '4-4-2', block: 'high', players: `
     Péter Gulácsi, GK, 82, 1990, R
     Maarten Vandevoordt, GK, 74, 2002, R
     Willi Orban, CB, 83, 1992, R
@@ -113,7 +113,7 @@ export const CLUBS: RealClub[] = [
     Yussuf Poulsen, ST, 76, 1994, R
   ` },
   {
-    club: 'VfB Stuttgart', shortName: 'VFB', kit: kit('#f2f2ee', '#e32219', 'white'), formation: '4-2-3-1', players: `
+    club: 'VfB Stuttgart', shortName: 'VFB', kit: kit('#f2f2ee', '#e32219', 'white'), formation: '4-2-3-1', block: 'high', players: `
     Alexander Nübel, GK, 81, 1996, R
     Fabian Bredlow, GK, 70, 1995, R
     Jeff Chabot, CB, 77, 1998, L
@@ -138,7 +138,7 @@ export const CLUBS: RealClub[] = [
     El Bilal Touré, ST, 76, 2001, R
   ` },
   {
-    club: 'Eintracht Frankfurt', shortName: 'SGE', kit: kit('#1a1a1a', '#e1000f', 'black'), formation: '4-2-3-1', players: `
+    club: 'Eintracht Frankfurt', shortName: 'SGE', kit: kit('#1a1a1a', '#e1000f', 'black'), formation: '4-2-3-1', block: 'high', players: `
     Kevin Trapp, GK, 82, 1990, R
     Kauã Santos, GK, 70, 2003, R
     Jens Grahl, GK, 64, 1988, R
@@ -163,7 +163,7 @@ export const CLUBS: RealClub[] = [
     Igor Matanović, ST, 70, 2003, R
   ` },
   {
-    club: 'SC Freiburg', shortName: 'SCF', kit: kit('#e2001a', '#111111', 'red'), formation: '4-2-3-1', players: `
+    club: 'SC Freiburg', shortName: 'SCF', kit: kit('#e2001a', '#111111', 'red'), formation: '4-2-3-1', block: 'mid', players: `
     Noah Atubolu, GK, 76, 2002, R
     Florian Müller, GK, 72, 1997, R
     Matthias Ginter, CB, 80, 1994, R
@@ -188,7 +188,7 @@ export const CLUBS: RealClub[] = [
     Bruno Ogbus, CB, 66, 2005, R
   ` },
   {
-    club: 'Mainz 05', shortName: 'M05', kit: kit('#c3141e', '#ffffff', 'red'), formation: '3-4-3', players: `
+    club: 'Mainz 05', shortName: 'M05', kit: kit('#c3141e', '#ffffff', 'red'), formation: '3-4-3', block: 'high', players: `
     Robin Zentner, GK, 77, 1994, R
     Lasse Rieß, GK, 68, 2001, R
     Daniel Batz, GK, 66, 1991, R
@@ -213,7 +213,7 @@ export const CLUBS: RealClub[] = [
     Nelson Weiper, ST, 69, 2005, R
   ` },
   {
-    club: 'Borussia Mönchengladbach', shortName: 'BMG', kit: kit('#f2f2ee', '#1a1a1a', 'white'), formation: '4-2-3-1', players: `
+    club: 'Borussia Mönchengladbach', shortName: 'BMG', kit: kit('#f2f2ee', '#1a1a1a', 'white'), formation: '4-2-3-1', block: 'mid', players: `
     Moritz Nicolas, GK, 74, 1997, R
     Jonas Omlin, GK, 79, 1994, R
     Tobias Sippel, GK, 64, 1988, R
@@ -238,7 +238,7 @@ export const CLUBS: RealClub[] = [
     Tomáš Čvančara, ST, 72, 2000, R
   ` },
   {
-    club: 'VfL Wolfsburg', shortName: 'WOB', kit: kit('#65b32e', '#ffffff', 'green'), formation: '4-2-3-1', players: `
+    club: 'VfL Wolfsburg', shortName: 'WOB', kit: kit('#65b32e', '#ffffff', 'green'), formation: '4-2-3-1', block: 'mid', players: `
     Kamil Grabara, GK, 79, 1999, R
     Pavao Pervan, GK, 70, 1987, R
     Denis Vavro, CB, 76, 1996, R
@@ -263,7 +263,7 @@ export const CLUBS: RealClub[] = [
     Lukas Nmecha, ST, 74, 1998, R
   ` },
   {
-    club: 'FC Augsburg', shortName: 'FCA', kit: kit('#f2f2ee', '#ba3733', 'white'), formation: '3-5-2', players: `
+    club: 'FC Augsburg', shortName: 'FCA', kit: kit('#f2f2ee', '#ba3733', 'white'), formation: '3-5-2', block: 'mid', players: `
     Finn Dahmen, GK, 75, 1998, R
     Nediljko Labrović, GK, 75, 1999, R
     Tomáš Koubek, GK, 70, 1992, R
@@ -290,7 +290,7 @@ export const CLUBS: RealClub[] = [
     Yusuf Kabadayı, W, 66, 2004, R
   ` },
   {
-    club: 'Union Berlin', shortName: 'FCU', kit: kit('#d4011d', '#f6e02a', 'red'), formation: '3-5-2', players: `
+    club: 'Union Berlin', shortName: 'FCU', kit: kit('#d4011d', '#f6e02a', 'red'), formation: '3-5-2', block: 'low', players: `
     Frederik Rønnow, GK, 78, 1992, R
     Alexander Schwolow, GK, 72, 1992, R
     Danilho Doekhi, CB, 77, 1998, R
@@ -316,7 +316,7 @@ export const CLUBS: RealClub[] = [
     Ivan Prtajin, ST, 71, 1996, R
   ` },
   {
-    club: 'FC St. Pauli', shortName: 'STP', kit: kit('#5a3a27', '#ffffff', 'black'), formation: '3-4-3', players: `
+    club: 'FC St. Pauli', shortName: 'STP', kit: kit('#5a3a27', '#ffffff', 'black'), formation: '3-4-3', block: 'mid', players: `
     Nikola Vasilj, GK, 75, 1995, R
     Sascha Burchert, GK, 66, 1989, R
     Hauke Wahl, CB, 73, 1994, R
@@ -341,7 +341,7 @@ export const CLUBS: RealClub[] = [
     Erik Ahlstrand, W, 64, 2001, R
   ` },
   {
-    club: 'TSG Hoffenheim', shortName: 'TSG', kit: kit('#1961b5', '#ffffff', 'blue'), formation: '3-4-3', players: `
+    club: 'TSG Hoffenheim', shortName: 'TSG', kit: kit('#1961b5', '#ffffff', 'blue'), formation: '3-4-3', block: 'high', players: `
     Oliver Baumann, GK, 80, 1990, R
     Luca Philipp, GK, 66, 2000, R
     Ozan Kabak, CB, 76, 2000, R
@@ -367,7 +367,7 @@ export const CLUBS: RealClub[] = [
     Ihlas Bebou, ST/W, 73, 1994, R
   ` },
   {
-    club: '1. FC Heidenheim', shortName: 'FCH', kit: kit('#e2001a', '#003b79', 'red'), formation: '4-2-3-1', players: `
+    club: '1. FC Heidenheim', shortName: 'FCH', kit: kit('#e2001a', '#003b79', 'red'), formation: '4-2-3-1', block: 'mid', players: `
     Kevin Müller, GK, 75, 1991, R
     Frank Feller, GK, 66, 2004, R
     Patrick Mainka, CB, 74, 1994, R
@@ -392,7 +392,7 @@ export const CLUBS: RealClub[] = [
     Stefan Schimmer, ST, 67, 1994, R
   ` },
   {
-    club: 'Holstein Kiel', shortName: 'KSV', kit: kit('#004b9d', '#ffffff', 'blue'), formation: '3-4-3', players: `
+    club: 'Holstein Kiel', shortName: 'KSV', kit: kit('#004b9d', '#ffffff', 'blue'), formation: '3-4-3', block: 'mid', players: `
     Timon Weiner, GK, 70, 1999, R
     Thomas Dähne, GK, 68, 1994, R
     Patrick Erras, CB/DM, 69, 1995, R
@@ -418,7 +418,7 @@ export const CLUBS: RealClub[] = [
     Jann-Fiete Arp, ST, 66, 2000, R
   ` },
   {
-    club: 'VfL Bochum', shortName: 'BOC', kit: kit('#005ca9', '#ffffff', 'blue'), formation: '4-4-2', players: `
+    club: 'VfL Bochum', shortName: 'BOC', kit: kit('#005ca9', '#ffffff', 'blue'), formation: '4-4-2', block: 'mid', players: `
     Patrick Drewes, GK, 72, 1993, R
     Timo Horn, GK, 72, 1993, R
     Ivan Ordets, CB, 72, 1992, R
@@ -443,7 +443,7 @@ export const CLUBS: RealClub[] = [
     Gonçalo Paciência, ST, 70, 1994, R
   ` },
   {
-    club: 'Werder Bremen', shortName: 'SVW', kit: kit('#1d9053', '#ffffff', 'green'), formation: '3-5-2', players: `
+    club: 'Werder Bremen', shortName: 'SVW', kit: kit('#1d9053', '#ffffff', 'green'), formation: '3-5-2', block: 'high', players: `
     Michael Zetterer, GK, 75, 1995, R
     Mio Backhaus, GK, 66, 2004, R
     Marco Friedl, CB, 77, 1998, L

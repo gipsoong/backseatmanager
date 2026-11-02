@@ -11,7 +11,7 @@ export const SEASON = 2024
 
 export const CLUBS: RealClub[] = [
   {
-    club: 'Real Madrid', shortName: 'RMA', kit: kit('#f2f2ee', '#1b2a4a', 'white'), formation: '4-3-3', players: `
+    club: 'Real Madrid', shortName: 'RMA', kit: kit('#f2f2ee', '#1b2a4a', 'white'), formation: '4-3-3', block: 'mid', players: `
     Thibaut Courtois, GK, 90, 1992, L
     Andriy Lunin, GK, 80, 1999, R
     Dani Carvajal, FB, 86, 1992, R
@@ -37,7 +37,7 @@ export const CLUBS: RealClub[] = [
     Endrick, ST, 77, 2006, L
   ` },
   {
-    club: 'Barcelona', shortName: 'BAR', kit: kit('#a50044', '#edbb00', 'red'), formation: '4-2-3-1', players: `
+    club: 'Barcelona', shortName: 'BAR', kit: kit('#a50044', '#edbb00', 'red'), formation: '4-2-3-1', block: 'high', players: `
     Marc-André ter Stegen, GK, 89, 1992, R
     Iñaki Peña, GK, 76, 1999, R
     Pau Cubarsí, CB, 80, 2007, R
@@ -65,7 +65,7 @@ export const CLUBS: RealClub[] = [
     Pau Víctor, ST, 69, 2001, R
   ` },
   {
-    club: 'Atlético Madrid', shortName: 'ATM', kit: kit('#cb3524', '#ffffff', 'red'), formation: '4-4-2', players: `
+    club: 'Atlético Madrid', shortName: 'ATM', kit: kit('#cb3524', '#ffffff', 'red'), formation: '4-4-2', block: 'low', players: `
     Jan Oblak, GK, 88, 1993, R
     Juan Musso, GK, 78, 1994, R
     José María Giménez, CB, 84, 1995, R
@@ -91,7 +91,7 @@ export const CLUBS: RealClub[] = [
     Ángel Correa, ST/W, 80, 1995, R
   ` },
   {
-    club: 'Athletic Club', shortName: 'ATH', kit: kit('#ee2523', '#ffffff', 'red'), formation: '4-2-3-1', players: `
+    club: 'Athletic Club', shortName: 'ATH', kit: kit('#ee2523', '#ffffff', 'red'), formation: '4-2-3-1', block: 'high', players: `
     Unai Simón, GK, 85, 1997, R
     Julen Agirrezabala, GK, 75, 2000, R
     Álex Padilla, GK, 68, 2003, R
@@ -117,7 +117,7 @@ export const CLUBS: RealClub[] = [
     Adama Boiro, FB, 70, 2002, L
   ` },
   {
-    club: 'Villarreal', shortName: 'VIL', kit: kit('#ffe667', '#004f9f', 'yellow'), formation: '4-4-2', players: `
+    club: 'Villarreal', shortName: 'VIL', kit: kit('#ffe667', '#004f9f', 'yellow'), formation: '4-4-2', block: 'mid', players: `
     Diego Conde, GK, 77, 1998, R
     Luiz Júnior, GK, 75, 2001, R
     Raúl Albiol, CB, 79, 1985, R
@@ -142,7 +142,7 @@ export const CLUBS: RealClub[] = [
     Thierno Barry, ST, 74, 2002, R
   ` },
   {
-    club: 'Real Betis', shortName: 'BET', kit: kit('#00954c', '#ffffff', 'green'), formation: '4-2-3-1', players: `
+    club: 'Real Betis', shortName: 'BET', kit: kit('#00954c', '#ffffff', 'green'), formation: '4-2-3-1', block: 'mid', players: `
     Rui Silva, GK, 80, 1994, R
     Adrián, GK, 72, 1987, R
     Fran Vieites, GK, 65, 1999, R
@@ -169,7 +169,7 @@ export const CLUBS: RealClub[] = [
     Assane Diao, W, 68, 2005, R
   ` },
   {
-    club: 'Celta Vigo', shortName: 'CEL', kit: kit('#8ac3ee', '#c8102e', 'blue'), formation: '3-4-3', players: `
+    club: 'Celta Vigo', shortName: 'CEL', kit: kit('#8ac3ee', '#c8102e', 'blue'), formation: '3-4-3', block: 'mid', players: `
     Vicente Guaita, GK, 76, 1987, R
     Iván Villar, GK, 72, 1997, R
     Carl Starfelt, CB, 76, 1995, R
@@ -196,7 +196,7 @@ export const CLUBS: RealClub[] = [
     Alfon González, W, 71, 1999, L
   ` },
   {
-    club: 'Rayo Vallecano', shortName: 'RAY', kit: kit('#f2f2ee', '#d4202c', 'white'), formation: '4-2-3-1', players: `
+    club: 'Rayo Vallecano', shortName: 'RAY', kit: kit('#f2f2ee', '#d4202c', 'white'), formation: '4-2-3-1', block: 'high', players: `
     Augusto Batalla, GK, 76, 1996, R
     Dani Cárdenas, GK, 71, 1997, R
     Abdul Mumin, CB, 75, 1998, R
@@ -221,7 +221,7 @@ export const CLUBS: RealClub[] = [
     James Rodríguez, CM/W, 77, 1991, L
   ` },
   {
-    club: 'Osasuna', shortName: 'OSA', kit: kit('#d91a21', '#0a2c5a', 'red'), formation: '4-2-3-1', players: `
+    club: 'Osasuna', shortName: 'OSA', kit: kit('#d91a21', '#0a2c5a', 'red'), formation: '4-2-3-1', block: 'low', players: `
     Sergio Herrera, GK, 78, 1993, R
     Aitor Fernández, GK, 75, 1991, R
     Alejandro Catena, CB, 77, 1994, R
@@ -246,7 +246,7 @@ export const CLUBS: RealClub[] = [
     Unai García, CB, 72, 1992, R
   ` },
   {
-    club: 'Mallorca', shortName: 'MLL', kit: kit('#c8102e', '#111111', 'red'), formation: '4-4-2', players: `
+    club: 'Mallorca', shortName: 'MLL', kit: kit('#c8102e', '#111111', 'red'), formation: '4-4-2', block: 'low', players: `
     Dominik Greif, GK, 76, 1997, R
     Leo Román, GK, 72, 2000, R
     Ivan Cuéllar, GK, 66, 1984, R
@@ -272,7 +272,7 @@ export const CLUBS: RealClub[] = [
     Abdón Prats, ST, 70, 1992, R
   ` },
   {
-    club: 'Real Sociedad', shortName: 'RSO', kit: kit('#0067b1', '#ffffff', 'blue'), formation: '4-3-3', players: `
+    club: 'Real Sociedad', shortName: 'RSO', kit: kit('#0067b1', '#ffffff', 'blue'), formation: '4-3-3', block: 'high', players: `
     Álex Remiro, GK, 83, 1995, R
     Unai Marrero, GK, 70, 2001, R
     Igor Zubeldia, CB, 80, 1997, R
@@ -299,7 +299,7 @@ export const CLUBS: RealClub[] = [
     Umar Sadiq, ST, 74, 1997, R
   ` },
   {
-    club: 'Valencia', shortName: 'VAL', kit: kit('#f4f4f0', '#111111', 'white'), formation: '4-4-2', players: `
+    club: 'Valencia', shortName: 'VAL', kit: kit('#f4f4f0', '#111111', 'white'), formation: '4-4-2', block: 'low', players: `
     Giorgi Mamardashvili, GK, 83, 2000, R
     Stole Dimitrievski, GK, 72, 1993, R
     Jaume Doménech, GK, 70, 1990, R
@@ -325,7 +325,7 @@ export const CLUBS: RealClub[] = [
     Sergi Canós, W, 73, 1997, R
   ` },
   {
-    club: 'Getafe', shortName: 'GET', kit: kit('#005999', '#ffffff', 'blue'), formation: '4-4-2', players: `
+    club: 'Getafe', shortName: 'GET', kit: kit('#005999', '#ffffff', 'blue'), formation: '4-4-2', block: 'low', players: `
     David Soria, GK, 80, 1993, R
     Jiří Letáček, GK, 70, 1999, R
     Dakonam Djené, CB, 79, 1991, R, Djené
@@ -351,7 +351,7 @@ export const CLUBS: RealClub[] = [
     Juan Bernat, FB, 72, 1993, L
   ` },
   {
-    club: 'Espanyol', shortName: 'ESP', kit: kit('#007fc8', '#ffffff', 'blue'), formation: '4-4-2', players: `
+    club: 'Espanyol', shortName: 'ESP', kit: kit('#007fc8', '#ffffff', 'blue'), formation: '4-4-2', block: 'low', players: `
     Joan García, GK, 76, 2001, L
     Fernando Pacheco, GK, 74, 1992, R
     Ángel Fortuño, GK, 64, 2001, R
@@ -377,7 +377,7 @@ export const CLUBS: RealClub[] = [
     Walid Cheddira, ST, 72, 1998, R
   ` },
   {
-    club: 'Alavés', shortName: 'ALA', kit: kit('#1a3e8f', '#ffffff', 'blue'), formation: '4-4-2', players: `
+    club: 'Alavés', shortName: 'ALA', kit: kit('#1a3e8f', '#ffffff', 'blue'), formation: '4-4-2', block: 'low', players: `
     Antonio Sivera, GK, 76, 1996, R
     Owono, GK, 70, 2001, R
     Abdel Abqar, CB, 73, 1999, R
@@ -403,7 +403,7 @@ export const CLUBS: RealClub[] = [
     Asier Villalibre, ST, 72, 1997, R
   ` },
   {
-    club: 'Girona', shortName: 'GIR', kit: kit('#cd2534', '#ffffff', 'red'), formation: '4-3-3', players: `
+    club: 'Girona', shortName: 'GIR', kit: kit('#cd2534', '#ffffff', 'red'), formation: '4-3-3', block: 'mid', players: `
     Paulo Gazzaniga, GK, 79, 1992, R
     Juan Carlos, GK, 70, 1988, R
     Pau López, GK, 75, 1994, L
@@ -430,7 +430,7 @@ export const CLUBS: RealClub[] = [
     Bojan Miovski, ST, 74, 1999, R
   ` },
   {
-    club: 'Sevilla', shortName: 'SEV', kit: kit('#f4f4f0', '#d2152b', 'white'), formation: '4-3-3', players: `
+    club: 'Sevilla', shortName: 'SEV', kit: kit('#f4f4f0', '#d2152b', 'white'), formation: '4-3-3', block: 'low', players: `
     Ørjan Nyland, GK, 76, 1990, R
     Álvaro Fernández, GK, 72, 1998, R
     Loïc Badé, CB, 79, 2000, R
@@ -456,7 +456,7 @@ export const CLUBS: RealClub[] = [
     Jesús Navas, FB/W, 76, 1985, R
   ` },
   {
-    club: 'Leganés', shortName: 'LEG', kit: kit('#f2f2ee', '#1b3f8f', 'white'), formation: '4-4-2', players: `
+    club: 'Leganés', shortName: 'LEG', kit: kit('#f2f2ee', '#1b3f8f', 'white'), formation: '4-4-2', block: 'low', players: `
     Marko Dmitrović, GK, 76, 1992, R
     Juan Soriano, GK, 72, 1997, R
     Sergio González, CB, 74, 1992, R
@@ -483,7 +483,7 @@ export const CLUBS: RealClub[] = [
     Roberto López, W, 68, 2000, R
   ` },
   {
-    club: 'Las Palmas', shortName: 'LPA', kit: kit('#ffe500', '#0057a8', 'yellow'), formation: '4-2-3-1', players: `
+    club: 'Las Palmas', shortName: 'LPA', kit: kit('#ffe500', '#0057a8', 'yellow'), formation: '4-2-3-1', block: 'low', players: `
     Jasper Cillessen, GK, 77, 1989, R
     Dinko Horkaš, GK, 70, 1999, R
     Álex Suárez, CB/FB, 73, 1993, R
@@ -509,7 +509,7 @@ export const CLUBS: RealClub[] = [
     Oliver McBurnie, ST, 73, 1996, R
   ` },
   {
-    club: 'Real Valladolid', shortName: 'VLL', kit: kit('#5b2a86', '#ffffff', 'purple'), formation: '4-4-2', players: `
+    club: 'Real Valladolid', shortName: 'VLL', kit: kit('#5b2a86', '#ffffff', 'purple'), formation: '4-4-2', block: 'low', players: `
     Karl Hein, GK, 71, 2002, R
     André Ferreira, GK, 72, 1996, R
     Javi Sánchez, CB, 73, 1997, R
