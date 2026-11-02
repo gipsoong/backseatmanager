@@ -32,7 +32,8 @@ import type { League } from '../draft/pools.ts'
 import { Swatch } from './Hub.tsx'
 import { stagger } from './motion.ts'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
-import { positionsLabel, shortName as surname, styleLabel } from '../names.ts'
+import { shortName as surname, styleLabel } from '../names.ts'
+import { Positions } from './Positions.tsx'
 
 export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: DraftState, name: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -330,7 +331,7 @@ function Offer({ draft, chosen, onChoose }: { draft: DraftState; chosen: PlayerD
               title={canAfford(draft, p, players) ? undefined : `£${priceIn(draft, p, players)}m: more than you can spend this round`}
               onClick={() => onChoose(p)}
             >
-              <span className="role">{positionsLabel(p)}</span>
+              <span className="role"><Positions p={p} /></span>
               <span className="name">
                 {p.name}
                 <small className="style">{styleLabel(p)}</small>

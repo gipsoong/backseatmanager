@@ -19,7 +19,7 @@ export function Match({ season, timeline, busy, onDone }: { season: Season; time
   const tie = userCupTie(season)
   return (
     <>
-      <header className="top">
+      <header className="top match-top">
         <div className="fixture">
           <p className="eyebrow">
             {tie
@@ -35,7 +35,14 @@ export function Match({ season, timeline, busy, onDone }: { season: Season; time
         </div>
         <div className="actions">
           <button type="button" className="btn" onClick={onDone} disabled={busy} title="Records the full-time result, whether or not you've watched to the end">
-            {busy ? 'Finishing…' : 'Continue to results'}
+            {busy ? (
+              'Finishing…'
+            ) : (
+              <>
+                <span className="label-long">Continue to results</span>
+                <span className="label-short">Results</span>
+              </>
+            )}
           </button>
         </div>
       </header>

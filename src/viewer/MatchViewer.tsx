@@ -26,10 +26,10 @@ type Goal = Extract<MatchEvent, { type: 'goal' }>
 const SPEEDS = [1, 2, 4] as const
 /** Wall time per animation frame the engine may use to simulate ahead of playback. */
 const SIM_BUDGET_MS = 6
-const MODES: [ViewMode, string][] = [
-  ['full', 'Full match'],
-  ['key', 'Key moments'],
-  ['goals', 'Goals'],
+const MODES: [ViewMode, string, string][] = [
+  ['full', 'Full match', 'All'],
+  ['key', 'Key moments', 'Key'],
+  ['goals', 'Goals', 'Goals'],
 ]
 
 /**
@@ -37,9 +37,9 @@ const MODES: [ViewMode, string][] = [
  * in turn. Rates are match ticks per wall second (the live 1× is 30): the close-up is slow motion.
  */
 const ANGLE_VIEWS = [
-  { name: 'Wide', rate: 22 },
-  { name: 'Close-up', rate: 10 },
-  { name: 'Behind the goal', rate: 15 },
+  { name: 'Wide', short: 'Wide', rate: 22 },
+  { name: 'Close-up', short: 'Close', rate: 10 },
+  { name: 'Behind the goal', short: 'Goal', rate: 15 },
 ] as const
 const ANGLE_FADE_MS = 250
 
@@ -82,7 +82,12 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1)
   const [mode, setMode] = useState<ViewMode>('full')
   const [cutTo, setCutTo] = useState<string | null>(null)
-  const [replayAngle, setReplayAngle] = useState<string | null>(null)
+  // The replay showing (its moment and which of its angles), and the tick it has reached: the
+  // scorebug shows the score and clock as they were then, not as they are live.
+  const [replayView, setReplayView] = useState<{ moment: ReplayMoment; angle: number } | null>(null)
+  const [replayTick, setReplayTick] = useState(0)
+  const replayAngle = replayView ? ANGLE_VIEWS[replayView.moment.angles[replayView.angle]].name : null
+  const [viewOpts, setViewOpts] = useState(false)
   const [showRoles, setShowRoles] = useState(false)
   const [showCaptions, setShowCaptions] = useState(true)
   const [tab, setTab] = useState<Tab>('commentary')
@@ -105,13 +110,14 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
     (moment: ReplayMoment): void => {
       const f = timeline.frame(moment.tick)
       replay.current = { moment, angle: 0, playhead: moment.start, angleStarted: performance.now(), cx: f[0], cy: f[1] }
-      setReplayAngle(ANGLE_VIEWS[moment.angles[0]].name)
+      setReplayView({ moment, angle: 0 })
+      setReplayTick(moment.start)
     },
     [timeline],
   )
   const endReplay = (): void => {
     replay.current = null
-    setReplayAngle(null)
+    setReplayView(null)
     if (coverRef.current) coverRef.current.style.opacity = '0'
   }
 
@@ -215,7 +221,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
             rep.angle++
             rep.playhead = rep.moment.start
             rep.angleStarted = now
-            setReplayAngle(ANGLE_VIEWS[rep.moment.angles[rep.angle]].name)
+            setReplayView({ moment: rep.moment, angle: rep.angle })
           } else {
             endReplay()
           }
@@ -223,6 +229,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
       }
       if (replay.current) {
         const r = replay.current
+        setReplayTick(Math.floor(r.playhead))
         cover(Math.max(0, 1 - (now - r.angleStarted) / ANGLE_FADE_MS))
         // Follow the ball; after a goal it's in the net (the recorded ball is already back on the spot).
         const f = timeline.frame(r.moment.kind === 'goal' ? Math.min(r.playhead, r.moment.tick - 1) : r.playhead)
@@ -288,6 +295,16 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
     return () => cancelAnimationFrame(raf)
   }, [timeline, kits, keeperKits, startReplay])
 
+  /** Watch the replay from another of its angles, from the start of the move. */
+  const chooseAngle = (k: number): void => {
+    const r = replay.current
+    if (!r || k === r.angle) return
+    r.angle = k
+    r.playhead = r.moment.start
+    r.angleStarted = performance.now()
+    setReplayView({ moment: r.moment, angle: k })
+  }
+
   const seek = (t: number): void => {
     if (replay.current) endReplay()
     playhead.current = Math.max(0, Math.min(t, timeline.lastTick))
@@ -299,6 +316,8 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
   const lines = useMemo(() => buildCommentary(match, events), [match, events])
   const playerStats = useMemo(() => (tab === 'commentary' ? null : playerLines(match, events)), [tab, match, events])
   const score = timeline.scoreAt(tick)
+  const bugTick = replayView ? replayTick : tick
+  const bugScore = replayView ? timeline.scoreAt(replayTick) : score
   const status = periodStatus(events)
   const pens = shootoutScore(events)
   // A second leg: the first leg's goals, from this match's sides.
@@ -355,23 +374,34 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
             <span className="swatch" style={{ background: kits[0].shirt }} />
             <span className="abbr">{home.shortName}</span>
             <span className="score">
-              {score[0]}–{score[1]}
-              {pens && <small className="pens"> ({pens[0]}–{pens[1]})</small>}
+              {bugScore[0]}–{bugScore[1]}
+              {pens && !replayView && <small className="pens"> ({pens[0]}–{pens[1]})</small>}
             </span>
             <span className="abbr">{away.shortName}</span>
             <span className="swatch" style={{ background: kits[1].shirt }} />
-            <span className="clock">{status ?? timeline.clockAt(tick)}</span>
+            <span className="clock">{replayView ? timeline.clockAt(bugTick) : (status ?? timeline.clockAt(tick))}</span>
             {carried && (
               <span className="agg" title="On aggregate, counting the first leg">
-                Agg {score[0] + carried[0]}–{score[1] + carried[1]}
+                Agg {bugScore[0] + carried[0]}–{bugScore[1] + carried[1]}
               </span>
             )}
           </div>
-          {replayAngle && (
+          {replayView && (
             <div className="replay-chip">
               <span className="replay-label">Replay</span>
-              <span className="replay-angle">{replayAngle}</span>
-              <button type="button" onClick={endReplay}>
+              {replayView.moment.angles.length > 1 ? (
+                <span className="replay-angles" role="group" aria-label="Camera">
+                  {replayView.moment.angles.map((a, k) => (
+                    <button type="button" key={a} aria-pressed={k === replayView.angle} onClick={() => chooseAngle(k)}>
+                      <span className="label-long">{ANGLE_VIEWS[a].name}</span>
+                      <span className="label-short">{ANGLE_VIEWS[a].short}</span>
+                    </button>
+                  ))}
+                </span>
+              ) : (
+                <span className="replay-angle">{replayAngle}</span>
+              )}
+              <button type="button" className="replay-skip" onClick={endReplay}>
                 Skip
               </button>
             </div>
@@ -391,46 +421,6 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
         </div>
 
         <div className="controls">
-          <button type="button" className="play" onClick={() => (setPlaying(!playing), setChanging(false))} aria-label={playing ? 'Pause' : 'Play'}>
-            {playing ? <PauseIcon /> : <PlayIcon />}
-          </button>
-          <div className="segmented" role="group" aria-label="Playback speed">
-            {SPEEDS.map((sp) => (
-              <button type="button" key={sp} aria-pressed={speed === sp} onClick={() => setSpeed(sp)}>
-                {sp}×
-              </button>
-            ))}
-          </div>
-          <div className="segmented modes" role="group" aria-label="What to watch">
-            {MODES.map(([m, label]) => (
-              <button type="button" key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {manage !== undefined && (
-            <button
-              type="button"
-              className="btn ghost slim change"
-              aria-expanded={changing}
-              onClick={() => {
-                if (changing) return setChanging(false)
-                if (replay.current) endReplay()
-                setPlaying(false)
-                setChanging(true)
-              }}
-            >
-              Change
-            </button>
-          )}
-          <label className="toggle">
-            <input id="show-roles" type="checkbox" checked={showRoles} onChange={(e) => setShowRoles(e.target.checked)} />
-            Roles
-          </label>
-          <label className="toggle">
-            <input id="show-captions" type="checkbox" checked={showCaptions} onChange={(e) => setShowCaptions(e.target.checked)} />
-            Captions
-          </label>
           <div className="scrubber">
             <input
               id="scrubber"
@@ -448,6 +438,63 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
             {goalsSoFar.map((g) => (
               <span key={g.tick} className="marker" style={{ left: `${(100 * g.tick) / total}%`, background: kits[g.team].shirt }} />
             ))}
+          </div>
+          <div className="control-row">
+            <button type="button" className="play" onClick={() => (setPlaying(!playing), setChanging(false))} aria-label={playing ? 'Pause' : 'Play'}>
+              {playing ? <PauseIcon /> : <PlayIcon />}
+            </button>
+            <div className="segmented speeds" role="group" aria-label="Playback speed">
+              {SPEEDS.map((sp) => (
+                <button type="button" key={sp} aria-pressed={speed === sp} onClick={() => setSpeed(sp)}>
+                  {sp}×
+                </button>
+              ))}
+            </div>
+            {/* On a phone one button steps through the speeds, to keep the controls on one row. */}
+            <button
+              type="button"
+              className="speed-step"
+              aria-label={`Playback speed ${speed}×, change`}
+              onClick={() => setSpeed(SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length])}
+            >
+              {speed}×
+            </button>
+            <div className="segmented modes" role="group" aria-label="What to watch">
+              {MODES.map(([m, label, short]) => (
+                <button type="button" key={m} aria-pressed={mode === m} onClick={() => setMode(m)} title={label}>
+                  <span className="label-long">{label}</span>
+                  <span className="label-short">{short}</span>
+                </button>
+              ))}
+            </div>
+            {manage !== undefined && (
+              <button
+                type="button"
+                className="btn ghost slim change-btn"
+                aria-expanded={changing}
+                onClick={() => {
+                  if (changing) return setChanging(false)
+                  if (replay.current) endReplay()
+                  setPlaying(false)
+                  setChanging(true)
+                }}
+              >
+                Change
+              </button>
+            )}
+            <button type="button" className="view-opts-btn" aria-expanded={viewOpts} aria-label="Pitch labels" onClick={() => setViewOpts(!viewOpts)}>
+              <DotsIcon />
+            </button>
+            <div className={`view-opts${viewOpts ? ' open' : ''}`}>
+              <label className="toggle">
+                <input id="show-roles" type="checkbox" checked={showRoles} onChange={(e) => setShowRoles(e.target.checked)} />
+                Roles
+              </label>
+              <label className="toggle">
+                <input id="show-captions" type="checkbox" checked={showCaptions} onChange={(e) => setShowCaptions(e.target.checked)} />
+                Captions
+              </label>
+            </div>
           </div>
         </div>
         {changing && manage !== undefined && (
@@ -583,6 +630,16 @@ function PlayIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
       <path d="M7 4.5v15l12.5-7.5z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function DotsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <circle cx="5.5" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+      <circle cx="18.5" cy="12" r="1.8" fill="currentColor" />
     </svg>
   )
 }

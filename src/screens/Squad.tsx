@@ -4,7 +4,8 @@
  */
 import { useState } from 'react'
 import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
-import { positionsLabel, shortName, styleLabel } from '../names.ts'
+import { shortName, styleLabel } from '../names.ts'
+import { Positions } from './Positions.tsx'
 import { type Season, type SeasonStats, avgRating, isAvailable, lineupFor, playerRating, squadOf } from '../season/season.ts'
 import { FORMATION_BLURB } from './Draft.tsx'
 import { PlayerCard } from './PlayerCard.tsx'
@@ -173,7 +174,7 @@ export function Squad({
               return (
                 <li key={p.id} className="row-in" style={stagger(i)}>
                   <button type="button" className={`offer${heldId === p.id ? ' chosen' : ''}`} disabled={out > 0} onClick={() => tapOther(p.id)}>
-                    <span className="role">{positionsLabel(p)}</span>
+                    <span className="role"><Positions p={p} /></span>
                     <span className="name">
                       {p.name}
                       {out > 0 && <span className="inj-note">Out {out === 1 ? '1 week' : `${out} weeks`}</span>}
@@ -222,7 +223,7 @@ export function Squad({
                   </button>
                   {out > 0 && <span className="inj-note">Out {out === 1 ? '1 week' : `${out} weeks`}</span>}
                 </td>
-                <td>{positionsLabel(p)}</td>
+                <td className="pos-cell"><Positions p={p} /></td>
                 <td className="wide style">{styleLabel(p)}</td>
                 {season.career && <td>{ageOf(season, p.id)}</td>}
                 <td className="rtg-cell">

@@ -4,7 +4,8 @@
  * eleven), free signings this season, and the squad's contracts.
  */
 import { useState } from 'react'
-import { positionsLabel, styleLabel } from '../names.ts'
+import { styleLabel } from '../names.ts'
+import { Positions } from './Positions.tsx'
 import { type Season, playerRating, squadOf } from '../season/season.ts'
 import { RED_LINE, expiringAt, judgeFreeAgent, renewProblem, renewalTerms, seasonYear } from '../career/contracts.ts'
 import { WAGE_BUDGET, inTheRed, money, wageBill, wageOf } from '../career/money.ts'
@@ -83,7 +84,7 @@ export function Contracts({
                 const problem = renewProblem(season, p.id)
                 return (
                   <li key={p.id} className="contract-row rise" style={stagger(i)}>
-                    <span className="role">{positionsLabel(p)}</span>
+                    <span className="role"><Positions p={p} /></span>
                     <span className="name">
                       {p.name}
                       <small className="style">
@@ -133,7 +134,7 @@ export function Contracts({
                   aria-pressed={chosen === f.player.id}
                   onClick={() => setChosen(chosen === f.player.id ? null : f.player.id)}
                 >
-                  <span className="role">{positionsLabel(f.player)}</span>
+                  <span className="role"><Positions p={f.player} /></span>
                   <span className="name">
                     {f.player.name}
                     <small className="style">

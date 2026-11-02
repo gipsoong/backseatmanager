@@ -6,7 +6,8 @@
  */
 import { useMemo, useState } from "react";
 import type { PlayerDef } from "../engine/index.ts";
-import { positionsLabel, styleLabel } from "../names.ts";
+import { styleLabel } from "../names.ts";
+import { Positions } from "./Positions.tsx";
 import {
   type Season,
   avgRating,
@@ -408,7 +409,7 @@ function PlayerPick({
                 disabled={moved.has(p.id)}
                 onClick={() => onToggle(p.id)}
               >
-                <span className="role">{positionsLabel(p)}</span>
+                <span className="role"><Positions p={p} /></span>
                 <span className="name">
                   {p.name}
                   {out > 0 && (
