@@ -4,7 +4,8 @@
  * retirements, the board's target, and the history of seasons gone. Pure and deterministic, like
  * the season: `nextSeason` turns a finished season into the next one.
  */
-import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, ability, freshName, makePlayerAt } from '../engine/index.ts'
+import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, ability, cardOverall, freshName, makePlayerAt } from '../engine/index.ts'
+import { birthYears, realLeague, realPotential, realTeams } from './real.ts'
 import { type Finance, ROLE_OFFSET, WAGE_BUDGET, settle, startFinance, wageAt } from './money.ts'
 import { type Cup, type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 import { POINT_VALUE, sideOf } from '../draft/transfers.ts'
@@ -106,6 +107,11 @@ export interface Career {
   signings?: FreeSigning[]
   /** This season's domestic cup (from save version 5; an upgraded save gets one from its next season). */
   cup?: Cup
+  /**
+   * A career in a real league (`REAL_LEAGUES` id, session 32); unset: made-up clubs. Every player in
+   * one carries his overall on the FIFA-like scale, newcomers too (`newcomer`).
+   */
+  league?: string
 }
 
 /** A squad's largest size: the eleven, nine on the bench and a few reserves. */
@@ -130,19 +136,47 @@ export const relegationPlaces = (n: number): number => Math.round(n * 0.15)
 // ---------------------------------------------------------------------------
 // Starting out
 
-/** A new career from a club-mode season: everyone gets an age and a potential. */
-export function startCareer(s: Season): Season {
+/**
+ * A new career from a club-mode season: everyone gets an age and a potential. In a real league
+ * (`league`, a `REAL_LEAGUES` id) his age is his own and his potential comes from it and his overall.
+ */
+export function startCareer(s: Season, league?: string): Season {
   const rng = new Rng(s.seed * 31 + 7)
   const people: Record<string, Person> = {}
-  for (const t of s.teams) {
-    for (const p of t.players) people[p.id] = firstPerson(rng, p, 27, 3.5)
-    for (const p of t.bench) people[p.id] = firstPerson(rng, p, 25, 4.5)
-  }
+  const real = realLeague(league)
+  if (real) {
+    const born = birthYears(real)
+    const year = seasonYear(s)
+    for (const p of s.teams.flatMap(squadOf)) {
+      const age = year - born[p.id]
+      people[p.id] = { age, potential: realPotential(age, playerRating(p), rng) }
+    }
+  } else
+    for (const t of s.teams) {
+      for (const p of t.players) people[p.id] = firstPerson(rng, p, 27, 3.5)
+      for (const p of t.bench) people[p.id] = firstPerson(rng, p, 25, 4.5)
+    }
   const year = seasonYear(s)
   for (const p of s.teams.flatMap(squadOf)) people[p.id].contract = firstContract(rng, p, people[p.id], year)
-  const career: Career = { number: 1, people, aim: 'topHalf', history: [], levels: s.teams.map((_, i) => elevenRating(s, i)), freeAgents: [] }
+  const career: Career = { number: 1, people, aim: 'topHalf', history: [], levels: s.teams.map((_, i) => elevenRating(s, i)), freeAgents: [], ...(real ? { league: real.id } : {}) }
   const started = { ...s, career: { ...career, aim: aimFor(s, s.userTeam) } }
   return { ...started, career: { ...started.career, finance: startFinance(started), cup: startCup(started) } }
+}
+
+/**
+ * A career in a real league's season (`REAL_LEAGUES` id): its clubs and squads, the season starting
+ * in its own year, each club's eleven the staff's pick.
+ */
+export function startRealCareer(seed: number, league: string, userTeam = 0): Season {
+  const real = realLeague(league)
+  if (!real) throw new Error(`no real league ${league}`)
+  const base = createSeason(seed, userTeam, new Date(Date.UTC(real.season, 5, 1)), realTeams(real, seed))
+  const teams = base.teams.map((t, club) => {
+    const squad = squadOf(t)
+    const xi = autoPick(base, club).map((id) => squad.find((p) => p.id === id)!)
+    return { ...t, players: xi, bench: squad.filter((p) => !xi.includes(p)) }
+  })
+  return startCareer({ ...base, teams }, real.id)
 }
 
 function firstPerson(rng: Rng, p: PlayerDef, mean: number, sd: number): Person {
@@ -198,6 +232,16 @@ const BODY_RELEVANCE = 1.5
  * the legs first on the way down, and for a young player (`young`) on the way up too.
  */
 export function shiftTo(p: PlayerDef, target: number, rng: Rng, declining: boolean, young = false): PlayerDef {
+  // A player who carries his overall (a real one, or anyone in a real career): his attributes move
+  // until their reading (`cardOverall`) has moved as far as his overall is to, and it moves with them.
+  if (p.overall !== undefined) {
+    const read = (q: PlayerDef): number => Math.round(cardOverall(q.attrs, q.role))
+    const from = read(p)
+    const moved = shiftTo({ ...p, overall: undefined, card: true }, from + target - p.overall, rng, declining, young)
+    const out: PlayerDef = { ...moved, overall: p.overall + read(moved) - from }
+    if (!p.card) delete out.card
+    return out
+  }
   const attrs = { ...p.attrs }
   const subs = p.role === 'GK' ? KEEPER_SUBS : (Object.keys(attrs) as (keyof Attributes)[]).filter((k) => !KEEPER_SUBS.includes(k))
   const def = { ...p, attrs }
@@ -294,6 +338,20 @@ function madeAt(rng: Rng, id: string, name: string, shirt: number, role: Role, o
   return shiftTo(makePlayerAt(rng, id, name, shirt, role, overall), overall, rng, false)
 }
 
+/**
+ * A made-up newcomer (a signing, an academy player, a free agent from elsewhere) at an overall on
+ * his career's scale. In a made-up league that's the made-up players' own (`cardOverall`). In a real
+ * one it's the FIFA-like scale real players carry: he's made at it plus his position's ROLE_OFFSET
+ * (what a made-up player of that standing reads) and carries the overall, his card shown as a real
+ * player's is (`cardShift`), so he reads and plays as a real player of that overall would.
+ */
+function newcomer(rng: Rng, id: string, name: string, shirt: number, role: Role, overall: number, real: boolean): PlayerDef {
+  if (!real) return madeAt(rng, id, name, shirt, role, overall)
+  const off = ROLE_OFFSET[role]
+  const p = madeAt(rng, id, name, shirt, role, overall + off)
+  return { ...p, overall: playerRating(p) - off, ...(off ? { cardShift: off } : {}) }
+}
+
 /** Free agents made up each summer: players from elsewhere, around the league's level. */
 const OUTSIDE_FREE_AGENTS = 6
 /** A replacement signing from the free agents: within this of the overall the club would sign at. */
@@ -311,6 +369,9 @@ export function nextSeason(s: Season): Season {
   const c = s.career
   if (!c) throw new Error('not a career')
   const rng = new Rng(s.seed * 104729 + c.number * 7919)
+  // A real league's overalls are on the FIFA-like scale, made-up ones on theirs (`newcomer`).
+  const real = c.league !== undefined
+  const off = (role: Role): number => (real ? 0 : ROLE_OFFSET[role])
   const history = [...c.history, pastSeason(s)]
   // The season's accounts, before anyone leaves: income and prize money in, wages out.
   const places = new Array<number>(s.teams.length)
@@ -402,7 +463,7 @@ export function nextSeason(s: Season): Season {
     // once the free agents are known; the manager signs his own, in the market).
     if (!mine)
       for (const p of left)
-        wanted[club].push({ role: p.role, overall: Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + ROLE_OFFSET[p.role] + rng.gauss() * 2) })
+        wanted[club].push({ role: p.role, overall: Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + off(p.role) + rng.gauss() * 2) })
     // The academy: two or three a summer, 16 to 18, a long way off the first team, now and then a gem.
     const intake = rng.int(2, 3)
     for (let i = 0; i < intake; i++) {
@@ -411,9 +472,9 @@ export function nextSeason(s: Season): Season {
       const potential0 = level + GEM_FLOOR + GEM_RANGE * rng.next() ** 2
       // A keeper if the club is short of them, otherwise any position.
       const role = squad.filter((p) => p.role === 'GK').length < 2 ? 'GK' : rng.pick(ACADEMY_ROLES)
-      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + lift + ROLE_OFFSET[role])
-      const potential = Math.max(overall + 2, Math.round(potential0 + ROLE_OFFSET[role]))
-      const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(squad), shirt(), role, overall)
+      const overall = Math.round(c.levels[club] - DRIFT_PULL * drift + lift + off(role))
+      const potential = Math.max(overall + 2, Math.round(potential0 + off(role)))
+      const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-a${i}`, fresh(squad), shirt(), role, overall, real)
       squad.push(q)
       const who: Person = { age: rng.int(16, 18), potential, academy: true }
       people[q.id] = { ...who, contract: newContract(q, who, year, 3) }
@@ -424,7 +485,7 @@ export function nextSeason(s: Season): Season {
     if (mine)
       for (let i = 0; squad.length + wanted[club].length < MANAGER_MIN; i++) {
         const role = left[i]?.role ?? rng.pick(ACADEMY_ROLES)
-        wanted[club].push({ role, overall: Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + ROLE_OFFSET[role] + rng.gauss() * 2) })
+        wanted[club].push({ role, overall: Math.round(c.levels[club] - DRIFT_PULL * drift + SIGNING_LEVEL + off(role) + rng.gauss() * 2) })
       }
     // Too many (the places still to fill counted): the least promising of 19 and over go, as the
     // staff judge it, never the second keeper. They're free agents now.
@@ -441,7 +502,7 @@ export function nextSeason(s: Season): Season {
     }
     // Over its wage budget (the places still to fill counted at what they'd cost): a club leaves
     // places unfilled, then lets its least promising go, down to twenty.
-    const bill = (): number => squad.reduce((n, p) => n + people[p.id].contract!.wage, 0) + wanted[club].reduce((n, w) => n + wageAt(w.overall, w.role), 0)
+    const bill = (): number => squad.reduce((n, p) => n + people[p.id].contract!.wage, 0) + wanted[club].reduce((n, w) => n + wageAt(w.overall, w.role, real), 0)
     while (!mine && bill() > budget && squad.length + wanted[club].length > AI_MIN_SQUAD) {
       const keepers = squad.filter((p) => p.role === 'GK').length
       // (Never the place of a second keeper.)
@@ -463,14 +524,14 @@ export function nextSeason(s: Season): Season {
   // A few free agents from elsewhere, around the league's level, in their twenties and thirties.
   for (let i = 0; i < OUTSIDE_FREE_AGENTS; i++) {
     const role = rng.pick(ACADEMY_ROLES)
-    const overall = Math.round(level - 8 + rng.next() * 9 + ROLE_OFFSET[role])
-    const p = madeAt(rng, `${s.seed}-c${c.number}-f${i}`, fresh([]), 30, role, overall)
+    const overall = Math.round(level - 8 + rng.next() * 9 + off(role))
+    const p = newcomer(rng, `${s.seed}-c${c.number}-f${i}`, fresh([]), 30, role, overall, real)
     pool.push(freeAgent(p, { age: rng.int(23, 32), potential: overall }, null))
   }
 
   const seed = (s.seed * 7 + c.number * 7919) % 1_000_003
   const base = createSeason(seed, s.userTeam, new Date(Date.UTC(year, 0, 1)), teams)
-  let next: Season = { ...base, career: { number: c.number + 1, people, aim: 'topHalf', history, levels: c.levels, finance, summer } }
+  let next: Season = { ...base, career: { number: c.number + 1, people, aim: 'topHalf', history, levels: c.levels, finance, summer, ...(real ? { league: c.league } : {}) } }
   // The other clubs fill their places: from the free agents if one fits (near the overall they'd
   // sign at; the one who does most for their eleven for his wages), otherwise a signing from elsewhere.
   // (The manager's club, filled only if he's left it short, leaves the free agents to him.)
@@ -478,7 +539,7 @@ export function nextSeason(s: Season): Season {
   for (const club of rng.shuffle(s.teams.map((_, i) => i))) {
     wanted[club].forEach((w, i) => {
       if (club === s.userTeam) {
-        const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall)
+        const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall, real)
         const who: Person = { age: rng.int(24, 29), potential: w.overall }
         next = addToClub(next, club, q, { ...who, contract: newContract(q, who, year, 2) })
         summer.signed.push(q.name)
@@ -505,7 +566,7 @@ export function nextSeason(s: Season): Season {
         next = addToClub(next, club, pick.player, { ...pick.person, contract: { until: year + contractLength(pick.person.age), wage: pick.wage } })
         return
       }
-      const q = madeAt(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall)
+      const q = newcomer(rng, `${s.seed}-c${c.number}-${club}-s${i}`, fresh(squadOf(next.teams[club])), 30, w.role, w.overall, real)
       const who: Person = { age: rng.int(24, 29), potential: w.overall }
       next = addToClub(next, club, q, { ...who, contract: newContract(q, who, year, rng.int(2, 4)) })
     })

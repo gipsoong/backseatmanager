@@ -4,8 +4,9 @@
  */
 import { ARCHETYPE_NAMES, type PlayerDef, type Role, archetypeOf } from './engine/index.ts'
 import { POOLS } from './draft/pools.ts'
+import { REAL_KNOWN_AS } from './career/real.ts'
 
-const KNOWN = new Map(POOLS.flatMap((pool) => pool.players.flatMap(([name, , , known]) => (known ? [[name, known] as const] : []))))
+const KNOWN = new Map([...POOLS.flatMap((pool) => pool.players.flatMap(([name, , , known]) => (known ? [[name, known] as const] : []))), ...REAL_KNOWN_AS])
 const PARTICLES = new Set(['van', 'von', 'der', 'den', 'de', 'da', 'di', 'dos', 'du', 'le', 'la', 'De', 'Van', 'Mac', 'Da', 'Di', 'Le', 'La'])
 
 export function shortName(name: string): string {
