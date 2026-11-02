@@ -2,21 +2,27 @@
  * Plays a club-mode career headlessly, every match with the full engine and the staff picking
  * every side, and prints each season's league numbers next to real ranges: goals a match, the top
  * scorer, the best side's points, the league's strength, and per-90 numbers by position and age.
- * `node scripts/sim-career.ts <seed> <seasons> [out.json]` (~3 min a season).
+ * `node scripts/sim-career.ts <seed> <seasons> [out.json] [--real[=<league id>]]` (~15 min a season):
+ * `--real` plays a real league's career (default the Premier League 2024/25) and prints its table.
  */
 import { writeFileSync } from 'node:fs'
 import { runMatch } from '../src/engine/index.ts'
 import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, isOver, matchTeam, matchdays, playerRating, resultOf, squadOf, table } from '../src/season/season.ts'
-import { elevenRating, leagueLevel, nextSeason, squadsLevel, startCareer } from '../src/career/career.ts'
+import { elevenRating, leagueLevel, nextSeason, squadsLevel, startCareer, startRealCareer } from '../src/career/career.ts'
+import { REAL_LEAGUES } from '../src/career/real.ts'
+import { wageBill as bill } from '../src/career/money.ts'
 import { marketDay } from '../src/career/market.ts'
 import { Rng } from '../src/engine/index.ts'
 import { completeCupDay, cupRun, domesticCupMatches, domesticWinner, isDomesticCupDay } from '../src/career/cup.ts'
 import { staffRenewals } from '../src/career/contracts.ts'
 import { wageBill } from '../src/career/money.ts'
 
-const seed = Number(process.argv[2] ?? 1)
-const seasons = Number(process.argv[3] ?? 5)
-const out = process.argv[4]
+const flag = process.argv.find((a) => a.startsWith('--real'))
+const args = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+const seed = Number(args[0] ?? 1)
+const seasons = Number(args[1] ?? 5)
+const out = args[2]
+const real = flag ? (flag.split('=')[1] ?? REAL_LEAGUES[0].id) : undefined
 
 const GROUPS: Record<string, string[]> = { DEF: ['CB', 'FB'], MID: ['DM', 'CM', 'WM'], FWD: ['W', 'ST'] }
 
@@ -63,10 +69,22 @@ function report(s: Season): void {
     `    cup: ${winner === null ? 'NO WINNER' : `${s.teams[winner].name} (league ${rows.findIndex((r) => r.team === winner) + 1})`}, user ${cup ? cupRun(cup, s.userTeam) : '-'} | squads ${Math.min(...sizes)}..${Math.max(...sizes)} | free agents ${c.freeAgents?.length ?? 0} | contracts 1y ${left.filter((y) => y <= 1).length} 2y ${left.filter((y) => y === 2).length} 3y+ ${left.filter((y) => y >= 3).length} | wages/income ${(bills.reduce((a, b) => a + b, 0) / income.reduce((a, b) => a + b, 0)).toFixed(2)}`,
   )
   if (c.summer) console.log(`    summer (user): expired ${c.summer.expired?.length ?? 0}, retired ${c.summer.retired.length}, signed ${c.summer.signed.length}, released ${c.summer.released.length}`)
+  if (real) {
+    // The table, with each club's eleven when the season began (the order it "should" finish in).
+    // (Ranked by the elevens the career began with.)
+    const start = s.career!.levels
+    const byStart = s.teams.map((_, i) => i).sort((a, b) => start[b] - start[a])
+    console.log(`    table: ${rows.map((r, k) => `${k + 1}. ${s.teams[r.team].shortName} ${r.points} (XI #${byStart.indexOf(r.team) + 1})`).join(', ')}`)
+    const top = all.slice().sort((a, b) => b.st.goals - a.st.goals).slice(0, 5)
+    console.log(`    scorers: ${top.map((x) => `${x.p.name} ${x.st.goals}`).join(', ')}`)
+    const sixes = all.filter((x) => (x.st.minutes ?? 0) >= matchdays(s) * 45)
+    const ages = sixes.map((x) => x.age)
+    console.log(`    regulars' age ${(ages.reduce((a, b) => a + b, 0) / ages.length).toFixed(1)} | wage bill £${s.teams.reduce((n, _, i) => n + bill(s, i), 0).toFixed(0)}m`)
+  }
   console.log(`    regulars <=21: n${young.length} ovr ${avg(young)} (${line('', young)}) | >=32: n${old.length} ovr ${avg(old)} (${line('', old)})`)
 }
 
-let s = startCareer(createSeason(seed, 0, new Date(Date.UTC(2026, 5, 1))))
+let s = real ? startRealCareer(seed, real) : startCareer(createSeason(seed, 0, new Date(Date.UTC(2026, 5, 1))))
 const t0 = Date.now()
 const history: Season[] = []
 const mdTime: number[] = []

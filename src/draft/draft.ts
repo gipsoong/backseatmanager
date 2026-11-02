@@ -232,6 +232,14 @@ export const levelOf = (overall: number): number => 13.5 + (Math.min(overall, 86
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
   const [name, positions, overall] = pool.players[i]
+  return cardPlayer(`p${poolIdx}-${i}`, name, positions, overall, Number(pool.season.slice(0, 4)))
+}
+
+/**
+ * A real player as the engine sees him, in the season starting `year` (a draft pool's, or a real
+ * career's): see `poolPlayer`. `foot` overrides what pools.ts knows of his feet.
+ */
+export function cardPlayer(id: string, name: string, positions: string, overall: number, year: number, foot?: 'left' | 'right'): PlayerDef {
   const [role, ...others] = positions.split('/') as Role[]
   const rng = new Rng(hash(name))
   const quality = levelOf(overall)
@@ -244,15 +252,15 @@ export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   // centre-midfielder ~2 fewer), so a draft league plays like a career one; his card shows as FIFA's
   // (`cardShift`, put back by `shownRatings`).
   const off = ROLE_OFFSET[role]
-  const card = (cardOf(name, Number(pool.season.slice(0, 4)), overall, role === 'GK') ?? cardFor(archetype, overall)).map((v) => v + off) as Card
+  const card = (cardOf(name, year, overall, role === 'GK') ?? cardFor(archetype, overall)).map((v) => v + off) as Card
   return {
-    id: `p${poolIdx}-${i}`,
+    id,
     name,
     shirt: 0,
     role,
     positions: others.length ? others : undefined,
     archetype,
-    foot: LEFT_FOOTED.has(name) ? 'left' : 'right',
+    foot: foot ?? (LEFT_FOOTED.has(name) ? 'left' : 'right'),
     weakFoot: WEAK_FOOT[name] ?? 3,
     side: SIDE[name],
     attrs: cardAttributes(shapedAttributes(rng, role, archetype, quality), card, role, archetype, overall + off, () => rng.gauss() * 0.7),
@@ -449,7 +457,7 @@ const BLOCK_ODDS: [number, number, number][] = [
   [0.15, 0.35, 0.5],
 ]
 
-function withBlocks(teams: TeamDef[], rng: Rng): TeamDef[] {
+export function withBlocks(teams: TeamDef[], rng: Rng): TeamDef[] {
   const xi = (t: TeamDef): number => t.players.reduce((n, p) => n + (p.overall ?? 0), 0) / t.players.length
   const order = teams.map((t, i) => [xi(t), i] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]).map(([, i]) => i)
   return teams.map((t, i) => {

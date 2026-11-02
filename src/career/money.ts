@@ -19,6 +19,13 @@ export interface Finance {
 /** How far a position's overalls sit from the league's: see the engine's ROLE_OFFSET (session 26 moved it there). */
 export { ROLE_OFFSET }
 
+/**
+ * His overall as a real player's would read (the FIFA-like scale): a made-up player's net of his
+ * position's ROLE_OFFSET, a real one's (and anyone's in a real career) as he carries it.
+ */
+export const standingOf = (p: PlayerDef): number => playerRating(p) - offsetOf(p)
+const offsetOf = (p: PlayerDef): number => (p.overall === undefined ? ROLE_OFFSET[p.role] : 0)
+
 /** The overall his value is priced at: today's, plus some of what he could become while he's young. */
 function pricedAt(overall: number, who: Person | undefined): number {
   if (!who) return overall
@@ -32,12 +39,16 @@ export function marketValue(p: PlayerDef, who: Person | undefined): number {
   const age = who?.age ?? 26
   const ageing = age <= 29 ? 1 : Math.max(0.25, 1 - 0.17 * (age - 29))
   // An average player of the league (~78) is worth £2m, and a point of overall ~20% more.
-  const v = 2 * 1.2 ** (pricedAt(playerRating(p), who) - ROLE_OFFSET[p.role] - 78) * ageing
+  const v = 2 * 1.2 ** (pricedAt(playerRating(p), who) - offsetOf(p) - 78) * ageing
   return Math.max(0.1, Math.round(v * 10) / 10)
 }
 
-/** About what a player of an overall asks, £k a week (in his twenties, before he's made). */
-export const wageAt = (overall: number, role: Role): number => Math.round(3 + 2.5 * Math.max(0.1, 2 * 1.2 ** (overall - ROLE_OFFSET[role] - 78)))
+/**
+ * About what a player of an overall asks, £k a week (in his twenties, before he's made): a made-up
+ * player's overall, or with `standing` one on the FIFA-like scale (a real career's).
+ */
+export const wageAt = (overall: number, role: Role, standing = false): number =>
+  Math.round(3 + 2.5 * Math.max(0.1, 2 * 1.2 ** (overall - (standing ? 0 : ROLE_OFFSET[role]) - 78)))
 
 /**
  * The share of its income a club spends on wages at the most (the rest, with prize money, is what
