@@ -35,7 +35,9 @@ import {
   elevenRating,
   nextSeason,
   startCareer,
+  startRealCareer,
 } from "./career/career.ts";
+import { REAL_LEAGUES } from "./career/real.ts";
 import {
   completeCupDay,
   cupToday,
@@ -47,6 +49,8 @@ import { letGo, renew, signFreeAgent } from "./career/contracts.ts";
 import { MatchViewer } from "./viewer/MatchViewer.tsx";
 import { Timeline } from "./viewer/timeline.ts";
 
+/** The career start's choice of a made-up league rather than a real one. */
+const MADE_UP = "made-up";
 const randomSeed = (): number => Math.floor(Math.random() * 100_000);
 /** Let the browser paint (a "busy" state) before a blocking bit of work. */
 const nextFrame = (): Promise<void> =>
@@ -55,7 +59,7 @@ const nextFrame = (): Promise<void> =>
 type Screen =
   | { kind: "loading" }
   | { kind: "start" }
-  | { kind: "pick"; season: Season }
+  | { kind: "pick"; season: Season; league: string }
   | { kind: "draft"; seed: number }
   | { kind: "hub" }
   /** The league's screen, while the cup is on. */
@@ -230,11 +234,13 @@ export default function App() {
     setBusy(false);
   };
 
-  const newSeason = (): void =>
-    setScreen({
-      kind: "pick",
-      season: startCareer(createSeason(randomSeed(), 0)),
-    });
+  // A career starts in a real league (the first, by default) or a made-up one ("made-up").
+  const careerIn = (league: string): Season =>
+    league === MADE_UP
+      ? startCareer(createSeason(randomSeed(), 0))
+      : startRealCareer(randomSeed(), league);
+  const newSeason = (league = REAL_LEAGUES[0].id): void =>
+    setScreen({ kind: "pick", season: careerIn(league), league });
   const newDraft = (): void => setScreen({ kind: "draft", seed: randomSeed() });
 
   // Each screen fades up as it arrives (keyed, so a new screen is a new element); the cup and the
@@ -264,7 +270,7 @@ export default function App() {
         <Start
           saved={season}
           onContinue={() => setScreen({ kind: "hub" })}
-          onNew={newSeason}
+          onNew={() => newSeason()}
           onDraft={newDraft}
           onFriendly={() => setScreen({ kind: "friendly" })}
         />
@@ -298,6 +304,14 @@ export default function App() {
           teams={screen.season.teams}
           ratingOf={(i) => elevenRating(screen.season, i)}
           onBack={() => setScreen({ kind: "start" })}
+          leagues={{
+            options: [
+              ...REAL_LEAGUES.map((l) => ({ id: l.id, name: `${l.name} (real clubs)` })),
+              { id: MADE_UP, name: "Made-up league" },
+            ],
+            chosen: screen.league,
+            onChoose: (id) => newSeason(id),
+          }}
           onPick={(i) => {
             const s = { ...screen.season, userTeam: i };
             void commit(
@@ -336,7 +350,7 @@ export default function App() {
             busy={busy}
             onWatch={() => void watch(season)}
             onSimulate={() => void simulateMatchday(season)}
-            onNewSeason={season.mode === "draft" ? newDraft : newSeason}
+            onNewSeason={season.mode === "draft" ? newDraft : () => newSeason()}
             onNextSeason={
               season.career
                 ? () => void commit(marketDay(nextSeason(season)))
