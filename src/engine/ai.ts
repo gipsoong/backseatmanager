@@ -63,7 +63,7 @@ import {
 import { type BallMotion, loftTime, shotVz } from './physics.ts'
 import { ROLE_OFFSET, cardOverall } from './attributes.ts'
 import type { Archetype } from './archetypes.ts'
-import type { Block, Foot, MatchState, PlayerState, Restart, Role, Side } from './types.ts'
+import type { Block, Foot, MatchState, PlayerDef, PlayerState, Restart, Role, Side } from './types.ts'
 
 // ---------------------------------------------------------------------------
 // Frames and lookups
@@ -1406,12 +1406,19 @@ const counterPressFor = (s: MatchState, team: Side): number => COUNTER_PRESS * c
  * scale; a made-up player's overall net of his position's ROLE_OFFSET.
  */
 const gaps = new WeakMap<MatchState, [number, number]>()
+/**
+ * A player's overall as he plays: a made-up one's net of ROLE_OFFSET; one who carries his overall,
+ * moved by whatever his `cardShift` has beyond ROLE_OFFSET (a real career's balance, session 34;
+ * a draft player's is exactly ROLE_OFFSET, so his overall as it is).
+ */
+const standing = (d: PlayerDef): number =>
+  d.overall === undefined ? cardOverall(d.attrs, d.role) - ROLE_OFFSET[d.role] : d.cardShift === undefined ? d.overall : d.overall + (d.cardShift - ROLE_OFFSET[d.role])
 export function qualityGap(s: MatchState, team: Side): number {
   let g = gaps.get(s)
   if (!g) {
     const mean = (t: Side): number => {
       const ps = s.players.filter((p) => p.onPitch && p.team === t)
-      return ps.reduce((n, p) => n + (p.def.overall ?? cardOverall(p.def.attrs, p.def.role) - ROLE_OFFSET[p.def.role]), 0) / Math.max(1, ps.length)
+      return ps.reduce((n, p) => n + standing(p.def), 0) / Math.max(1, ps.length)
     }
     const d = mean(0) - mean(1)
     g = [d, -d]

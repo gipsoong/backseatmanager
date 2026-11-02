@@ -85,7 +85,7 @@ const playerId = (league: RealLeague, club: number, i: number): string => `${lea
  * screen are FIFA's. The career keeps it (`Career.balance`), newcomers are made the same way, and
  * development moves the shift with the overall (`shiftTo`).
  */
-export const REAL_BALANCE = Number((globalThis as any).process?.env?.REAL_BALANCE ?? 0.75) // TUNING
+export const REAL_BALANCE = 0.7
 
 export interface Balance {
   /** The share of a player's distance from the league's middle that he plays (REAL_BALANCE). */
