@@ -106,6 +106,7 @@ export function draftPools(d: { theme?: string; league?: League }): number[] {
 /** What a draft is of, in a few words: "Premier League 2010–now", "Underdogs · Europe's top five". */
 export function draftLabel(d: { theme?: string; league?: string }): string {
   const theme = themeOf(d.theme)
+  if (theme?.id === 'europe') return "Europe's top five 2010–now"
   return theme ? `${theme.name} · Europe's top five` : `${d.league ?? 'Premier League'} 2010–now`
 }
 
