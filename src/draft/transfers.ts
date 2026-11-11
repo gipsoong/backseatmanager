@@ -107,7 +107,11 @@ export function worth(s: Season, p: PlayerDef): number {
   return playerRating(p) + form;
 }
 
-/** A club's best eleven from a squad (the staff's pick, fitness and injuries counted), slot by slot. */
+/**
+ * A club's best eleven from a squad, slot by slot, as a deal sees it: picked as if everyone were fit
+ * and fresh (a deal is for the rest of the season, not Saturday), then an injured man counts a little
+ * less by how much of what's left of the season he'll miss (`injuryCost`).
+ */
 export interface Eleven {
   /** The players in formation slot order. */
   xi: PlayerDef[];
@@ -116,6 +120,21 @@ export interface Eleven {
   rating: number;
   /** Best cover on the bench for defence, midfield and attack, summed. */
   depth: number;
+}
+
+/** Overall points an injury costs a player in a deal, by the share of the season left he'll miss. */
+export const INJURY_COST = 12;
+
+/** Matchdays a player is still out for (0 if he's fit). */
+export const outFor = (s: Season, p: PlayerDef): number =>
+  Math.max(0, (s.condition[p.id]?.injuredUntil ?? 0) - s.matchday);
+
+/** What his injury takes off a player's worth in a deal: a little for a knock, most for the season. */
+export function injuryCost(s: Season, p: PlayerDef): number {
+  const out = outFor(s, p);
+  if (!out) return 0;
+  const left = Math.max(1, matchdays(s) - s.matchday + 1);
+  return INJURY_COST * Math.min(1, out / left);
 }
 
 const LINE_OF: Record<Role, number> = {
@@ -134,6 +153,7 @@ export function elevenOf(
   club: number,
   squad: PlayerDef[] = squadOf(s.teams[club]),
 ): Eleven {
+  const healthy = { fitness: 1, injuredUntil: 0 };
   const probe: Season = {
     ...s,
     teams: s.teams.map((t, i) =>
@@ -141,16 +161,17 @@ export function elevenOf(
         ? { ...t, players: squad.slice(0, 11), bench: squad.slice(11) }
         : t,
     ),
+    condition: {
+      ...s.condition,
+      ...Object.fromEntries(squad.map((p) => [p.id, healthy])),
+    },
   };
   const slots = FORMATIONS[s.teams[club].formation];
   const xi = autoPick(probe, club).map((id) => squad.find((q) => q.id === id)!);
-  const fitted = xi.map((p, i) => playerRating(p) * fitFor(p, slots[i]));
-  const bench = squad.filter(
-    (p) =>
-      !xi.includes(p) &&
-      p.role !== "GK" &&
-      s.condition[p.id]?.injuredUntil <= s.matchday,
+  const fitted = xi.map(
+    (p, i) => playerRating(p) * fitFor(p, slots[i]) - injuryCost(s, p),
   );
+  const bench = squad.filter((p) => !xi.includes(p) && p.role !== "GK");
   const depth = [0, 1, 2].reduce(
     (n, line) =>
       n +
@@ -158,7 +179,7 @@ export function elevenOf(
         curveRef(s) - 20,
         ...bench
           .filter((p) => LINE_OF[p.role] === line)
-          .map((p) => playerRating(p)),
+          .map((p) => playerRating(p) - injuryCost(s, p)),
       ),
     0,
   );
@@ -238,6 +259,13 @@ export function sideOf(
         `${p.name} would start ${placeName(slots[i])} (${Math.round(after.fitted[i])}), ahead of ${surnameOf(was)} (${Math.round(before.fitted[i])}).`,
       );
     }
+  }
+  for (const p of [...incoming, ...out]) {
+    const n = outFor(s, p);
+    if (n)
+      reasons.push(
+        `${p.name} is injured: out for ${n === 1 ? "one more matchday" : `${n} more matchdays`}.`,
+      );
   }
   for (const p of out) {
     const i = before.xi.indexOf(p);

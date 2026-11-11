@@ -1002,9 +1002,13 @@ const BOX_KEEN = 1.15
 const RANGE_KEEN = 0.85
 /**
  * How readily each position shoots when it has a chance: wide men and holding midfielders have a
- * go, central midfielders more often look for the pass.
+ * go, central midfielders more often look for the pass. Session 35 (the owner: box-to-box midfielders
+ * topped the scoring charts): CM 1.05 -> 0.8 and ST 0.8 -> 0.95, with shooting skill counting more
+ * in eagerness ((skill - 6) / 25, was skill / 50), so it's the good shooters among midfielders who
+ * have a go. Central midfielders' shots fell from ~1.7 to ~1.2 a 90 (real ~1-1.3), strikers' goals
+ * rose from ~0.42 to ~0.5 a 90.
  */
-const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.7, DM: 1.4, CM: 1.05, WM: 1.5, W: 1.25, ST: 0.8 }
+const SHOOTING: Record<Role, number> = { GK: 1, CB: 1, FB: 1.7, DM: 1.4, CM: 0.8, WM: 1.5, W: 1.25, ST: 0.95 }
 const LEAD_SHOTS = 0.3
 const KEEP_FORGONE = 0.7
 
@@ -1025,7 +1029,7 @@ function shotIfWorthIt(d: Decision, bestU: number): Action | null {
   const freeKick = (opts.maxShotDistance ?? 0) > MAX_SHOT_DISTANCE
   const inBox = a.x > PITCH_LENGTH - BOX_DEPTH && Math.abs(a.y - CENTER.y) < BOX_HALF_WIDTH
   const skill = freeKick ? attrs.freeKicks : inBox ? attrs.finishing : attrs.longShots
-  const eagerness = (EAGER + p.def.traits.flair * 0.3 + skill / 50) * footQ * poaching * (freeKick ? 1 : SHOOTING[p.slot.role] * (inBox ? BOX_KEEN : RANGE_KEEN))
+  const eagerness = (EAGER + p.def.traits.flair * 0.3 + (skill - 6) / 25) * footQ * poaching * (freeKick ? 1 : SHOOTING[p.slot.role] * (inBox ? BOX_KEEN : RANGE_KEEN))
   // Patience in their third is for choosing passes, not for passing up a shot.
   // Two or more up, he takes fewer chances on (LEAD_SHOTS less keen at four up). The premium on
   // keeping the ball in their third (ATTACKING_KEEP) is for choosing passes: a shot only partly gives it up.
@@ -2042,11 +2046,12 @@ function runsInBehind(s: MatchState, owner: PlayerState, started: PlayerState[])
 /**
  * How readily each kind of player arrives late in the box, 0-1: a box-to-box midfielder most, an
  * attacking playmaker often, a ball-winner now and then, the holding men hardly at all; full-backs
- * come to the far edge of the box for the ball that drops there.
+ * come to the far edge of the box for the ball that drops there. (Session 35: box-to-box 1 -> 0.6,
+ * playmaker 0.6 -> 0.4: they were arriving often enough to shoot like strikers.)
  */
 const ARRIVAL: Partial<Record<Archetype, number>> = {
-  boxToBox: 1,
-  playmaker: 0.6,
+  boxToBox: 0.6,
+  playmaker: 0.4,
   ballWinner: 0.3,
   deepPlaymaker: 0.1,
   anchor: 0,

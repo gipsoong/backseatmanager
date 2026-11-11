@@ -43,6 +43,28 @@ describe('the January window', () => {
     expect(judge(open, { club: 1, give: [best.id], get: [fringe.id] }).ok).toBe(true)
   })
 
+  it('values an injured player by his quality, less a little for the time he misses', () => {
+    const star = [...theirs].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))[0]
+    const fringe = [...mine].filter((p) => p.role !== 'GK').sort((a, b) => (a.overall ?? 0) - (b.overall ?? 0))[0]
+    const deal = { club: 1, give: [fringe.id], get: [star.id] }
+    const injured = (weeks: number): Season => ({
+      ...open,
+      condition: { ...open.condition, [star.id]: { fitness: 0.3, injuredUntil: open.matchday + weeks } },
+    })
+    // Out for a month: they still won't swap him for a fringe player, and he'd still walk into your side.
+    const month = judge(injured(4), deal)
+    expect(month.ok).toBe(false)
+    expect(month.them!.value).toBeLessThan(-3)
+    // Where he'd play for you is judged as if he were fit.
+    expect(month.you!.reasons[0]).toBe(judge(open, deal).you!.reasons[0])
+    expect(month.you!.reasons.join(' ')).toContain('injured')
+    // Worth less the longer he's out.
+    const fit = judge(open, deal).them!.value
+    const season = judge(injured(99), deal).them!.value
+    expect(month.them!.value).toBeGreaterThan(fit)
+    expect(season).toBeGreaterThan(month.them!.value)
+  })
+
   it('moves the players, keeps both squads whole and records the deal', () => {
     // One of your starters for a fringe player of theirs in his position.
     const fringe = theirs.find((p) => p.role !== 'GK' && open.teams[0].players.some((q) => q.role === p.role))!

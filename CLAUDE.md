@@ -421,6 +421,7 @@ pulling the repo.
 - January window (session 13, draft mode only): `draft/transfers.ts` (`judge`, `makeDeal`),
   `screens/Transfers.tsx` (the Deals tab). Session 16: a deal is judged by what it does to each
   side's best eleven (`elevenOf`, `sideOf`: convex value of fitted ratings, plus a little depth;
+  picked as if all were fit, an injured man less `injuryCost` by the share of the season he'll miss;
   a rival near you in the table or losing its best player asks more), with plain reasons ("X would
   start right wing, ahead of Y"). `offersFor` makes up to two AI offers each window matchday,
   seeded by matchday; turned-down ones are kept in `Season.declined`. Deals are recorded in `Season.transfers`; a player's

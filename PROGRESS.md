@@ -14,10 +14,37 @@ more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily dra
 in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
 a layout pass at every width and standing-tackle animation (session 31); a career in the real
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
-(session 33); real players balanced toward their league's middle (session 34).
+(session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35).
 Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
 high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting; changes for "Just the
 result" matches; replays from the hub's results).
+
+## Done (session 35): injured players in deals, midfielders' goals
+
+The owner: Real Madrid 2011/12 offered Ronaldo (92, injured) for Vitolo (80); and box-to-box
+midfielders (Yaya Touré, Valverde) score a lot, sometimes top the scoring charts.
+- **Deals** (transfers.ts `elevenOf`): a deal's elevens were the staff's pick for Saturday, so an injured
+  (or tired) star dropped out of his club's eleven and was worth nothing to them, and "wouldn't get in"
+  yours. Now picked as if everyone were fit and fresh, then an injured man's fitted overall loses
+  `injuryCost` = `INJURY_COST` 12 x (matchdays out / matchdays left, capped at 1): a month out in
+  January ~3, out for the season 12. Bench depth the same way. Reasons add "X is injured: out for N more
+  matchdays". Serves draft, career and the AI market alike. Test: an injured star still isn't given for
+  a fringe player (them: +0.3 before, < -3 now).
+- **Midfielders' goals** (ai.ts): `SHOOTING` CM 1.05 -> 0.8, ST 0.8 -> 0.95; the shot skill term in
+  eagerness `(skill - 6) / 25` (was `skill / 50`, nearly flat on the 1-20 scale); `ARRIVAL` boxToBox
+  1 -> 0.6, playmaker 0.6 -> 0.4. Draft seasons (sim-season seeds 1, 2 PL, 3 La Liga, plus Yaya 87
+  seeds 1-2 and Valverde 88 seeds 3-4 forced into the drafted side), before -> after:
+  CM 0.16-0.20 -> 0.13-0.15 goals/90, 1.7 -> 1.1-1.3 shots/90; ST 0.38-0.44 -> 0.48-0.53 goals/90,
+  2.5-2.6 -> 3.1-3.3 shots/90; strikers' share of goals 33-40% -> 39-47%. Goals a match 2.68-3.09
+  (mean 2.91) -> 2.88-3.21 (3.01); top scorer 23-42 -> 28-39, a forward every time. Valverde 18/23
+  -> 22/13 (126 shots in the 22 season), Yaya 9/18 -> 14/9. Henderson, Wijnaldum, Lampard no longer
+  15-19. Careers (sim-career 1 season): PL 2.91, Haaland 26, MID 0.12 goals/90 (session 32: 0.15-0.17),
+  FWD 0.32; La Liga 3.19, Lewandowski 36; made-up 2.87, MID 0.11, FWD 0.40.
+  Good long shooters still beat their xG (midfielders with long shots 17+: npG/npxG 1.28; forwards
+  1.2-1.4), the engine's general finishing spread, left as is.
+- **Checks**: calibrate 80 1 and 80 201: 31/31, no violations (goals 1.5, shots 13.1/12.5); tsc;
+  vitest 159 (orders.test's injured-sub case moved to seed 27: seed 16 no longer has an injury);
+  fingerprint.ts now `all 8883e8cb7a2f` (engine change), fingerprint-career.ts `all 079b6011db15`.
 
 ## Done (session 34): real players play nearer their league's middle
 
