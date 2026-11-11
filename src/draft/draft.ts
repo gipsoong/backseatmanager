@@ -47,7 +47,7 @@ const poolsIn = (league: League): number[] => POOLS.flatMap((p, i) => (leagueOf(
 
 // ---- Themes ----
 
-export type ThemeId = 'era-2010' | 'era-2015' | 'era-2020' | 'underdogs' | 'no-stars'
+export type ThemeId = 'europe' | 'era-2010' | 'era-2015' | 'era-2020' | 'underdogs' | 'no-stars'
 
 export interface Theme {
   id: ThemeId
@@ -75,6 +75,7 @@ export const NO_STARS_CAP = 80
 
 /** Themed drafts take club-seasons from all five leagues; the league you play in follows the theme. */
 export const THEMES: Theme[] = [
+  { id: 'europe', name: 'All of Europe', blurb: 'Every club-season of all five leagues', pool: () => true },
   { id: 'era-2010', name: '2010–2015', blurb: 'Seasons 2010/11 to 2014/15', pool: (p) => startYear(p) <= 2014 },
   { id: 'era-2015', name: '2015–2020', blurb: 'Seasons 2015/16 to 2019/20', pool: (p) => startYear(p) >= 2015 && startYear(p) <= 2019 },
   { id: 'era-2020', name: '2020–now', blurb: 'Seasons 2020/21 to 2024/25', pool: (p) => startYear(p) >= 2020 },
@@ -276,6 +277,32 @@ export interface DraftOptions {
   budget?: boolean
   /** A daily draft's date (yyyy-mm-dd). */
   daily?: string
+  /** Club-seasons this browser was offered in earlier drafts (`poolName`), oldest first; ignored by a daily draft. */
+  recent?: string[]
+}
+
+/** A draft offers at most this many seasons of one club (a league's top clubs have five). */
+export const CLUB_SEASONS_MAX = 2
+/** How many recently offered club-seasons are remembered: a few drafts' worth. */
+export const RECENT_MAX = 100
+
+/**
+ * The twenty club-seasons a draft offers: those offered longest ago (or never) first, at most
+ * `CLUB_SEASONS_MAX` of a club, in a random order. Without this, two drafts in a row shared half
+ * their club-seasons, and a top club's core (five seasons each) turned up three times in one draft.
+ */
+function chooseRounds(rng: Rng, pools: number[], recent: string[]): number[] {
+  const last = new Map(recent.map((k, i) => [k, i]))
+  const age = (i: number): number => last.get(poolName(POOLS[i])) ?? -1
+  const order = rng.shuffle(pools).sort((a, b) => age(a) - age(b))
+  const per = new Map<string, number>()
+  const out: number[] = []
+  for (const i of order) {
+    const n = per.get(POOLS[i].club) ?? 0
+    if (out.length < DRAFT_ROUNDS && n < CLUB_SEASONS_MAX) out.push(i), per.set(POOLS[i].club, n + 1)
+  }
+  for (const i of order) if (out.length < DRAFT_ROUNDS && !out.includes(i)) out.push(i)
+  return rng.shuffle(out)
 }
 
 /**
@@ -286,7 +313,7 @@ export function newDraft(seed: number, formation: Formation, league: League = 'P
   const s = opts.daily ? dailySeed(opts.daily) : seed
   const theme = themeOf(opts.theme)
   const rng = new Rng(s)
-  const rounds = rng.shuffle(draftPools({ theme: theme?.id, league })).slice(0, DRAFT_ROUNDS)
+  const rounds = chooseRounds(rng, draftPools({ theme: theme?.id, league }), opts.daily ? [] : (opts.recent ?? []))
   const d: Draft = { seed: s, league, formation, rounds, xi: Array(11).fill(null), bench: Array(DRAFT_SUBS).fill(null) }
   if (theme) {
     d.theme = theme.id

@@ -18,6 +18,7 @@ import {
   draftRating,
   isComplete,
   newDraft,
+  RECENT_MAX,
   offer,
   place,
   poolName,
@@ -28,12 +29,31 @@ import {
   themeOf,
   today,
 } from '../draft/draft.ts'
-import type { League } from '../draft/pools.ts'
+import { POOLS, type League } from '../draft/pools.ts'
 import { Swatch } from './Hub.tsx'
 import { stagger } from './motion.ts'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { shortName as surname, styleLabel } from '../names.ts'
 import { Positions } from './Positions.tsx'
+
+/** Club-seasons this browser was offered lately, so the next draft offers others (kept per browser; optional). */
+const RECENT_KEY = 'matchday.draft.recent'
+function recentPools(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')
+    return Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string') : []
+  } catch {
+    return []
+  }
+}
+function remember(d: DraftState): void {
+  if (d.daily) return
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([...recentPools(), ...d.rounds.map((i) => poolName(POOLS[i]))].slice(-RECENT_MAX)))
+  } catch {
+    // No storage: drafts are just less varied.
+  }
+}
 
 export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: DraftState, name: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState<DraftState | null>(null)
@@ -57,7 +77,11 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
           setOpts({ ...opts, theme: undefined })
         }}
         onOpts={setOpts}
-        onPick={(f) => setDraft(newDraft(seed, f, league, { ...opts, daily: opts.daily ? today() : undefined }))}
+        onPick={(f) => {
+          const d = newDraft(seed, f, league, { ...opts, daily: opts.daily ? today() : undefined, recent: recentPools() })
+          remember(d)
+          setDraft(d)
+        }}
         onBack={onBack}
       />
     )

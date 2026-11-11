@@ -310,6 +310,9 @@ pulling the repo.
   budget, daily} (labels via `draftEyebrow`, cup guests); no version bump. `node scripts/diag-draft.ts
   [n] [seed]`: each league and theme's budget, league elevens, a greedy classic and budget eleven
   (`scripts/greedy-draft.ts`) and its rank; sim-season takes `--theme=<id>` and `--budget`.
+- Draft rotation (session 36): `chooseRounds` takes the club-seasons offered least recently in this
+  browser first (`DraftOptions.recent`, kept by Draft.tsx in localStorage, last `RECENT_MAX`; daily drafts
+  ignore it) and at most `CLUB_SEASONS_MAX` 2 of a club. Theme `europe` ("All of Europe"): every club-season.
 - Knockout matches (session 16): `MatchConfig.knockout` ({ carried } from a first leg). Level on
   aggregate after 90 goes to extra time (`period` 3 and 4, 15 minutes each; `half` stays the
   direction), then penalties (`MatchState.shootout`): each kick is an ordinary penalty restart at

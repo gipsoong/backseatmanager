@@ -14,10 +14,24 @@ more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily dra
 in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
 a layout pass at every width and standing-tackle animation (session 31); a career in the real
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
-(session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35).
+(session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35); draft offers rotate between drafts, All of Europe (session 36).
 Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
 high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting; changes for "Just the
 result" matches; replays from the hub's results).
+
+## Done (session 36): draft variety
+
+The owner: draft mode keeps showing the same players and teams. Measured (200 drafts in a row, seeds
+1000+37k, scratch script): two drafts in a row shared ~47-50% of their club-seasons and ~57-63% of the
+players offered, and one club gave 3.3 of a draft's 20 seasons on average. Cause: each league has only
+~40 club-seasons, a draft takes 20 at random, and the top clubs have five seasons each with the same core.
+- `chooseRounds` (draft.ts): club-seasons this browser was offered least recently first (`DraftOptions.recent`,
+  `poolName`s oldest first; Draft.tsx keeps the last `RECENT_MAX` 100 in localStorage `matchday.draft.recent`,
+  not for daily drafts, which ignore it), at most `CLUB_SEASONS_MAX` 2 seasons of a club. Now 0-10% of
+  club-seasons and 27-39% of players repeat from the last draft (the rest is players in several seasons).
+- New theme "All of Europe" (`europe`): every club-season of the five leagues (~200, ~3000 players);
+  10% of players repeat from the last draft. Engine untouched.
+- Not done (owner's call): more club-seasons per league (mid-table and smaller clubs) would be the real fix.
 
 ## Done (session 35): injured players in deals, midfielders' goals
 

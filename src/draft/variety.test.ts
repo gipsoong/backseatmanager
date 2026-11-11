@@ -5,6 +5,9 @@ import { GUEST, type Result, type Season, createSeason, matchdays, playerRating 
 import { upgradeSave } from '../season/store.ts'
 import { advanceCup } from './cup.ts'
 import {
+  CLUB_SEASONS_MAX,
+  RECENT_MAX,
+  poolName,
   DRAFT_LEAGUE_SIZE,
   DRAFT_ROUNDS,
   type Draft,
@@ -166,6 +169,29 @@ describe('themed drafts', () => {
     }
     const names = [...s.teams, ...cup.guests].flatMap((t) => [...t.players, ...t.bench].map((p) => p.name))
     expect(new Set(names).size).toBe(names.length)
+  })
+})
+
+describe('offers from draft to draft', () => {
+  it('rotate through club-seasons offered least recently, at most two seasons of a club', () => {
+    for (const league of LEAGUES) {
+      let recent: string[] = []
+      let prev: number[] = []
+      for (let k = 0; k < 6; k++) {
+        const d = newDraft(40 + k, '4-3-3', league, { recent })
+        const clubs = d.rounds.map((i) => POOLS[i].club)
+        for (const c of clubs) expect(clubs.filter((x) => x === c).length, `${league} ${c}`).toBeLessThanOrEqual(CLUB_SEASONS_MAX)
+        // Each league has ~40 club-seasons: the next draft is mostly ones this one didn't offer.
+        expect(d.rounds.filter((i) => prev.includes(i)).length, league).toBeLessThanOrEqual(6)
+        prev = d.rounds
+        recent = [...recent, ...d.rounds.map((i) => poolName(POOLS[i]))].slice(-RECENT_MAX)
+      }
+    }
+  })
+
+  it('leave a daily draft alone: everyone gets the same offers', () => {
+    const recent = POOLS.map(poolName)
+    expect(newDraft(1, '4-3-3', 'Premier League', { daily: '2026-11-11', recent }).rounds).toEqual(newDraft(2, '4-3-3', 'Premier League', { daily: '2026-11-11' }).rounds)
   })
 })
 
