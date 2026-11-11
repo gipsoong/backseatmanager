@@ -4,6 +4,7 @@ import { draftLeague, isComplete, newDraft, offer, place } from './draft.ts'
 import { FORMATIONS } from '../engine/index.ts'
 import { DEALS_PER_WINDOW, dealKey, decline, judge, makeDeal, offersFor, windowMatchdays, windowOpen } from './transfers.ts'
 import type { Season } from '../season/season.ts'
+import { upgradeSave } from '../season/store.ts'
 
 function draftSeason(seed: number): Season {
   let d = newDraft(seed, '4-3-3')
@@ -63,6 +64,18 @@ describe('the January window', () => {
     const season = judge(injured(99), deal).them!.value
     expect(month.them!.value).toBeGreaterThan(fit)
     expect(season).toBeGreaterThan(month.them!.value)
+  })
+
+  it('has room in every squad for a two-for-one either way, and a keeper to spare', () => {
+    for (const t of open.teams) {
+      expect(squadOf(t).length).toBe(24)
+      expect(squadOf(t).filter((p) => p.role === 'GK').length).toBeGreaterThanOrEqual(2)
+    }
+    // An old save without reserves gets them on loading, fit and with an empty season.
+    const old: Season = { ...open, teams: open.teams.map((t) => ({ ...t, bench: t.bench.filter((p) => !/^r\d+-/.test(p.id)) })) }
+    const back = upgradeSave(JSON.parse(JSON.stringify(old)))
+    expect(back.teams.map((t) => squadOf(t).length)).toEqual(open.teams.map(() => 24))
+    for (const p of back.teams.flatMap(squadOf)) expect(back.condition[p.id] && back.stats[p.id]).toBeTruthy()
   })
 
   it('moves the players, keeps both squads whole and records the deal', () => {

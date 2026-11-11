@@ -3,7 +3,7 @@ import { openDB } from 'idb'
 import { type Attributes, type LegacyAttributes, type PlayerDef, archetypeFrom, upgradeAttributes } from '../engine/index.ts'
 import type { Season } from './season.ts'
 import { upgradeCareer } from '../career/career.ts'
-import { poolPlayer } from '../draft/draft.ts'
+import { poolPlayer, withReserves } from '../draft/draft.ts'
 import { POOLS } from '../draft/pools.ts'
 
 const db = () =>
@@ -21,7 +21,24 @@ export async function loadSeason(): Promise<Season | null> {
 
 /** Any save we can carry on, brought up to date: sub-attributes, then a career for club mode. */
 export function upgradeSave(s: Season): Season {
-  return upgradeCareer(shifted(upgraded(s)))
+  return upgradeCareer(reserved(shifted(upgraded(s))))
+}
+
+/**
+ * A draft save from before reserves (session 35): every club gets its reserves now, fit and with an
+ * empty season, so deals in the window it's in aren't held up by squad sizes.
+ */
+function reserved(s: Season): Season {
+  if (s.mode !== 'draft' || s.teams.some((t) => [...t.players, ...t.bench].some((p) => /^r\d+-/.test(p.id)))) return s
+  const taken = new Set(s.teams.flatMap((t) => [...t.players, ...t.bench].map((p) => p.name)))
+  const teams = s.teams.map((t, k) => withReserves(t, k, taken, s.seed))
+  const fresh = teams.flatMap((t) => t.bench).filter((p) => !s.condition[p.id])
+  return {
+    ...s,
+    teams,
+    condition: { ...s.condition, ...Object.fromEntries(fresh.map((p) => [p.id, { fitness: 1, injuredUntil: 0 }])) },
+    stats: { ...s.stats, ...Object.fromEntries(fresh.map((p) => [p.id, { apps: 0, goals: 0, assists: 0, ratings: 0 }])) },
+  }
 }
 
 /**

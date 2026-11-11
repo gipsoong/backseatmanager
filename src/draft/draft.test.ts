@@ -3,7 +3,7 @@ import { ARCHETYPES, FORMATIONS, ROLE_OFFSET, archetypeOf, fitFor, groupRatings,
 import { cardOf } from './cards.ts'
 import { strikingFoot } from '../engine/ai.ts'
 import { autoPick, createSeason, matchdays, playerRating, squadOf } from '../season/season.ts'
-import { DRAFT_LEAGUE_SIZE, DRAFT_ROUNDS, type Draft, LEAGUES, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
+import { DRAFT_LEAGUE_SIZE, DRAFT_SQUAD, DRAFT_ROUNDS, type Draft, LEAGUES, draftLeague, draftRating, isComplete, levelOf, newDraft, offer, place, poolPlayer, poolTeam, roundOf } from './draft.ts'
 import { type League, POOLS } from './pools.ts'
 import { upgradeSave } from '../season/store.ts'
 
@@ -147,13 +147,16 @@ describe('draft', () => {
         const ids = teams.flatMap(squadOf).map((p) => p.id)
         expect(new Set(ids).size).toBe(ids.length)
         for (const t of teams.slice(1)) {
-          expect(t.bench).toHaveLength(9)
-          expect(t.bench.some((p) => p.role === 'GK')).toBe(true)
-          expect(t.bench.map((p) => p.shirt)).toEqual([12, 13, 14, 15, 16, 17, 18, 19, 20])
+          // Nine subs, then reserves up to a squad of DRAFT_SQUAD with two keepers.
+          expect(squadOf(t)).toHaveLength(DRAFT_SQUAD)
+          expect(squadOf(t).filter((p) => p.role === 'GK').length).toBeGreaterThanOrEqual(2)
+          expect(t.bench.slice(0, 9).some((p) => p.role === 'GK')).toBe(true)
+          expect(t.bench.slice(0, 9).map((p) => p.shirt)).toEqual([12, 13, 14, 15, 16, 17, 18, 19, 20])
+          expect(new Set(t.bench.map((p) => p.shirt)).size).toBe(t.bench.length)
           // Fill-ins come in no better than the side's weakest starter: the club-season stays itself.
           const weakest = Math.min(...t.players.map(playerRating))
           const own = new Set(POOLS.find((p) => `${p.club} ${p.season}` === t.name)!.players.map(([n]) => n))
-          for (const p of t.bench) if (!own.has(p.name)) expect(playerRating(p)).toBeLessThanOrEqual(weakest + 2)
+          for (const p of t.bench) if (!own.has(p.name) && !/^r\d+-/.test(p.id)) expect(playerRating(p)).toBeLessThanOrEqual(weakest + 2)
         }
       }
   })

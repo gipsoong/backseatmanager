@@ -194,7 +194,8 @@ pulling the repo.
   remakes an old draft save's pool players (`p<pool>-<i>` ids) as they're made now. Benches:
   `fillBench` makes every club-season's bench nine with a keeper (the club's other seasons, nearest
   first, no better than its weakest starter, then `makePlayerAt` made-up men 2 below it), after
-  every side has its own men. Measure draft goals with `node scripts/diag-draft-goals.ts [n a kind]
+  every side has its own men; then `withReserves` (session 35) makes every squad 24 with two keepers (made-up
+  reserves 4 below the weakest starter), so deals aren't held up by squad sizes. Measure draft goals with `node scripts/diag-draft-goals.ts [n a kind]
   [seed] [kinds]` (draft leagues of each league next to career leagues at full fitness: goals, xG,
   shots, conversion, by eleven gap, lines' attributes; 500 a kind for ±0.07) and sim-season. Club and career players (session 21, `madeCard` in teams.ts) get their archetype's
   card too, at the level that puts their position's skills where the old profiles' were (`CARD_LEVEL`),

@@ -17,6 +17,7 @@ import {
   budgetFor,
   canAfford,
   dailySeed,
+  DRAFT_SQUAD,
   draftLeague,
   isComplete,
   leagueLevel,
@@ -139,8 +140,8 @@ describe('themed drafts', () => {
       for (const team of teams) {
         expect(team.players).toHaveLength(11)
         expect(team.players[0].role).toBe('GK')
-        // Later sides lose men to earlier ones; the bench is made up to nine (fillBench).
-        expect(team.bench).toHaveLength(9)
+        // Later sides lose men to earlier ones; the bench is made up to nine (fillBench), then reserves.
+        expect(team.players.length + team.bench.length).toBe(DRAFT_SQUAD)
       }
       const everyone = teams.flatMap((team) => [...team.players, ...team.bench])
       expect(new Set(everyone.map((p) => p.name)).size).toBe(everyone.length)

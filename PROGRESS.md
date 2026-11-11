@@ -42,6 +42,12 @@ midfielders (Yaya Touré, Valverde) score a lot, sometimes top the scoring chart
   FWD 0.32; La Liga 3.19, Lewandowski 36; made-up 2.87, MID 0.11, FWD 0.40.
   Good long shooters still beat their xG (midfielders with long shots 17+: npG/npxG 1.28; forwards
   1.2-1.4), the engine's general finishing spread, left as is.
+- **Reserves** (owner: deals kept failing on "both squads need 18" / "both sides need a goalkeeper"):
+  `withReserves` (draft.ts) tops every draft club, the drafted side too, up to `DRAFT_SQUAD` 24 with
+  two keepers: made-up men `RESERVES_BELOW` 4 under the weakest starter, by what the squad is short
+  of (`SQUAD_NEEDS`), ids `r<club>-<i>`, after the nine subs. Draft `MAX_SQUAD` 22 -> 26. Old draft
+  saves get them on loading (store.ts `reserved`). A season (sim-season 1): reserves 1.6 minutes a
+  club a match, goals 2.80, top scorer 27. Career squads unchanged.
 - **Checks**: calibrate 80 1 and 80 201: 31/31, no violations (goals 1.5, shots 13.1/12.5); tsc;
   vitest 159 (orders.test's injured-sub case moved to seed 27: seed 16 no longer has an injury);
   fingerprint.ts now `all 8883e8cb7a2f` (engine change), fingerprint-career.ts `all 079b6011db15`.

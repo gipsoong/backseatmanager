@@ -443,7 +443,54 @@ export function draftLeague(d: Draft, name: string): TeamDef[] {
   })
   // Then short benches are made up, once every side has its own men (fill-ins take nobody's).
   const filled = teams.map((t, k) => fillBench(t, chosen[k], taken, d.theme))
-  return [draftTeam(d, name), ...withBlocks(filled, new Rng(d.seed + 2))]
+  const league = [draftTeam(d, name), ...withBlocks(filled, new Rng(d.seed + 2))]
+  return league.map((t, k) => withReserves(t, k, taken, d.seed))
+}
+
+/**
+ * Every draft club's squad (the drafted side's too): the eleven, nine subs, and made-up reserves up
+ * to `DRAFT_SQUAD`, with two keepers (session 35: deals kept running into "both squads need 18" and
+ * "both sides need a goalkeeper"). Reserves sit `RESERVES_BELOW` under the club's weakest starter, so
+ * they only play when injuries bite; a matchday still takes the best nine fit subs.
+ */
+export const DRAFT_SQUAD = 24
+const RESERVES_BELOW = 4
+/** How many of each a squad should hold before reserves go anywhere else (wide and central mixed). */
+const SQUAD_NEEDS: [Role, Role[], number][] = [
+  ['GK', ['GK'], 2],
+  ['CB', ['CB'], 4],
+  ['FB', ['FB'], 4],
+  ['CM', ['CM', 'DM'], 5],
+  ['ST', ['ST'], 3],
+  ['W', ['W', 'WM'], 3],
+]
+
+export function withReserves(team: TeamDef, k: number, taken: Set<string>, seed: number): TeamDef {
+  const squad = [...team.players, ...team.bench]
+  if (squad.length >= DRAFT_SQUAD && squad.filter((p) => p.role === 'GK').length >= 2) return team
+  const rng = new Rng(seed * 31 + k * 977 + 13)
+  const weakest = Math.min(...team.players.map((p) => p.overall ?? 0))
+  const shirts = new Set(squad.map((p) => p.shirt))
+  const bench = [...team.bench]
+  const count = (roles: Role[]): number => [...team.players, ...bench].filter((p) => roles.includes(p.role)).length
+  let i = 0
+  const add = (role: Role): void => {
+    // A surname new to the club, and a full name nobody in the league has.
+    const own = [...team.players, ...bench].map((p) => p.name)
+    let name = freshName(rng, own)
+    for (let n = 0; n < 200 && taken.has(name); n++) name = freshName(rng, own)
+    taken.add(name)
+    let shirt = 12
+    while (shirts.has(shirt)) shirt++
+    shirts.add(shirt)
+    bench.push(makePlayerAt(rng, `r${k}-${i++}`, name, shirt, role, weakest - RESERVES_BELOW))
+  }
+  if (count(['GK']) < 2) add('GK')
+  while (team.players.length + bench.length < DRAFT_SQUAD) {
+    const short = SQUAD_NEEDS.map(([role, roles, n]) => [role, n - count(roles)] as const).sort((a, b) => b[1] - a[1])[0]
+    add(short[0])
+  }
+  return { ...team, bench }
 }
 
 /**

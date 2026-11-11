@@ -41,7 +41,7 @@ export const DEALS_PER_WINDOW = 3;
 export const MAX_PER_SIDE = 2;
 /** Squad sizes a deal can leave a club with. */
 const MIN_SQUAD = 18;
-const MAX_SQUAD = 22;
+const MAX_SQUAD = 26;
 /** A career squad can hold a few more (the summer trims it back to the academy's cap). */
 const CAREER_MAX_SQUAD = 26;
 const maxSquad = (s: Season): number =>
