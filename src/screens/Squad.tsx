@@ -46,7 +46,7 @@ const APPROACHES: [Block, string, string][] = [
 
 const MENTALITIES: [Mentality, string, string][] = [
   ['defensive', 'Careful', 'Patient on the ball, full-backs and midfielders hold back: a tighter game, fewer chances either way'],
-  ['balanced', 'Balanced', 'The usual: full-backs and midfielders join in when it’s on'],
+  ['balanced', 'Balanced', 'The usual: full-backs and midfielders join in when it’s on. Late on, the staff push for an equaliser or protect a one-goal lead'],
   ['attacking', 'Go for it', 'Full-backs and midfielders push up and get into the box: more chances, more left open behind'],
 ]
 
@@ -157,7 +157,7 @@ export function Squad({
             <span className="eyebrow">With the ball</span>
             <div className="approach-seg">
               {MENTALITIES.map(([m, label, blurb]) => (
-                <button type="button" key={m} aria-pressed={(club.mentality ?? 'balanced') === m} title={blurb} onClick={() => onTactics({ mentality: m })}>
+                <button type="button" key={m} aria-pressed={(club.mentality ?? 'balanced') === m} title={blurb} onClick={() => onTactics({ mentality: m === 'balanced' ? undefined : m })}>
                   {label}
                 </button>
               ))}
