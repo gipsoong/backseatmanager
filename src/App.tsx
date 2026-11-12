@@ -2,7 +2,7 @@ import { Logo } from "./screens/Logo.tsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { randomTeam } from "./engine/index.ts";
 import { budgetFor, draftLeague } from "./draft/draft.ts";
-import { decline, makeDeal } from "./draft/transfers.ts";
+import { decline, makeDeal, windowOpen } from "./draft/transfers.ts";
 import { Draft } from "./screens/Draft.tsx";
 import { Hub } from "./screens/Hub.tsx";
 import { RoundUp } from "./screens/RoundUp.tsx";
@@ -20,6 +20,7 @@ import {
   matchTeam,
   resultOf,
   userFixture,
+  isOver,
   keepRewatch,
   rewatchOf,
 } from "./season/season.ts";
@@ -210,20 +211,21 @@ export default function App() {
     setScreen({ kind: "hub" });
   };
 
-  const simulateMatchday = async (was: Season): Promise<void> => {
-    setBusy(true);
+  /** Plays the day's matches (his too) without watching, saves, and hands back the season after it. */
+  const playDay = async (was: Season): Promise<Season> => {
     const s = await cupRoundFirst(was);
+    let next: Season;
     if (userCupTie(s))
-      await commit(
+      next = (
         completeCupDay(
           s,
           await simulateMatches(domesticCupMatches(s), fitnessFor(s), {
             foreground: true,
           }),
-        ),
+        )
       );
     else if (isCupDay(s))
-      await commit(
+      next = (
         completeCupMatchday(
           s,
           await simulateMatches(
@@ -231,7 +233,7 @@ export default function App() {
             fitnessFor(s),
             { foreground: true },
           ),
-        ),
+        )
       );
     else {
       const results = await simulate(s, fixturesOn(s, s.matchday), { foreground: true });
@@ -239,16 +241,29 @@ export default function App() {
       const mine = f && results.get(f.id);
       const kept = f && mine ? keepRewatch(s, f.id, rewatchOf(s, f), mine.score) : s;
       setRoundUp(s.matchday);
-      await commit(
-        advanceCup(
-          marketDay(
-            completeMatchday(
-              kept,
-              results,
-            ),
-          ),
-        ),
-      );
+      next = advanceCup(marketDay(completeMatchday(kept, results)));
+    }
+    await commit(next);
+    return next;
+  };
+
+  const simulateMatchday = async (was: Season): Promise<void> => {
+    setBusy(true);
+    await playDay(was);
+    setBusy(false);
+  };
+
+  /**
+   * Plays on without watching, up to `days` days, stopping early when something wants him: the
+   * league over, or a transfer window opening.
+   */
+  const simulateAhead = async (was: Season, days: number): Promise<void> => {
+    setBusy(true);
+    let s = was;
+    for (let i = 0; i < days && !isOver(s); i++) {
+      const open = windowOpen(s);
+      s = await playDay(s);
+      if (!open && windowOpen(s)) break;
     }
     setBusy(false);
   };
@@ -413,6 +428,7 @@ export default function App() {
             busy={busy}
             onWatch={() => void watch(season)}
             onSimulate={() => void simulateMatchday(season)}
+            onSimulateAhead={(days) => void simulateAhead(season, days)}
             onNewSeason={season.mode === "draft" ? newDraft : () => newSeason()}
             onNextSeason={
               season.career

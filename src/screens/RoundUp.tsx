@@ -20,7 +20,9 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
   const fixtures = fixturesOn(season, matchday).filter((f) => f.result)
   const mine = fixtures.find((f) => f.home === season.userTeam || f.away === season.userTeam)
   const others = fixtures.filter((f) => f !== mine)
-  const place = table(season).findIndex((r) => r.team === season.userTeam) + 1
+  const rows = table(season)
+  const place = rows.findIndex((r) => r.team === season.userTeam) + 1
+  const form = rows[place - 1]?.form ?? []
   const move = tableMoves(season)[season.userTeam]
   const name = (i: number): string => season.teams[i].name
   const score = mine?.result ? (mine.home === season.userTeam ? mine.result.score : [mine.result.score[1], mine.result.score[0]]) : null
@@ -45,6 +47,15 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
         <p className="roundup-place">
           {ordinal(place)} in the table
           {move !== 0 && <span className={`last-move ${move > 0 ? 'up' : 'down'}`}> {move > 0 ? '▲' : '▼'} {Math.abs(move)}</span>}
+          {form.length > 1 && (
+            <span className="roundup-form" aria-label={`Form: ${form.join(' ')}`}>
+              {form.map((f, i) => (
+                <span key={i} className={`res-chip ${f}`} style={{ animationDelay: `${200 + i * 70}ms` }}>
+                  {f}
+                </span>
+              ))}
+            </span>
+          )}
         </p>
         <ul className="roundup-list">
           {others.map((f, i) => (

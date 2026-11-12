@@ -76,6 +76,7 @@ export function Hub({
   busy,
   onWatch,
   onSimulate,
+  onSimulateAhead,
   onNewSeason,
   onNextSeason,
   onLineup,
@@ -93,6 +94,8 @@ export function Hub({
   busy: boolean;
   onWatch: () => void;
   onSimulate: () => void;
+  /** Play on without watching, up to this many matchdays (stopping when a window opens). */
+  onSimulateAhead?: (days: number) => void;
   onNewSeason: () => void;
   /** Career mode: on to next season with the same club. */
   /** On to next season, at `club` if he takes a job there (`sacked`: he was let go). */
@@ -283,6 +286,17 @@ export function Hub({
                   {busy ? "Playing…" : "Just the result"}
                 </button>
               </div>
+              {onSimulateAhead && matchdays(season) - season.matchday >= 2 && (
+                <button
+                  type="button"
+                  className="link sim-ahead"
+                  onClick={() => onSimulateAhead(5)}
+                  disabled={busy}
+                  title="Plays your next five matches without watching, stopping if a transfer window opens"
+                >
+                  Play the next {Math.min(5, matchdays(season) - season.matchday + 1)} matchdays ›
+                </button>
+              )}
             </>
           ) : (
             <>

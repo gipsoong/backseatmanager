@@ -2937,6 +2937,17 @@ button.name-link {
   font-weight: 700;
 }
 
+.roundup-form {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.roundup-actions .btn {
+  white-space: nowrap;
+}
+
 .roundup-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -3566,6 +3577,22 @@ div.draft-hint .meta {
   display: block;
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+.sim-ahead {
+  justify-self: start;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.sim-ahead:disabled {
+  opacity: 0.5;
 }
 
 .last-rewatch {
