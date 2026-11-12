@@ -63,6 +63,13 @@ The owner asked for a long autonomous push (depth, animations, phone UI, brandin
   manager over every finished season (at the club he was at) and this one. Season lines of the manager's club
   keep the player's `name`, so men who've left or retired still show. fingerprint-career.ts is now
   `all 0015f930c30c` (the new `club` and `name` fields; no logic changed).
+- **Pundits' tips** (`tipsOf`, `bestElevenRating` in season.ts; career's `elevenRating` and jobs' `elevenRanks`
+  are now these): the hub before matchday 1 says who's tipped for the title and where you are; `Season.tips` is
+  set by `completeMatchday` on matchday 1, and the review says how the season compared.
+- **Momentum strip** (`viewer/momentum.ts`, MatchViewer `Momentum`): 48 slices above the scrubber, home up and
+  away down, from sampled frames (ball owner deep in the other half) plus shots' xG; only slices already played.
+- **Round-up** scorers under the score, and `milestones` (records.ts): 10/25/50… goals, 50/100… appearances
+  under him (outside a career: goals of the season).
 - **Mentality tried and dropped** (not shipped): a `TeamDef.mentality` scaling `keenness` (0.75 / 1.3) and late
   runs (`arrivalEagerness`, 0.5 / 1.5), as an order like the block. Byte-identical when unset, but a mirror test
   (same squad, 100 matches a set, two sets) had "careful" beating balanced by +0.10 to +0.22 xGD and "attacking"
