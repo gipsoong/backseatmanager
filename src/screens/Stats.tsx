@@ -234,7 +234,7 @@ export function SeasonReview({ season }: { season: Season }) {
                   {x.avg.toFixed(2)} <small>{slotLabel(shape[i])}</small>
                 </span>
                 <span className="who">
-                  <Swatch kit={season.teams[x.club].kit} /> {shortName(x.player.name)}
+                  <Swatch kit={season.teams[x.club].kit} /> <span className="who-name">{shortName(x.player.name)}</span>
                 </span>
               </button>
             ))}
