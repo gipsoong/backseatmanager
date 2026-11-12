@@ -30,7 +30,27 @@ export interface Draft {
   money?: number
   /** A daily draft: the UTC date (yyyy-mm-dd) its seed comes from. */
   daily?: string
+  /** Rounds with a twist (session 37), by round index; unset in older drafts. */
+  twists?: Record<number, Twist>
+  /** Rerolls left: swap a round's club-season for the next spare. */
+  rerolls?: number
+  /** Club-seasons not in the rounds, next first: for rerolls. */
+  spares?: number[]
 }
+
+/**
+ * A round with a twist: two club-seasons to choose from (`pair`, the second is `other`); ratings
+ * hidden until he's placed (`blind`); only one line's players (`line`); or a strong club-season
+ * dropped in (`star`, chosen when the draft is made: the twist only names it).
+ */
+export type Twist = { kind: 'pair'; other: number } | { kind: 'blind' } | { kind: 'line'; line: Line } | { kind: 'star' }
+export type Line = 'defence' | 'midfield' | 'attack'
+export const LINE_ROLES: Record<Line, Role[]> = { defence: ['CB', 'FB'], midfield: ['DM', 'CM', 'WM'], attack: ['W', 'ST'] }
+/** Rounds a draft twists, and rerolls it gives. */
+export const TWISTS = 5
+export const REROLLS = 2
+/** Spare club-seasons kept for rerolls and pair rounds. */
+const SPARES = 10
 
 /** Where a pick goes: a starting place (formation slot) or a place on the bench. */
 export type Place = { xi: number } | { bench: number }
@@ -280,6 +300,8 @@ export interface DraftOptions {
   daily?: string
   /** Club-seasons this browser was offered in earlier drafts (`poolName`), oldest first; ignored by a daily draft. */
   recent?: string[]
+  /** Twists and rerolls (session 37; the screen turns them on, scripts and older tests leave them off). */
+  twists?: boolean
 }
 
 /** A draft offers at most this many seasons of one club (a league's top clubs have five). */
@@ -322,7 +344,64 @@ export function newDraft(seed: number, formation: Formation, league: League = 'P
   }
   if (opts.budget) d.money = budgetFor(d)
   if (opts.daily) d.daily = opts.daily
-  return d
+  return opts.twists ? withTwists(d, draftPools({ theme: theme?.id, league }), opts.daily ? [] : (opts.recent ?? [])) : d
+}
+
+/**
+ * The draft's twists and rerolls, from their own random stream (so the rounds stay as they were):
+ * spare club-seasons (least recently offered first), then TWISTS rounds after the first with a
+ * twist each. A `star` round swaps its club-season for one of the strongest spares; a `pair` round
+ * gets a spare beside it; a `line` round's line is one its club-season has players for. No blind
+ * rounds in a budget draft (the prices would give the ratings away).
+ */
+function withTwists(d: Draft, pools: number[], recent: string[]): Draft {
+  const rng = new Rng(d.seed * 31 + 7)
+  const last = new Map(recent.map((k, i) => [k, i]))
+  const age = (i: number): number => last.get(poolName(POOLS[i])) ?? -1
+  const spares = rng.shuffle(pools.filter((i) => !d.rounds.includes(i))).sort((a, b) => age(a) - age(b)).slice(0, SPARES)
+  const rounds = [...d.rounds]
+  const twists: Record<number, Twist> = {}
+  const strength = (i: number): number => POOLS[i].players.map(([, , o]) => o).sort((a, b) => b - a).slice(0, 11).reduce((a, b) => a + b, 0)
+  const kinds: Twist['kind'][] = d.money === undefined ? ['pair', 'blind', 'line', 'star'] : ['pair', 'line', 'star']
+  const at = rng.shuffle(Array.from({ length: DRAFT_ROUNDS - 1 }, (_, i) => i + 1)).slice(0, TWISTS)
+  for (const r of at) {
+    const kind = rng.pick(kinds)
+    if (kind === 'pair' && spares.length > 2) twists[r] = { kind, other: spares.pop()! }
+    else if (kind === 'star' && spares.length > 2) {
+      const best = [...spares].sort((a, b) => strength(b) - strength(a))[0]
+      spares.splice(spares.indexOf(best), 1)
+      if (strength(best) > strength(rounds[r])) {
+        rounds[r] = best
+        twists[r] = { kind }
+      }
+    } else if (kind === 'line') {
+      const roles = new Set(POOLS[rounds[r]].players.map(([, pos]) => pos.split('/')[0] as Role))
+      const lines = (Object.keys(LINE_ROLES) as Line[]).filter((l) => LINE_ROLES[l].some((x) => roles.has(x)))
+      if (lines.length) twists[r] = { kind, line: rng.pick(lines) }
+    } else if (kind === 'blind') twists[r] = { kind }
+  }
+  return { ...d, rounds, twists, rerolls: REROLLS, spares }
+}
+
+/** This round's twist, if it has one. */
+export const twistOf = (d: Draft, round = roundOf(d)): Twist | undefined => d.twists?.[round]
+
+/** Why this round can't be rerolled, or null if it can. */
+export function rerollProblem(d: Draft): string | null {
+  if (isComplete(d)) return 'The draft is done.'
+  if (!d.rerolls) return 'No rerolls left.'
+  if (!d.spares?.length) return 'No club-seasons left to swap in.'
+  return null
+}
+
+/** Swap this round's club-season for the next spare (any twist on the round goes with it). */
+export function reroll(d: Draft): Draft {
+  if (rerollProblem(d)) return d
+  const r = roundOf(d)
+  const [next, ...spares] = d.spares!
+  const twists = { ...d.twists }
+  delete twists[r]
+  return { ...d, rounds: d.rounds.map((x, i) => (i === r ? next : x)), spares, rerolls: d.rerolls! - 1, twists }
 }
 
 /** The round being played (0-based): how many have been picked so far. */
@@ -333,13 +412,28 @@ export const isComplete = (d: Draft): boolean => roundOf(d) >= DRAFT_ROUNDS
 /** Names of the players drafted so far. */
 const draftedNames = (d: Draft): Set<string> => new Set([...d.xi, ...d.bench].flatMap((p) => (p ? [p.name] : [])))
 
-/** This round's offer: the pool and its players, less any already drafted from another season. */
-export function offer(d: Draft): { pool: Pool; players: PlayerDef[] } {
-  const idx = d.rounds[roundOf(d)]
+/**
+ * This round's offer: the pool and its players, less any already drafted from another season; in a
+ * pair round both club-seasons' (`pools`, the round's first), in a line round only that line's.
+ */
+export function offer(d: Draft): { pool: Pool; players: PlayerDef[]; pools: { pool: Pool; players: PlayerDef[] }[] } {
   const drafted = draftedNames(d)
   const theme = themeOf(d.theme)
-  const players = POOLS[idx].players.map((_, i) => poolPlayer(idx, i)).filter((p) => !drafted.has(p.name) && inTheme(theme, p.overall ?? 0))
-  return { pool: POOLS[idx], players }
+  const twist = twistOf(d)
+  const of = (idx: number): PlayerDef[] =>
+    POOLS[idx].players
+      .map((_, i) => poolPlayer(idx, i))
+      .filter((p) => !drafted.has(p.name) && inTheme(theme, p.overall ?? 0) && (twist?.kind !== 'line' || LINE_ROLES[twist.line].includes(p.role)))
+  const idx = d.rounds[roundOf(d)]
+  const pools = [idx, ...(twist?.kind === 'pair' ? [twist.other] : [])].map((i) => ({ pool: POOLS[i], players: of(i) }))
+  // (A line round with nobody left in that line, or nobody for the places still open, offers the whole squad.)
+  const usable = (p: PlayerDef): boolean => d.bench.includes(null) || FORMATIONS[d.formation].some((slot, i) => !d.xi[i] && fitFor(p, slot) > 0)
+  if (twist?.kind === 'line' && !pools[0].players.some(usable)) {
+    const twists = { ...d.twists }
+    delete twists[roundOf(d)]
+    return offer({ ...d, twists })
+  }
+  return { pool: pools[0].pool, players: pools.flatMap((x) => x.players), pools }
 }
 
 /** How much a player counts in a starting place: his overall, less out of position. */

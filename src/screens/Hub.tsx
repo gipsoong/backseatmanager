@@ -1,5 +1,6 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
 import { Preview } from "./Preview.tsx";
+import { RunGoals } from "./RunGoals.tsx";
 import { PositionChart } from "./PositionChart.tsx";
 import { useMemo, useState } from "react";
 import type { Formation, Kit, TeamDef } from "../engine/index.ts";
@@ -256,6 +257,7 @@ export function Hub({
                 </p>
               )}
               <BoardLine season={season} over={false} />
+              <RunGoals season={season} />
               {season.career && inTheRed(season) && (
                 <p className="money-warning">{RED_LINE}</p>
               )}
@@ -335,6 +337,7 @@ export function Hub({
                   ` A top-${CUP_PLACES} finish would have played on in the ${CUP_NAME}.`}
               </p>
               <BoardLine season={season} over />
+              <RunGoals season={season} />
               {season.career && toDecide > 0 && (
                 <div className="window-note">
                   <p className="meta">

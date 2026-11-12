@@ -19,8 +19,13 @@ import {
   isComplete,
   newDraft,
   RECENT_MAX,
+  LINE_ROLES,
   offer,
   place,
+  reroll,
+  rerollProblem,
+  twistOf,
+  type Twist,
   poolName,
   priceIn,
   reserveFor,
@@ -35,6 +40,7 @@ import { stagger } from './motion.ts'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { shortName as surname, styleLabel } from '../names.ts'
 import { Positions } from './Positions.tsx'
+import { PastRuns } from './RunGoals.tsx'
 
 /** Club-seasons this browser was offered lately, so the next draft offers others (kept per browser; optional). */
 const RECENT_KEY = 'matchday.draft.recent'
@@ -46,10 +52,10 @@ function recentPools(): string[] {
     return []
   }
 }
-function remember(d: DraftState): void {
+function remember(d: DraftState, pools: number[] = [...d.rounds, ...Object.values(d.twists ?? {}).flatMap((t) => (t.kind === 'pair' ? [t.other] : []))]): void {
   if (d.daily) return
   try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([...recentPools(), ...d.rounds.map((i) => poolName(POOLS[i]))].slice(-RECENT_MAX)))
+    localStorage.setItem(RECENT_KEY, JSON.stringify([...recentPools(), ...pools.map((i) => poolName(POOLS[i]))].slice(-RECENT_MAX)))
   } catch {
     // No storage: drafts are just less varied.
   }
@@ -78,7 +84,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
         }}
         onOpts={setOpts}
         onPick={(f) => {
-          const d = newDraft(seed, f, league, { ...opts, daily: opts.daily ? today() : undefined, recent: recentPools() })
+          const d = newDraft(seed, f, league, { ...opts, twists: opts.twists !== false, daily: opts.daily ? today() : undefined, recent: recentPools() })
           remember(d)
           setDraft(d)
         }}
@@ -158,7 +164,18 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
               </button>
             </form>
           ) : (
-            <Offer key={round} draft={draft} chosen={chosen} onChoose={(p) => setChosen(chosen?.id === p.id ? null : p)} />
+            <Offer
+              key={`${round}-${draft.rounds[round]}`}
+              draft={draft}
+              chosen={chosen}
+              onChoose={(p) => setChosen(chosen?.id === p.id ? null : p)}
+              onReroll={() => {
+                const next = reroll(draft)
+                remember(next, [next.rounds[round]])
+                setChosen(null)
+                setDraft(next)
+              }}
+            />
           )}
         </section>
 
@@ -219,7 +236,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
             ) : (
               !done && (
                 <p className="meta draft-hint">
-                  Choose a player from {poolName(offer(draft).pool)}, then a place for him.
+                  Choose a player from {offer(draft).pools.map((x) => poolName(x.pool)).join(' or ')}, then a place for him.
                   {draft.money !== undefined && (
                     <>
                       {' '}
@@ -300,11 +317,16 @@ function PickShape({
             <span className="check" aria-hidden="true">{opts.daily ? '✓' : ''}</span>
             Daily draft
           </button>
+          <button type="button" aria-pressed={opts.twists !== false} onClick={() => onOpts({ ...opts, twists: opts.twists === false })}>
+            <span className="check" aria-hidden="true">{opts.twists !== false ? '✓' : ''}</span>
+            Twists
+          </button>
         </div>
         <p className="meta">
           {opts.budget
             ? `£${budget}m for all twenty. Every player has a price by his overall, from £1m; a cheap pick leaves money for a star later. Enough is always kept back to fill your squad.`
             : 'Take whoever you like from each club.'}
+          {opts.twists !== false ? ' Twists: a few rounds offer two clubs, a mystery squad, one line only or a strong side, and you get two rerolls.' : ''}
           {opts.daily ? ` Daily: today's offers (${today()}) are the same for everyone who picks these options.` : ''}
         </p>
       </div>
@@ -326,6 +348,7 @@ function PickShape({
           </button>
         ))}
       </div>
+      <PastRuns />
       <button type="button" className="btn ghost back-btn" onClick={onBack}>
         Back
       </button>
@@ -335,37 +358,72 @@ function PickShape({
 
 const ROLE_ORDER = ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 
-function Offer({ draft, chosen, onChoose }: { draft: DraftState; chosen: PlayerDef | null; onChoose: (p: PlayerDef) => void }) {
-  const { pool, players } = offer(draft)
-  const sorted = [...players].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (b.overall ?? 0) - (a.overall ?? 0))
+/** What a twisted round asks, in a line. */
+function twistLine(t: Twist): { title: string; text: string } {
+  switch (t.kind) {
+    case 'pair':
+      return { title: 'Two clubs', text: 'Pick from either squad this round.' }
+    case 'blind':
+      return { title: 'Mystery ratings', text: "Overalls are hidden until he's in your side. Go by name and style." }
+    case 'line':
+      return { title: `${t.line[0].toUpperCase()}${t.line.slice(1)} only`, text: `Only their ${LINE_ROLES[t.line].join(', ').replace(/, ([^,]*)$/, ' and $1')} players are on offer.` }
+    case 'star':
+      return { title: 'Star side', text: 'One of the strongest club-seasons left, dropped in.' }
+  }
+}
+
+function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chosen: PlayerDef | null; onChoose: (p: PlayerDef) => void; onReroll: () => void }) {
+  const { players, pools } = offer(draft)
+  const twist = twistOf(draft)
+  const blind = twist?.kind === 'blind'
   const priced = draft.money !== undefined
+  const noReroll = rerollProblem(draft)
+  const order = (list: PlayerDef[]): PlayerDef[] =>
+    [...list].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (blind ? a.name.localeCompare(b.name) : (b.overall ?? 0) - (a.overall ?? 0)))
+  let n = 0
   return (
     <>
-      <h2 className="offer-club deal-in">
-        <Swatch kit={pool.kit} /> {poolName(pool)}
-      </h2>
-      <ul className="offer-list">
-        {sorted.map((p, i) => (
-          <li key={p.id} className="deal-in" style={stagger(i)}>
-            <button
-              type="button"
-              className={`offer${chosen?.id === p.id ? ' chosen' : ''}${priced ? ' priced' : ''}`}
-              aria-pressed={chosen?.id === p.id}
-              disabled={!canAfford(draft, p, players)}
-              title={canAfford(draft, p, players) ? undefined : `£${priceIn(draft, p, players)}m: more than you can spend this round`}
-              onClick={() => onChoose(p)}
-            >
-              <span className="role"><Positions p={p} /></span>
-              <span className="name">
-                {p.name}
-                <small className="style">{styleLabel(p)}</small>
-              </span>
-              {priced && <span className="price">£{priceIn(draft, p, players)}m</span>}
-              <span className="rating">{p.overall}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      {twist && (
+        <div className="twist deal-in">
+          <strong>{twistLine(twist).title}</strong> {twistLine(twist).text}
+        </div>
+      )}
+      {pools.map(({ pool, players: own }) => (
+        <div key={poolName(pool)} className="offer-pool">
+          <div className="offer-head">
+            <h2 className="offer-club deal-in">
+              <Swatch kit={pool.kit} /> {poolName(pool)}
+            </h2>
+            {n === 0 && draft.rerolls !== undefined && (
+              <button type="button" className="btn ghost slim reroll" disabled={!!noReroll} title={noReroll ?? 'Swap this club-season for another'} onClick={onReroll}>
+                Reroll <span className="reroll-left">{draft.rerolls} left</span>
+              </button>
+            )}
+          </div>
+          <ul className="offer-list">
+            {order(own).map((p) => (
+              <li key={p.id} className="deal-in" style={stagger(n++)}>
+                <button
+                  type="button"
+                  className={`offer${chosen?.id === p.id ? ' chosen' : ''}${priced ? ' priced' : ''}`}
+                  aria-pressed={chosen?.id === p.id}
+                  disabled={!canAfford(draft, p, players)}
+                  title={canAfford(draft, p, players) ? undefined : `£${priceIn(draft, p, players)}m: more than you can spend this round`}
+                  onClick={() => onChoose(p)}
+                >
+                  <span className="role"><Positions p={p} /></span>
+                  <span className="name">
+                    {p.name}
+                    <small className="style">{styleLabel(p)}</small>
+                  </span>
+                  {priced && <span className="price">£{priceIn(draft, p, players)}m</span>}
+                  <span className={`rating${blind ? ' hidden-rating' : ''}`}>{blind ? '?' : p.overall}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </>
   )
 }
