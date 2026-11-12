@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CENTER, type MatchEvent, type Side, ownGoalX } from '../engine/index.ts'
+import { CENTER, DT, type MatchEvent, type Side, ownGoalX } from '../engine/index.ts'
 import { ChangePanel } from './ChangePanel.tsx'
 import { buildCommentary, matchNames, preMatch } from './commentary.ts'
 import { momentum } from './momentum.ts'
@@ -332,6 +332,23 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
     setTick(Math.floor(playhead.current))
   }
 
+  // Keyboard: space plays or pauses, the arrows go back or on ten seconds (not while typing or on a button).
+  const keys = useRef({ toggle: () => {}, by: (_s: number) => {} })
+  keys.current = { toggle: () => setPlaying((p) => !p), by: (sec: number) => seek(playhead.current + sec / DT) }
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const el = e.target as HTMLElement | null
+      if (e.metaKey || e.ctrlKey || e.altKey || (el && el.closest('input, select, textarea, button, [role=dialog]'))) return
+      if (e.key === ' ') keys.current.toggle()
+      else if (e.key === 'ArrowLeft') keys.current.by(-10)
+      else if (e.key === 'ArrowRight') keys.current.by(10)
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   // `version`: the match changed under the same timeline (an order).
   const events = useMemo(() => timeline.eventsUpTo(tick), [timeline, tick, version])
   const lines = useMemo(() => buildCommentary(match, events), [match, events])
@@ -466,7 +483,7 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
             ))}
           </div>
           <div className="control-row">
-            <button type="button" className="play" onClick={() => (setPlaying(!playing), setChanging(false))} aria-label={playing ? 'Pause' : 'Play'}>
+            <button type="button" className="play" onClick={() => (setPlaying(!playing), setChanging(false))} aria-label={playing ? 'Pause' : 'Play'} title="Space plays or pauses; the arrow keys go back or on 10 seconds">
               {playing ? <PauseIcon /> : <PlayIcon />}
             </button>
             <div className="segmented speeds" role="group" aria-label="Playback speed">
