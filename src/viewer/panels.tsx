@@ -14,14 +14,25 @@ export function Commentary({
   onPick,
   replayable,
   onReplay,
+  preMatch,
 }: {
+  /** Shown before kick-off. */
+  preMatch?: string[]
   lines: Line[]
   kits: { shirt: string }[]
   onPick: (l: Line) => void
   replayable: Map<number, ReplayMoment>
   onReplay: (l: Line) => void
 }) {
-  if (lines.length === 0) return <p className="empty">Press play for kick-off.</p>
+  if (lines.length === 0)
+    return (
+      <div className="pre-match">
+        {preMatch?.map((l) => (
+          <p key={l}>{l}</p>
+        ))}
+        <p className="empty">Press play for kick-off.</p>
+      </div>
+    )
   return (
     <ol className="commentary">
       {[...lines].reverse().map((l) => (

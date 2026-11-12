@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CENTER, type MatchEvent, type Side, ownGoalX } from '../engine/index.ts'
 import { ChangePanel } from './ChangePanel.tsx'
-import { buildCommentary, matchNames } from './commentary.ts'
+import { buildCommentary, matchNames, preMatch } from './commentary.ts'
 import {
   ANIMATION_LEAD,
   type ReplayMoment,
@@ -355,6 +355,7 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
   const total = timeline.done ? timeline.lastTick : Math.max(recorded, Math.round(match.halfTicks * 2 * 0.68))
   // Short names, with an initial where two men in the match share one.
   const names = useMemo(() => matchNames(match), [match])
+  const before = useMemo(() => preMatch(timeline.stateAt(0), names), [timeline, names])
   const name = (idx: number): string => names[idx]
   const finished = status === 'FT' || status === 'AET' || status === 'Pens'
   // The man of the match, once it's over: the best rating on either side.
@@ -595,6 +596,7 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
         </div>
         {tab === 'commentary' ? (
           <Commentary
+            preMatch={before}
             lines={lines}
             kits={kits}
             onPick={(l) => {

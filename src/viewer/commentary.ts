@@ -8,7 +8,7 @@
  * a save low down, a strong man's tackle) or on who did it (a scorer's flair and temper choose his
  * celebration's words, his feet which foot he used).
  */
-import { CENTER, type MatchEvent, type MatchState, type Side, dist, oppGoalX } from '../engine/index.ts'
+import { CENTER, type MatchEvent, type MatchState, type Side, ability, dist, oppGoalX } from '../engine/index.ts'
 import { shortName as surname } from '../names.ts'
 
 export { surname }
@@ -30,6 +30,30 @@ const CROSSBAR = 2.44
  * Names for one match: each player's short name, or "J. Keane" where two men on the pitch would
  * share it (career leagues keep surnames apart within a squad, not between two).
  */
+const BLOCK_WORDS = { low: 'sit deep', mid: 'hold a mid block', high: 'press high' }
+
+/**
+ * Before kick-off, in the broadcast's voice: how the two sides line up and the man to watch on each
+ * (his side's best outfield man by ability), named as the viewer names him (`names`, from matchNames).
+ */
+export function preMatch(start: MatchState, names: string[]): string[] {
+  const [home, away] = start.teams
+  const best = (team: Side): string => {
+    let top = -1
+    let ability0 = -Infinity
+    for (const p of start.players) {
+      if (p.team !== team || !p.onPitch || p.slot.role === 'GK') continue
+      const a = ability(p.def)
+      if (a > ability0) [top, ability0] = [p.idx, a]
+    }
+    return names[top]
+  }
+  return [
+    `${home.name} line up ${home.formation} and ${BLOCK_WORDS[home.block]}; ${away.name} go ${away.formation} and ${BLOCK_WORDS[away.block]}.`,
+    `The ones to watch: ${best(0)} for ${home.name}, ${best(1)} for ${away.name}.`,
+  ]
+}
+
 export function matchNames(match: MatchState): string[] {
   const short = match.players.map((p) => surname(p.def.name))
   const count = new Map<string, number>()

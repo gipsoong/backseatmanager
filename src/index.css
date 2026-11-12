@@ -4258,3 +4258,20 @@ p.meta,
   font-size: 0.85rem;
   color: var(--muted);
 }
+
+/* Before kick-off: how the sides line up, in the commentary panel. */
+.pre-match {
+  padding: 14px 16px 4px;
+  display: grid;
+  gap: 8px;
+}
+
+.pre-match p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.pre-match .empty {
+  padding: 0;
+  color: var(--muted);
+}
