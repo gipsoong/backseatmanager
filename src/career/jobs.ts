@@ -5,8 +5,8 @@
  * to, and he's let go, with only smaller clubs interested. Nothing here touches a match.
  */
 import { Rng } from '../engine/index.ts'
-import { type Season, table } from '../season/season.ts'
-import { aimFor, aimMet, elevenRating, relegationPlaces } from './career.ts'
+import { type Season, table, tipsOf } from '../season/season.ts'
+import { aimFor, aimMet, relegationPlaces } from './career.ts'
 
 export interface JobOffer {
   club: number
@@ -23,10 +23,7 @@ export interface JobNews {
 }
 
 /** The clubs' ranks by eleven (1 = strongest), by club index. */
-export function elevenRanks(s: Season): number[] {
-  const ratings = s.teams.map((_, i) => elevenRating(s, i))
-  return ratings.map((r, i) => 1 + ratings.filter((q, j) => q > r || (q === r && j < i)).length)
-}
+export const elevenRanks = tipsOf
 
 /** What the summer holds for the manager, once the league is over (career mode only). */
 export function jobNews(s: Season): JobNews | null {

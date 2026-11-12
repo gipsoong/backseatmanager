@@ -182,6 +182,16 @@ export function SeasonReview({ season }: { season: Season }) {
           Goals {mine.goalsFor}–{mine.goalsAgainst} (expected {mine.xgFor.toFixed(0)}–{mine.xgAgainst.toFixed(0)}), {mine.cleanSheets} clean sheets.
           {mine.biggestWin && ` Biggest win ${mine.biggestWin.for}–${mine.biggestWin.against} against ${name(mine.biggestWin.opponent)}.`}
         </p>
+        {season.tips && (
+          <p className="meta">
+            Tipped {ordinal(season.tips[season.userTeam])} before a ball was kicked
+            {season.tips[season.userTeam] === place
+              ? ', and that’s where you finished.'
+              : season.tips[season.userTeam] > place
+                ? `: ${season.tips[season.userTeam] - place} ${season.tips[season.userTeam] - place === 1 ? 'place' : 'places'} better than the pundits thought.`
+                : `: ${place - season.tips[season.userTeam]} ${place - season.tips[season.userTeam] === 1 ? 'place' : 'places'} short of it.`}
+          </p>
+        )}
         <BoardLine season={season} over />
         <p className="meta">
           {name(rows[0].team)} are champions.

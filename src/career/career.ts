@@ -7,7 +7,7 @@
 import { type Attributes, OVERALL_WEIGHTS, type PlayerDef, type Role, type TeamDef, Rng, ability, cardOverall, freshName, makePlayerAt } from '../engine/index.ts'
 import { type Balance, balanceOf, balanceShift, birthYears, realLeague, realPotential, realTeams } from './real.ts'
 import { type Finance, ROLE_OFFSET, WAGE_BUDGET, settle, startFinance, wageAt } from './money.ts'
-import { type Cup, type Season, avgRating, autoPick, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
+import { type Cup, type Season, avgRating, autoPick, bestElevenRating, createSeason, matchdays, playerRating, squadOf, table } from '../season/season.ts'
 import { POINT_VALUE, sideOf } from '../draft/transfers.ts'
 import {
   type Contract,
@@ -346,12 +346,7 @@ const ACADEMY_ROLES: Role[] = ['GK', 'CB', 'CB', 'FB', 'FB', 'DM', 'CM', 'CM', '
 export const leagueLevel = (s: Season): number => s.teams.reduce((n, _, i) => n + elevenRating(s, i), 0) / s.teams.length
 
 /** A club's strength: the overall of the eleven the staff would pick with everyone fit. */
-export function elevenRating(s: Season, club: number): number {
-  const fit = { ...s, matchday: 1, condition: Object.fromEntries(squadOf(s.teams[club]).map((p) => [p.id, { fitness: 1, injuredUntil: 0 }])) }
-  const squad = squadOf(s.teams[club])
-  const xi = autoPick(fit, club).map((id) => squad.find((p) => p.id === id)!)
-  return xi.reduce((n, p) => n + playerRating(p), 0) / xi.length
-}
+export const elevenRating = bestElevenRating
 
 /** Everyone's average overall, squads and all. */
 export const squadsLevel = (teams: TeamDef[]): number => {

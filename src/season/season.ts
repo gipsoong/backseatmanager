@@ -176,6 +176,8 @@ export interface Season {
    * first: enough to play one again exactly (a match is a pure function of these) and watch its goals.
    */
   rewatch?: Record<string, Rewatch>
+  /** Where the pundits tipped each club to finish, before the first match (`tipsOf`; session 37). */
+  tips?: number[]
 }
 
 /** Everything a match was played from: replaying it gives the very same match. */
@@ -476,7 +478,22 @@ export function completeMatchday(s: Season, results: Map<number, Result>): Seaso
     matchday: s.matchday + 1,
     condition,
     stats,
+    ...(s.matchday === 1 && !s.tips ? { tips: tipsOf(s) } : {}),
   }
+}
+
+/** A club's strength: the overall of the eleven its staff would pick with everyone fit. */
+export function bestElevenRating(s: Season, club: number): number {
+  const fit = { ...s, matchday: 1, condition: Object.fromEntries(squadOf(s.teams[club]).map((p) => [p.id, { fitness: 1, injuredUntil: 0 }])) }
+  const squad = squadOf(s.teams[club])
+  const xi = autoPick(fit, club).map((id) => squad.find((p) => p.id === id)!)
+  return xi.reduce((n, p) => n + playerRating(p), 0) / xi.length
+}
+
+/** Where the pundits tip each club to finish: by `bestElevenRating`, ties to the earlier club. */
+export function tipsOf(s: Season): number[] {
+  const ratings = s.teams.map((_, i) => bestElevenRating(s, i))
+  return ratings.map((r, i) => 1 + ratings.filter((q, j) => q > r || (q === r && j < i)).length)
 }
 
 /**

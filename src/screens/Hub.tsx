@@ -13,6 +13,7 @@ import {
   squadOf,
   table,
   tableMoves,
+  tipsOf,
   userFixture,
 } from "../season/season.ts";
 import { Squad } from "./Squad.tsx";
@@ -148,6 +149,8 @@ export function Hub({
   const last =
     season.matchday > 1 ? userFixture(season, season.matchday - 1) : undefined;
   const place = rows.findIndex((r) => r.team === season.userTeam) + 1;
+  // Before a ball is kicked: where the pundits have everyone.
+  const tips = useMemo(() => (season.matchday === 1 ? tipsOf(season) : null), [season]);
 
   return (
     <div className="hub">
@@ -169,7 +172,7 @@ export function Hub({
             <Swatch kit={me.kit} /> {me.name}
           </h1>
           <p className="meta">
-            {ordinal(place)} of {season.teams.length} ·{" "}
+            {season.matchday > 1 && `${ordinal(place)} of ${season.teams.length} · `}
             {over
               ? "League over"
               : `Matchday ${season.matchday} of ${matchdays(season)}`}
@@ -241,6 +244,13 @@ export function Hub({
                 <TeamName team={season.teams[next.away]} />
               </h2>
               <Preview season={season} fixture={next} />
+              {tips && (
+                <p className="meta">
+                  {tips[season.userTeam] === 1
+                    ? "The pundits make you favourites for the title."
+                    : `The pundits tip ${season.teams[tips.indexOf(1)].name} for the title and you to finish ${ordinal(tips[season.userTeam])}.`}
+                </p>
+              )}
               <BoardLine season={season} over={false} />
               {season.career && inTheRed(season) && (
                 <p className="money-warning">{RED_LINE}</p>
