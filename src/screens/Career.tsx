@@ -2,7 +2,7 @@
 import { AIM_LINE, CUP_TROPHY, aimMet, managerRecord } from '../career/career.ts'
 import type { JobNews } from '../career/jobs.ts'
 import { realLeague } from '../career/real.ts'
-import { type Season, squadOf, table } from '../season/season.ts'
+import { type Season, playerRating, squadOf, table } from '../season/season.ts'
 import { ordinal } from './format.ts'
 import { stagger } from './motion.ts'
 import { Swatch } from './Hub.tsx'
@@ -26,6 +26,23 @@ export function Change({ season, id }: { season: Season; id: string }) {
       {v > 0 ? `+${v}` : `−${-v}`}
     </span>
   )
+}
+
+/**
+ * The scouts' read of a young player's ceiling (session 37), a range around his hidden potential,
+ * a little off it by a fixed amount per player (scouts aren't sure): "80–86". Only for players
+ * 23 or under with room to grow; null otherwise.
+ */
+export function scoutRange(season: Season, p: PlayerDef): [number, number] | null {
+  const who = season.career?.people[p.id]
+  if (!who || who.age > 23) return null
+  const now = playerRating(p)
+  if (who.potential - now < 2) return null
+  let h = 0
+  for (const ch of p.id) h = (h * 31 + ch.charCodeAt(0)) | 0
+  const off = (Math.abs(h) % 5) - 2
+  const mid = who.potential + off
+  return [Math.max(now, Math.round(mid - 3)), Math.round(mid + 3)]
 }
 
 /** A player's age, if the game knows it. */
@@ -63,7 +80,13 @@ export function SummerNote({ season }: { season: Season }) {
     sm.retired.length > 0 && `${list(sm.retired.map((r) => `${r.name} (${r.age})`))} retired.`,
     (sm.expired?.length ?? 0) > 0 && `Out of contract, ${list(sm.expired!)} left on a free.`,
     sm.signed.length > 0 && `With the squad short, the staff signed ${list(sm.signed)}.`,
-    academy.length > 0 && `Up from the academy: ${list(academy.map((p) => `${p.name} (${season.career!.people[p.id].age}, ${p.role})`))}.`,
+    academy.length > 0 &&
+      `Up from the academy: ${list(
+        academy.map((p) => {
+          const r = scoutRange(season, p)
+          return `${p.name} (${season.career!.people[p.id].age}, ${p.role}${r && r[1] >= 80 ? `, the scouts think he could reach ${r[0]}–${r[1]}` : ''})`
+        }),
+      )}.`,
     sm.released.length > 0 && `Released: ${list(sm.released)}.`,
   ].filter(Boolean)
   const moved = season.career?.moved

@@ -7,7 +7,7 @@ import { positionsLabel, styleLabel } from '../names.ts'
 import { RATED_MINUTES, type Season, type SeasonStats, avgRating, playerRating, squadOf } from '../season/season.ts'
 import { clubOf, goalsPrevented, matchLog, onTargetRate, per90 } from '../season/stats.ts'
 import { Swatch } from './Hub.tsx'
-import { CareerLines, Change, ageOf, moneyLine } from './Career.tsx'
+import { CareerLines, Change, ageOf, moneyLine, scoutRange } from './Career.tsx'
 
 const n = (st: SeasonStats, k: keyof SeasonStats): number => st[k] ?? 0
 const pct = (a: number, b: number): string => (b ? `${Math.round((a / b) * 100)}%` : '–')
@@ -111,6 +111,11 @@ export function PlayerCard({ season, id, onClose }: { season: Season; id: string
             {ageOf(season, id) !== undefined && ` · ${ageOf(season, id)}`} · {club >= 0 ? season.teams[club].name : ''}
           </p>
           {moneyLine(season, p) && <p className="muted">{moneyLine(season, p)}</p>}
+          {scoutRange(season, p) && (
+            <p className="muted scout-line" title="The scouts' guess at how good he could become: a guess, not a promise">
+              Scouts: could reach {scoutRange(season, p)!.join('–')}
+            </p>
+          )}
         </div>
         <span className="card-rating">
           <span className="rating big" title="Overall">
