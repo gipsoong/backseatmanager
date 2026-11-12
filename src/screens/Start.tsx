@@ -3,6 +3,7 @@ import type { Season } from '../season/season.ts'
 import { matchdays } from '../season/season.ts'
 import { Swatch } from './Hub.tsx'
 import { stagger } from './motion.ts'
+import { Logo } from './Logo.tsx'
 
 export function Start({
   saved,
@@ -20,11 +21,11 @@ export function Start({
   const me = saved ? saved.teams[saved.userTeam] : null
   return (
     <div className="start">
-      <p className="eyebrow brand">
-        <span className="brand-mark" aria-hidden="true" />
-        Matchday
-      </p>
-      <h1>Pick a club, or draft a side. Play a season.</h1>
+      <header className="hero">
+        <Logo big />
+        <h1>Football management, minus the homework.</h1>
+        <p className="hero-sub">Pick a club or draft a side, watch the matches that matter, and shout from the back seat when it counts.</p>
+      </header>
       <div className="start-actions">
         {saved && me && (
           <button type="button" className="btn big rise" style={stagger(0)} onClick={onContinue}>
