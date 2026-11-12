@@ -4,7 +4,7 @@
  * each fixture has its own match seed, so a match plays out the same whether it's watched or not.
  * No React, no storage: the app keeps a Season and replaces it with the updated one.
  */
-import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, ability, cardOverall, fitFor, leagueTeams } from '../engine/index.ts'
+import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, type TimedOrder, ability, cardOverall, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
 import type { Career } from '../career/career.ts'
 
@@ -171,6 +171,42 @@ export interface Season {
   cupEntered?: boolean
   /** Club mode: the career this season is part of (ages, potential, the board, past seasons). */
   career?: Career
+  /**
+   * The manager's last league matches as they were played (session 37), by fixture id, oldest
+   * first: enough to play one again exactly (a match is a pure function of these) and watch its goals.
+   */
+  rewatch?: Record<string, Rewatch>
+}
+
+/** Everything a match was played from: replaying it gives the very same match. */
+export interface Rewatch {
+  home: TeamDef
+  away: TeamDef
+  seed: number
+  /** Fitness of the match's players only. */
+  fitness: Record<string, number>
+  orders?: TimedOrder[]
+  /** The score it ended, to check a replay against. */
+  score: [number, number]
+}
+
+/** League matches of his kept for watching again: a few KB each in the save. */
+export const REWATCH_MAX = 12
+
+/** What the manager's match on this matchday is played from (before it's played). */
+export function rewatchOf(s: Season, f: Fixture, orders?: TimedOrder[]): Omit<Rewatch, 'score'> {
+  const home = matchTeam(s, f.home)
+  const away = matchTeam(s, f.away)
+  const all = fitnessFor(s)
+  const fitness: Record<string, number> = {}
+  for (const t of [home, away]) for (const p of [...t.players, ...t.bench]) if (Object.prototype.hasOwnProperty.call(all, String(p.id))) fitness[String(p.id)] = all[String(p.id)]
+  return { home, away, seed: f.seed, fitness, ...(orders && orders.length ? { orders } : {}) }
+}
+
+/** The season with his played match kept for watching again (the oldest dropped past REWATCH_MAX). */
+export function keepRewatch(s: Season, fixtureId: number, r: Omit<Rewatch, 'score'>, score: [number, number]): Season {
+  const kept = Object.entries({ ...(s.rewatch ?? {}), [`f${fixtureId}`]: { ...r, score } })
+  return { ...s, rewatch: Object.fromEntries(kept.slice(-REWATCH_MAX)) }
 }
 
 /**

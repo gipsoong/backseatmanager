@@ -19,6 +19,8 @@ import {
   matchTeam,
   resultOf,
   userFixture,
+  keepRewatch,
+  rewatchOf,
 } from "./season/season.ts";
 import { prefetch, simulate, simulateMatches } from "./season/simulate.ts";
 import {
@@ -66,6 +68,8 @@ type Screen =
   /** The league's screen, while the cup is on. */
   | { kind: "league" }
   | { kind: "match"; timeline: Timeline }
+  /** One of his past league matches, played again to watch its goals. */
+  | { kind: "rewatch"; timeline: Timeline; title: string; eyebrow: string }
   | { kind: "friendly" };
 
 export default function App() {
@@ -190,8 +194,11 @@ export default function App() {
       results.set(userCupFixture(s)!.id, resultOf(timeline.state));
       await commit(completeCupMatchday(s, results));
     } else {
-      results.set(userFixture(s, s.matchday)!.id, resultOf(timeline.state));
-      await commit(advanceCup(marketDay(completeMatchday(s, results))));
+      const f = userFixture(s, s.matchday)!;
+      const result = resultOf(timeline.state);
+      results.set(f.id, result);
+      const kept = keepRewatch(s, f.id, rewatchOf(s, f, timeline.orders), result.score);
+      await commit(advanceCup(marketDay(completeMatchday(kept, results))));
     }
     others.current = null;
     setBusy(false);
@@ -221,18 +228,36 @@ export default function App() {
           ),
         ),
       );
-    else
+    else {
+      const results = await simulate(s, fixturesOn(s, s.matchday), { foreground: true });
+      const f = userFixture(s, s.matchday);
+      const mine = f && results.get(f.id);
+      const kept = f && mine ? keepRewatch(s, f.id, rewatchOf(s, f), mine.score) : s;
       await commit(
         advanceCup(
           marketDay(
             completeMatchday(
-              s,
-              await simulate(s, fixturesOn(s, s.matchday), { foreground: true }),
+              kept,
+              results,
             ),
           ),
         ),
       );
+    }
     setBusy(false);
+  };
+
+  /** Plays one of his kept league matches again, from the goals. */
+  const rewatch = (s: Season, fixtureId: number): void => {
+    const r = s.rewatch?.[`f${fixtureId}`];
+    const f = s.fixtures.find((x) => x.id === fixtureId);
+    if (!r || !f) return;
+    setScreen({
+      kind: "rewatch",
+      timeline: new Timeline(r.home, r.away, r.seed, r.fitness, undefined, r.orders),
+      title: `${r.home.name} ${r.score[0]}–${r.score[1]} ${r.away.name}`,
+      eyebrow: `Matchday ${f.matchday} · watching again`,
+    });
   };
 
   // A career starts in a real league (the first, by default) or a made-up one ("made-up").
@@ -389,6 +414,7 @@ export default function App() {
             onRenew={(id) => void commit(renew(season, id))}
             onLetGo={(id, leaving) => void commit(letGo(season, id, leaving))}
             onSign={(id) => void commit(signFreeAgent(season, id))}
+            onRewatch={(id) => rewatch(season, id)}
           />
         ))}
       {screen.kind === "match" && season && (
@@ -398,6 +424,22 @@ export default function App() {
           busy={busy}
           onDone={() => void finishWatched(season, screen.timeline)}
         />
+      )}
+      {screen.kind === "rewatch" && (
+        <>
+          <header className="top match-top">
+            <div className="fixture">
+              <p className="eyebrow">{screen.eyebrow}</p>
+              <h1>{screen.title}</h1>
+            </div>
+            <div className="actions">
+              <button type="button" className="btn" onClick={() => setScreen({ kind: "hub" })}>
+                Back
+              </button>
+            </div>
+          </header>
+          <MatchViewer timeline={screen.timeline} initialMode="goals" />
+        </>
       )}
       {screen.kind === "friendly" && (
         <Friendly onBack={() => setScreen({ kind: "start" })} />

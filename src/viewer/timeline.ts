@@ -53,8 +53,10 @@ export class Timeline {
   /** Bumped by every order: views keyed on it know the match beyond the playhead changed. */
   version = 0
 
-  constructor(home: TeamDef, away: TeamDef, seed: number, fitness?: Record<string, number>, knockout?: MatchConfig['knockout']) {
-    this.state = createMatch(home, away, { seed, fitness, knockout })
+  /** `orders`: a match played before, with the orders given then (watching it again). */
+  constructor(home: TeamDef, away: TeamDef, seed: number, fitness?: Record<string, number>, knockout?: MatchConfig['knockout'], orders?: TimedOrder[]) {
+    this.state = createMatch(home, away, { seed, fitness, knockout, ...(orders?.length ? { orders: [...orders] } : {}) })
+    if (orders?.length) this.orders = [...orders]
     this.stride = PLAYERS_AT + this.state.players.length * 2
     this.frames = new Float32Array(this.stride * 70_000)
     this.clock = new Float64Array(70_000)

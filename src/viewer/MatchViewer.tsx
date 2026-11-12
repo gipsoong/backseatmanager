@@ -77,7 +77,7 @@ type Tab = 'commentary' | 'stats' | 'players'
  * `manage`: the side whose manager may make changes while watching (subs, shape, block); `onOrder`
  * hears when one is made (the match from the playhead on has changed).
  */
-export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline; manage?: Side; onOrder?: () => void }) {
+export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }: { timeline: Timeline; manage?: Side; onOrder?: () => void; initialMode?: ViewMode }) {
   const [version, setVersion] = useState(timeline.version)
   const [changing, setChanging] = useState(false)
   const match = timeline.state
@@ -87,7 +87,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
 
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1)
-  const [mode, setMode] = useState<ViewMode>('full')
+  const [mode, setMode] = useState<ViewMode>(initialMode)
   const [cutTo, setCutTo] = useState<string | null>(null)
   // The replay showing (its moment and which of its angles), and the tick it has reached: the
   // scorebug shows the score and clock as they were then, not as they are live.

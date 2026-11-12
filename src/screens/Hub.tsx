@@ -84,6 +84,7 @@ export function Hub({
   onRenew,
   onLetGo,
   onSign,
+  onRewatch,
 }: {
   season: Season;
   busy: boolean;
@@ -100,6 +101,8 @@ export function Hub({
   onRenew: (id: string) => void;
   onLetGo: (id: string, leaving: boolean) => void;
   onSign: (id: string) => void;
+  /** Watch one of his kept league matches again (by fixture id). */
+  onRewatch?: (fixtureId: number) => void;
 }) {
   const [tab, setTab] = useState<Tab>(isOver(season) ? "review" : "table");
   // The last matchday played: open the review.
@@ -367,6 +370,11 @@ export function Hub({
               {potm(season, last.result) && (
                 <span>Player of the match: {potm(season, last.result)}</span>
               )}
+              {onRewatch && season.rewatch?.[`f${last.id}`] && (
+                <button type="button" className="link last-rewatch" onClick={() => onRewatch(last.id)}>
+                  ▶ {last.result.goals.length ? "Watch the goals again" : "Watch it again"}
+                </button>
+              )}
             </p>
           )}
         </section>
@@ -536,6 +544,16 @@ export function Hub({
                         : "v"}
                     </span>
                     <span className="away">{season.teams[f.away].name}</span>
+                    {f.result && onRewatch && season.rewatch?.[`f${f.id}`] && (
+                      <button
+                        type="button"
+                        className="rewatch-btn"
+                        onClick={() => onRewatch(f.id)}
+                        aria-label={f.result.goals.length ? "Watch the goals again" : "Watch the match again"}
+                      >
+                        ▶ {f.result.goals.length ? "Goals" : "Replay"}
+                      </button>
+                    )}
                     {f.result && f.result.goals.length > 0 && (
                       <span className="scorers">
                         {f.result.goals
