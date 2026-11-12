@@ -361,6 +361,7 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
   // A second leg: the first leg's goals, from this match's sides.
   const carried = match.carried && (match.carried[0] || match.carried[1]) ? match.carried : null
   const goalStrip = currentGoal(events)
+  const subStrip = currentSubs(events, tick)
   // Only goals already seen: marking future ones on the scrubber would give the result away.
   const goalsSoFar = events.filter((e): e is Goal => e.type === 'goal')
   // Moments that can be replayed from the commentary, by the tick of their line.
@@ -446,6 +447,17 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
               <button type="button" className="replay-skip" onClick={endReplay}>
                 Skip
               </button>
+            </div>
+          )}
+          {!goalStrip && !replayAngle && subStrip.length > 0 && (
+            <div className="goal-strip sub-strip" key={subStrip[0].tick}>
+              <span className="swatch" style={{ background: kits[subStrip[0].team].shirt }} />
+              <span className="label">Change</span>
+              {subStrip.map((e) => (
+                <span key={e.onIdx} className="sub-pair">
+                  <span className="sub-on" aria-label="On">▲</span> {name(e.onIdx)} <span className="sub-off" aria-label="Off">▼</span> {name(e.offIdx)}
+                </span>
+              ))}
             </div>
           )}
           {goalStrip && !replayAngle && (
@@ -640,6 +652,24 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
     </div>
   )
 }
+
+/** One side's substitutions at the stoppage now on (or just over: SUB_STRIP_TICKS after the restart). */
+function currentSubs(events: MatchEvent[], tick: number): Extract<MatchEvent, { type: 'sub' }>[] {
+  const out: Extract<MatchEvent, { type: 'sub' }>[] = []
+  let restarted = false
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i]
+    if (e.type === 'restart') {
+      if (restarted || tick - e.tick > SUB_STRIP_TICKS) break
+      restarted = true
+    } else if (e.type === 'sub') {
+      if (out.length && out[0].team !== e.team) break
+      out.unshift(e)
+    } else if (e.type === 'goal' || e.type === 'halfTime' || e.type === 'fullTime') break
+  }
+  return out
+}
+const SUB_STRIP_TICKS = 50
 
 /** The goal to show in the lower-third: from the goal until play restarts. */
 function currentGoal(events: MatchEvent[]): Extract<MatchEvent, { type: 'goal' }> | null {

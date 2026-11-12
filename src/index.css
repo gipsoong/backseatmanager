@@ -4430,3 +4430,27 @@ p.meta,
 .tab-panel > .pos-chart {
   padding: 4px 16px 12px;
 }
+
+/* A substitution, in the goal strip's lower-third style. */
+.sub-strip {
+  font-size: 1rem;
+}
+
+.sub-strip .label {
+  color: var(--strip-ink);
+  opacity: 0.75;
+}
+
+.sub-pair {
+  white-space: nowrap;
+}
+
+.sub-on {
+  color: #7fd39a;
+  font-size: 0.8em;
+}
+
+.sub-off {
+  color: #f08a7c;
+  font-size: 0.8em;
+}
