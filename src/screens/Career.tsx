@@ -76,6 +76,7 @@ export function SummerNote({ season }: { season: Season }) {
   if (!sm || season.matchday !== 1) return null
   const squad = squadOf(season.teams[season.userTeam])
   const academy = squad.filter((p) => sm.academy.includes(p.id))
+  const back = squad.filter((p) => sm.back?.includes(p.id))
   const list = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
   const lines = [
     sm.retired.length > 0 && `${list(sm.retired.map((r) => `${r.name} (${r.age})`))} retired.`,
@@ -89,6 +90,11 @@ export function SummerNote({ season }: { season: Season }) {
         }),
       )}.`,
     sm.released.length > 0 && `Released: ${list(sm.released)}.`,
+    back.length > 0 &&
+      `Back from loan: ${list(back.map((p) => {
+        const d = season.career!.people[p.id].change ?? 0
+        return `${p.name} (${playerRating(p)}, ${d > 0 ? `up ${d}` : d < 0 ? `down ${-d}` : 'no change'})`
+      }))}.`,
   ].filter(Boolean)
   const moved = season.career?.moved
   if (moved) {

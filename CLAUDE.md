@@ -633,7 +633,8 @@ pulling the repo.
   matchday; `tableMoves`; `simulateAhead` (App). `draft/squads-extra.ts`: 37 smaller club-seasons of all five
   leagues, the last entry of `LEAGUES` (pools.ts) so saved pool indexes don't move; check with
   check-squads. `career/jobs.ts` (`jobNews`, `takeJob`): offers and the sack at a career season's end;
-  `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). Mentality (`TeamDef.mentality`, ai.ts `MENTALITY`: keenness, in-possession
+  `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). Loans (`career/loans.ts`, `Career.loans`, back in `nextSeason` with
+  `LOAN_PLAYED`). Mentality (`TeamDef.mentality`, ai.ts `MENTALITY`: keenness, in-possession
   depth of full-backs and midfielders, late runs; an `Order`; diag-mentality.ts mirror tests; see PROGRESS). Staff set it by the score late on (`staffMentality`, match.ts)
   unless the manager has chosen one.
 

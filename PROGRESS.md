@@ -70,6 +70,11 @@ The owner asked for a long autonomous push (depth, animations, phone UI, brandin
   away down, from sampled frames (ball owner deep in the other half) plus shots' xG; only slices already played.
 - **Round-up** scorers under the score, and `milestones` (records.ts): 10/25/50… goals, 50/100… appearances
   under him (outside a career: goals of the season).
+- **Loans** (`career/loans.ts`: `loanProblem`, `loanOut`; `Career.loans`; Contracts tab "Loans"): a player of 21 or
+  under, not in his deal's last year, goes out for the season while a window is open (squad stays >= 18, two
+  keepers); off the books (no wages, not selectable). `nextSeason` brings him back first (a free shirt if his was
+  taken) and develops him as if he'd played `LOAN_PLAYED` (70% of minutes, 6.9): ~+3 a summer at 19-20 with room
+  to grow, against ~+1.7 sitting on the bench. `Summer.back`; the summer note says how he came back. No recalls.
 - **Mentality** (`TeamDef.mentality`, ai.ts `MENTALITY`; an order like the block, harness `order-mentality`;
   Squad "With the ball": Careful / Balanced / Go for it; the Change panel's "Approach"). First try (keenness
   0.75/1.3 and late runs) was dropped: careful beat balanced by +0.10 to +0.22 xGD and attacking lost -0.11 to

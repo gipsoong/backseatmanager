@@ -92,6 +92,7 @@ export function Hub({
   onRenew,
   onLetGo,
   onSign,
+  onLoan,
   onRewatch,
 }: {
   season: Season;
@@ -113,6 +114,7 @@ export function Hub({
   onRenew: (id: string) => void;
   onLetGo: (id: string, leaving: boolean) => void;
   onSign: (id: string) => void;
+  onLoan: (id: string) => void;
   /** Watch one of his kept league matches again (by fixture id). */
   onRewatch?: (fixtureId: number) => void;
 }) {
@@ -492,6 +494,7 @@ export function Hub({
               onRenew={onRenew}
               onLetGo={onLetGo}
               onSign={onSign}
+              onLoan={onLoan}
             />
           )}
           {tab === "table" && (

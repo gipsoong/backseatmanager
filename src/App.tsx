@@ -5,6 +5,7 @@ import { budgetFor, draftLeague } from "./draft/draft.ts";
 import { decline, makeDeal, windowOpen } from "./draft/transfers.ts";
 import { Draft } from "./screens/Draft.tsx";
 import { Hub } from "./screens/Hub.tsx";
+import { loanOut } from "./career/loans.ts";
 import { RoundUp } from "./screens/RoundUp.tsx";
 import { CupHub } from "./screens/Cup.tsx";
 import { Match } from "./screens/Match.tsx";
@@ -470,6 +471,7 @@ export default function App() {
             onRenew={(id) => void commit(renew(season, id))}
             onLetGo={(id, leaving) => void commit(letGo(season, id, leaving))}
             onSign={(id) => void commit(signFreeAgent(season, id))}
+            onLoan={(id) => void commit(loanOut(season, id))}
             onRewatch={(id) => rewatch(season, id)}
           />
         ))}

@@ -12,6 +12,7 @@ import { WAGE_BUDGET, inTheRed, money, wageBill, wageOf } from '../career/money.
 import { windowMatchdays, windowName, windowOpen } from '../draft/transfers.ts'
 import { Effect } from './Transfers.tsx'
 import { stagger } from './motion.ts'
+import { LOAN_MAX_AGE, loanProblem, loansOf } from '../career/loans.ts'
 
 /** Free agents shown before "Show all". */
 const SHOWN = 12
@@ -28,11 +29,14 @@ export function Contracts({
   onRenew,
   onLetGo,
   onSign,
+  onLoan,
 }: {
   season: Season
   onRenew: (id: string) => void
   onLetGo: (id: string, leaving: boolean) => void
   onSign: (id: string) => void
+  /** Send a young player out on loan for the season. */
+  onLoan: (id: string) => void
 }) {
   const c = season.career!
   const [chosen, setChosen] = useState<string | null>(null)
@@ -49,6 +53,11 @@ export function Contracts({
   const signed = (c.signings ?? []).filter((x) => x.club === season.userTeam)
   const nameOf = (id: string): string => squadOf(season.teams[season.userTeam]).find((p) => p.id === id)?.name ?? id
 
+  const loans = loansOf(season)
+  // Who could go: the young players, the least used first.
+  const young = squad
+    .filter((p) => (c.people[p.id]?.age ?? 99) <= LOAN_MAX_AGE)
+    .sort((a, b) => (season.stats[a.id]?.apps ?? 0) - (season.stats[b.id]?.apps ?? 0))
   const finance = c.finance
   const bill = wageBill(season, season.userTeam)
   const red = inTheRed(season)
@@ -172,6 +181,49 @@ export function Contracts({
               Sign him
             </button>
           </section>
+        )}
+      </section>
+
+      <section className="pad">
+        <h4 className="eyebrow">Loans</h4>
+        <p className="meta">
+          A season out on loan gives a young player the minutes to grow (most of a season's worth); he's back in the
+          summer, and his new club pays him meanwhile. {LOAN_MAX_AGE} or under, while a window is open.
+        </p>
+        {loans.length > 0 && (
+          <ul className="deals">
+            {loans.map((p) => (
+              <li key={p.id}>
+                {p.name} <span className="muted">· out on loan, back in the summer</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {open && young.length > 0 && (
+          <ul className="contract-list">
+            {young.map((p, i) => {
+              const problem = loanProblem(season, p.id)
+              const st = season.stats[p.id]
+              return (
+                <li key={p.id} className="contract-row rise" style={stagger(i)}>
+                  <span className="role"><Positions p={p} /></span>
+                  <span className="name">
+                    {p.name}
+                    <small className="style">
+                      {c.people[p.id].age} · {styleLabel(p)} · {st?.apps ?? 0} {st?.apps === 1 ? 'appearance' : 'appearances'} this season
+                    </small>
+                    {problem && <small className="asks">{problem}</small>}
+                  </span>
+                  <span className="rating">{playerRating(p)}</span>
+                  <span className="contract-actions">
+                    <button type="button" className="btn ghost slim" disabled={!!problem} onClick={() => onLoan(p.id)}>
+                      Loan out
+                    </button>
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
         )}
       </section>
 

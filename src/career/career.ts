@@ -92,6 +92,26 @@ export interface Summer {
   released: string[]
   /** Whose contracts ran out (they left as free agents). */
   expired?: string[]
+  /** Back from a season on loan (ids). */
+  back?: string[]
+}
+
+/** What a season on loan counts as for a player's development: most of the minutes, a decent rating. */
+export const LOAN_PLAYED: Played = { share: 0.7, rating: 6.9 }
+
+/** Loaned players coming back, each with a free shirt number if his has been given to someone else. */
+function backFromLoan(squad: PlayerDef[], loans: PlayerDef[]): PlayerDef[] {
+  const taken = new Set(squad.map((p) => p.shirt))
+  return loans.map((p) => {
+    if (!taken.has(p.shirt)) {
+      taken.add(p.shirt)
+      return p
+    }
+    let n = 12
+    while (taken.has(n)) n++
+    taken.add(n)
+    return { ...p, shirt: n }
+  })
 }
 
 export interface Career {
@@ -109,6 +129,8 @@ export interface Career {
   freeAgents?: FreeAgent[]
   /** Free agents signed this season. */
   signings?: FreeSigning[]
+  /** The manager's young players out on loan this season (session 37, loans.ts); back in the summer. */
+  loans?: PlayerDef[]
   /** He took this job over the summer (session 37): where he came from, and whether he was let go. */
   moved?: { from: number; sacked: boolean }
   /** This season's domestic cup (from save version 5; an upgraded save gets one from its next season). */
@@ -392,9 +414,13 @@ export const MANAGER_MIN = 16
  * The season over: on to the next, with the same clubs, a summer's development, contracts run out
  * or renewed, the free agents' market, and a fresh fixture list and cup.
  */
-export function nextSeason(s: Season): Season {
-  const c = s.career
+export function nextSeason(was0: Season): Season {
+  const c = was0.career
   if (!c) throw new Error('not a career')
+  // Players back from loan rejoin the squad for the summer (a new number if his was given away),
+  // their season counted as most of the minutes somewhere else.
+  const loaned = new Set((c.loans ?? []).map((p) => p.id))
+  const s: Season = loaned.size ? { ...was0, teams: was0.teams.map((t, i) => (i === was0.userTeam ? { ...t, bench: [...t.bench, ...backFromLoan(squadOf(t), c.loans!)] } : t)) } : was0
   const rng = new Rng(s.seed * 104729 + c.number * 7919)
   // A real league's overalls are on the FIFA-like scale, made-up ones on theirs (`newcomer`).
   const real = c.league !== undefined
@@ -442,7 +468,7 @@ export function nextSeason(s: Season): Season {
     for (const p of squadOf(t)) {
       const who = c.people[p.id]
       const st = s.stats[p.id]
-      const played: Played = { share: (st?.minutes ?? 0) / full, rating: avgRating(st) }
+      const played: Played = loaned.has(p.id) ? LOAN_PLAYED : { share: (st?.minutes ?? 0) / full, rating: avgRating(st) }
       const now = playerRating(p)
       const age = who.age + 1
       const keeper = p.role === 'GK'
@@ -456,6 +482,7 @@ export function nextSeason(s: Season): Season {
       squad.push(next)
       // A deal that has run out is settled below.
       people[p.id] = { age, potential: who.potential, change: playerRating(next) - now, contract: who.contract ?? newContract(next, { ...who, age }, year, 2) }
+      if (loaned.has(p.id)) summer.back = [...(summer.back ?? []), p.id]
     }
     // Contracts that ran out this summer: the manager's go (he renewed those he wanted); the
     // other clubs' staff keep most of theirs.
@@ -556,6 +583,8 @@ export function nextSeason(s: Season): Season {
     pool.push(freeAgent(p, { age: rng.int(23, 32), potential: overall }, null))
   }
 
+  // (Back from loan, and still here.)
+  if (summer.back) summer.back = summer.back.filter((id) => people[id])
   const seed = (s.seed * 7 + c.number * 7919) % 1_000_003
   const base = createSeason(seed, s.userTeam, new Date(Date.UTC(year, 0, 1)), teams)
   let next: Season = { ...base, career: { number: c.number + 1, people, aim: 'topHalf', history, levels: c.levels, finance, summer, ...(real ? { league: c.league } : {}), ...(c.balance ? { balance: c.balance } : {}) } }
