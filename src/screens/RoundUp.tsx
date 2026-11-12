@@ -5,6 +5,8 @@
 import { useEffect, useRef } from 'react'
 import { type Season, fixturesOn, table, tableMoves } from '../season/season.ts'
 import { ordinal } from './format.ts'
+import { milestones } from '../career/records.ts'
+import { shortName } from '../names.ts'
 import { Swatch } from './Hub.tsx'
 
 export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Season; matchday: number; onClose: () => void; onRewatch?: (fixtureId: number) => void }) {
@@ -26,6 +28,17 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
   const move = tableMoves(season)[season.userTeam]
   const name = (i: number): string => season.teams[i].name
   const score = mine?.result ? (mine.home === season.userTeam ? mine.result.score : [mine.result.score[1], mine.result.score[0]]) : null
+  const marks = milestones(season, matchday)
+  // His side's scorers, by name: "Wissa 23', 67'".
+  const scorers = (side: 0 | 1): string => {
+    const by = new Map<string, string[]>()
+    for (const g of mine?.result?.goals ?? []) {
+      if (g.team !== side) continue
+      const who = g.ownGoal ? `${shortName(g.scorer)} (og)` : shortName(g.scorer)
+      by.set(who, [...(by.get(who) ?? []), g.clock])
+    }
+    return [...by].map(([who, at]) => `${who} ${at.join(', ')}`).join(' · ')
+  }
   const outcome = score ? (score[0] > score[1] ? 'W' : score[0] === score[1] ? 'D' : 'L') : null
   return (
     <div className="roundup-backdrop" onClick={onClose}>
@@ -44,6 +57,17 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
             </span>
           </div>
         )}
+        {mine?.result && mine.result.goals.length > 0 && (
+          <div className="roundup-scorers">
+            <span>{scorers(0)}</span>
+            <span>{scorers(1)}</span>
+          </div>
+        )}
+        {marks.map((m) => (
+          <p key={m} className="roundup-mark">
+            {m}
+          </p>
+        ))}
         <p className="roundup-place">
           {ordinal(place)} in the table
           {move !== 0 && <span className={`last-move ${move > 0 ? 'up' : 'down'}`}> {move > 0 ? '▲' : '▼'} {Math.abs(move)}</span>}

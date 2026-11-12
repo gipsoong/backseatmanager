@@ -4342,3 +4342,27 @@ p.meta,
 .momentum-bar {
   animation: fade-in var(--dur-base) var(--ease-out) backwards;
 }
+
+/* Round-up: each side's scorers under the score, and any milestone reached. */
+.roundup-scorers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: -4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.roundup-scorers span:first-child {
+  text-align: right;
+}
+
+.roundup-mark {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--brand-amber);
+  background: color-mix(in srgb, var(--brand-amber) 12%, transparent);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  animation: rise var(--dur-base) var(--ease-out) 250ms backwards;
+}

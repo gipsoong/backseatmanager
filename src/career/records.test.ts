@@ -23,3 +23,19 @@ describe("the manager's all-time leaders", () => {
     expect(top[0].seasons).toBe(2)
   })
 })
+
+describe('milestones', () => {
+  it("name a player's 10th goal of a season in the match he scored it", async () => {
+    const { milestones } = await import('./records.ts')
+    const { fixturesOn } = await import('../season/season.ts')
+    const s = createSeason(3, 4, new Date(Date.UTC(2026, 5, 1)))
+    const f = fixturesOn(s, 1).find((x) => x.home === 4 || x.away === 4)!
+    const p = s.teams[4].players[10]
+    const played = {
+      ...s,
+      stats: { ...s.stats, [p.id]: { ...s.stats[p.id], apps: 1, goals: 10 } },
+      fixtures: s.fixtures.map((x) => (x.id === f.id ? { ...x, result: { score: [3, 0] as [number, number], goals: [], xg: [0, 0] as [number, number], appearances: [{ id: p.id, minutes: 90, rating: 8, goals: 3, assists: 0, energy: 0.5 }], injuries: [] } } : x)),
+    }
+    expect(milestones(played, 1)).toEqual([`${p.name}'s 10th goal of the season.`])
+  })
+})
