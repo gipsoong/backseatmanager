@@ -228,6 +228,7 @@ export function SeasonReview({ season }: { season: Season }) {
         <section className="review-block rise" style={stagger(4)}>
           <h4>Team of the season</h4>
           <div className="mini-pitch tots">
+              <span className="pitch-sheen" aria-hidden="true" />
             {r.teamOfSeason.map((x, i) => (
               <button key={x.player.id} type="button" className="slot filled" style={slotStyle(shape[i])} onClick={() => setViewing(x.player.id)} title={x.line}>
                 <span className="pos">

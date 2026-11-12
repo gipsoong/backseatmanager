@@ -105,12 +105,17 @@ export function goalState(s: Season): GoalState {
   return { goal, place, now, met, failed }
 }
 
-/** Stars for a finished run, 0-3. */
+/** Stars a run can earn: two on easy, four on hard (the fourth for meeting the aim), else three. */
+export const starsPossible = (s: Season): number => (s.draftStyle?.difficulty === 'easy' ? 2 : s.draftStyle?.difficulty === 'hard' ? 4 : 3)
+
+/** Stars for a finished run. */
 export function starsOf(s: Season): number {
   const g = goalState(s)
   const points = table(s)[g.place - 1]?.points ?? 0
+  const aimMet = g.place <= g.goal.aim
   const standout = g.place <= g.goal.aim - 3 || (g.place === 1 && points >= Math.round((90 * matchdays(s)) / 38))
-  return (g.place <= g.goal.aim ? 1 : 0) + (g.met ? 1 : 0) + (standout ? 1 : 0)
+  const stars = (aimMet ? 1 : 0) + (g.met ? 1 : 0) + (standout ? 1 : 0) + (aimMet && s.draftStyle?.difficulty === 'hard' ? 1 : 0)
+  return Math.min(starsPossible(s), stars)
 }
 
 const ORD = (n: number): string => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`

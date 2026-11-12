@@ -36,7 +36,34 @@ export interface Draft {
   rerolls?: number
   /** Club-seasons not in the rounds, next first: for rerolls. */
   spares?: number[]
+  /** How hard the league plays (session 37; unset is normal) and any extra rules. */
+  difficulty?: Difficulty
+  rules?: RuleId[]
 }
+
+/**
+ * Difficulty (session 37): your opponents' technique and reading of the game moved by
+ * `DIFFICULTY_SHIFT` (as form is, season/form.ts), and rerolls by `REROLLS_BY`. Easy runs can earn
+ * two stars at most; hard ones a fourth for meeting the aim (goals.ts).
+ */
+export type Difficulty = 'easy' | 'normal' | 'hard'
+export const DIFFICULTIES: { id: Difficulty; name: string; blurb: string }[] = [
+  { id: 'easy', name: 'Easy', blurb: 'Weaker opponents, three rerolls, two stars at most' },
+  { id: 'normal', name: 'Normal', blurb: 'As the clubs were, two rerolls' },
+  { id: 'hard', name: 'Hard', blurb: 'Sharper opponents, one reroll, a fourth star for meeting your aim' },
+]
+export const DIFFICULTY_SHIFT: Record<Difficulty, number> = { easy: -1.5, normal: 0, hard: 1.5 }
+const REROLLS_BY: Record<Difficulty, number> = { easy: 3, normal: 2, hard: 1 }
+
+/** Extra rules a draft can be played under. */
+export type RuleId = 'oneStar' | 'blind' | 'noDeals'
+export const RULES: { id: RuleId; name: string; blurb: string }[] = [
+  { id: 'oneStar', name: 'One star', blurb: 'Only one player rated 85 or more in your squad' },
+  { id: 'blind', name: 'Blind draft', blurb: 'Every round hides the ratings until a player is in your side' },
+  { id: 'noDeals', name: 'No deals', blurb: 'The January window stays shut: this squad is the squad' },
+]
+/** A star, for the one-star rule. */
+export const STAR_LINE = 85
 
 /**
  * A round with a twist: two club-seasons to choose from (`pair`, the second is `other`); ratings
@@ -313,6 +340,8 @@ export interface DraftOptions {
   recent?: string[]
   /** Twists and rerolls (session 37; the screen turns them on, scripts and older tests leave them off). */
   twists?: boolean
+  difficulty?: Difficulty
+  rules?: RuleId[]
 }
 
 /** A draft offers at most this many seasons of one club (a league's top clubs have five). */
@@ -355,6 +384,8 @@ export function newDraft(seed: number, formation: Formation, league: League = 'P
   }
   if (opts.budget) d.money = budgetFor(d)
   if (opts.daily) d.daily = opts.daily
+  if (opts.difficulty && opts.difficulty !== 'normal') d.difficulty = opts.difficulty
+  if (opts.rules?.length) d.rules = [...opts.rules]
   return opts.twists ? withTwists(d, draftPools({ theme: theme?.id, league }), opts.daily ? [] : (opts.recent ?? [])) : d
 }
 
@@ -391,7 +422,17 @@ function withTwists(d: Draft, pools: number[], recent: string[]): Draft {
       if (lines.length) twists[r] = { kind, line: rng.pick(lines) }
     } else if (kind === 'blind') twists[r] = { kind }
   }
-  return { ...d, rounds, twists, rerolls: REROLLS, spares }
+  return { ...d, rounds, twists, rerolls: REROLLS_BY[d.difficulty ?? 'normal'], spares }
+}
+
+/** Ratings hidden this round: a blind twist, or the blind-draft rule. */
+export const isBlind = (d: Draft): boolean => twistOf(d)?.kind === 'blind' || !!d.rules?.includes('blind')
+
+/** Why the draft's rules keep him out, or null. (A blind round doesn't give the one-star rule away.) */
+export function ruleProblem(d: Draft, p: PlayerDef): string | null {
+  if (d.rules?.includes('oneStar') && !isBlind(d) && (p.overall ?? 0) >= STAR_LINE && [...d.xi, ...d.bench].some((q) => (q?.overall ?? 0) >= STAR_LINE))
+    return `One star only: you already have a player rated ${STAR_LINE} or more.`
+  return null
 }
 
 /** This round's twist, if it has one. */
@@ -454,6 +495,7 @@ export const fitted = (p: PlayerDef, slot: number, formation: Formation): number
 export function place(d: Draft, p: PlayerDef, at: Place): Draft {
   if ('xi' in at ? d.xi[at.xi] : d.bench[at.bench]) return d
   let next = d
+  if (ruleProblem(d, p)) return d
   if (d.money !== undefined) {
     if (!canAfford(d, p)) return d
     next = { ...d, money: d.money - priceIn(d, p) }

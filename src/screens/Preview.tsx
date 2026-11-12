@@ -4,7 +4,8 @@
  */
 import { type ReactNode, useMemo } from 'react'
 import { shortName } from '../names.ts'
-import { formMark, formOf } from '../season/form.ts'
+import { formOf } from '../season/form.ts'
+import { FormPill } from './FormPill.tsx'
 import { type Fixture, type Season, lineupFor, playerRating, squadOf, table } from '../season/season.ts'
 
 const ordinal = (n: number): string => {
@@ -60,7 +61,25 @@ export function Preview({ season, fixture }: { season: Season; fixture: Fixture 
       {started && line('Form', dots(home.form), dots(away.form), 'Last five, oldest first')}
       {line('Eleven', home.eleven, away.eleven, 'Average overall of the side picked this week')}
       {season.mode === 'draft' &&
-        line('In form', home.hot ? `${home.hot.name} ${formMark(home.hot.form)}` : '–', away.hot ? `${away.hot.name} ${formMark(away.hot.form)}` : '–', 'Form swings through the season: a player in form plays above his overall')}
+        line(
+          'In form',
+          home.hot ? (
+            <>
+              {home.hot.name}
+              <FormPill form={home.hot.form} short />
+            </>
+          ) : (
+            '–'
+          ),
+          away.hot ? (
+            <>
+              <FormPill form={away.hot.form} short /> {away.hot.name}
+            </>
+          ) : (
+            '–'
+          ),
+          'Form swings through the season: a player in form plays above his overall',
+        )}
       {started && line('Top scorer', home.top ? `${home.top.name} ${home.top.goals}` : '–', away.top ? `${away.top.name} ${away.top.goals}` : '–')}
       {earlier?.result && (
         <p className="tape-note">

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FORMATIONS, fitFor } from '../engine/index.ts'
-import { LINE_ROLES, canAfford, REROLLS, TWISTS, isComplete, newDraft, offer, place, reroll, rerollProblem, roundOf, twistOf, type Draft } from './draft.ts'
+import { LINE_ROLES, STAR_LINE, canAfford, isBlind, ruleProblem, REROLLS, TWISTS, isComplete, newDraft, offer, place, reroll, rerollProblem, roundOf, twistOf, type Draft } from './draft.ts'
 
 /** Fill a draft the way the screen allows: a player who fits an open place (keepers only in goal). */
 function fill(d: Draft, upTo = 20): Draft {
@@ -80,5 +80,26 @@ describe('draft twists', () => {
         expect(d.xi.every(Boolean)).toBe(true)
         expect(d.xi[0]!.role).toBe('GK')
       }
+  })
+})
+
+describe('difficulty and rules', () => {
+  it('give rerolls by difficulty and keep the rules', () => {
+    expect(newDraft(2, '4-3-3', 'Premier League', { twists: true, difficulty: 'easy' }).rerolls).toBe(3)
+    expect(newDraft(2, '4-3-3', 'Premier League', { twists: true, difficulty: 'hard' }).rerolls).toBe(1)
+    const d = newDraft(2, '4-3-3', 'Premier League', { rules: ['blind'] })
+    expect(d.rules).toEqual(['blind'])
+    expect(isBlind(d)).toBe(true)
+  })
+
+  it('one star: a second player rated 85+ is refused', () => {
+    let d = newDraft(6, '4-3-3', 'Premier League', { rules: ['oneStar'] })
+    for (let r = 0; r < 20 && !isComplete(d); r++) {
+      const offered = offer(d).players
+      const ok = offered.filter((p) => !ruleProblem(d, p)).sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
+      d = place(d, ok[0], d.xi.includes(null) ? { xi: d.xi.indexOf(null) } : { bench: d.bench.indexOf(null) })
+    }
+    const stars = [...d.xi, ...d.bench].filter((p) => (p?.overall ?? 0) >= STAR_LINE).length
+    expect(stars).toBeLessThanOrEqual(1)
   })
 })

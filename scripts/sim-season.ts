@@ -18,6 +18,7 @@ const flags = process.argv.slice(2).filter((a) => a.startsWith('--'))
 const args = [process.argv[0], process.argv[1], ...process.argv.slice(2).filter((a) => !a.startsWith('--'))]
 const theme = flags.find((f) => f.startsWith('--theme='))?.slice(8) as ThemeId | undefined
 const budget = flags.includes('--budget')
+const difficulty = flags.find((f) => f.startsWith('--difficulty='))?.slice(13) as 'easy' | 'hard' | undefined
 const seed = Number(args[2] ?? 1)
 const upTo = Number(args[3] ?? 38)
 const out = args[4] ?? 'season.json'
@@ -66,7 +67,7 @@ let s: Season = {
   ...createSeason(d.seed, 0, new Date(Date.UTC(2026, 5, 1)), draftLeague(d, 'Backseat XI')),
   mode: 'draft',
   league: d.league,
-  ...(theme || budget ? { draftStyle: { theme, budget: budget ? budgetFor(d) : undefined } } : {}),
+  ...(theme || budget || difficulty ? { draftStyle: { theme, budget: budget ? budgetFor(d) : undefined, ...(difficulty ? { difficulty } : {}) } } : {}),
 }
 console.error(`our eleven ${draftRating(d)}${d.money !== undefined ? `, £${d.money}m left` : ''}`)
 const t0 = Date.now()

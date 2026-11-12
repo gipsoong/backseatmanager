@@ -13,8 +13,10 @@ export function slotLabel(slot: Slot): string {
 }
 
 /** Where a place sits on the small pitch: attack at the top, the side's right on the right. */
-export function slotStyle(slot: Slot): CSSProperties {
+export function slotStyle(slot: Slot, labelled = true): CSSProperties {
   const top = slot.role === 'GK' ? 90 : 72 - slot.depth * 57
-  // Kept far enough in that a wide man's label (up to ~92px across) stays on the pitch.
-  return { top: `${top}%`, left: `clamp(46px, ${(slot.y / 68) * 100}%, calc(100% - 46px))` }
+  const left = `${(slot.y / 68) * 100}%`
+  // A labelled slot is kept far enough in that a wide man's label (up to ~92px across) stays on the
+  // pitch; a bare dot (the shape picker's small pitches) goes where it is.
+  return { top: `${top}%`, left: labelled ? `clamp(46px, ${left}, calc(100% - 46px))` : left }
 }

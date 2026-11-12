@@ -7,6 +7,7 @@ import { type Season, fixturesOn, table, tableMoves } from '../season/season.ts'
 import { ordinal } from './format.ts'
 import { milestones } from '../career/records.ts'
 import { shortName } from '../names.ts'
+import { playerOfTheMonth, playerOfTheWeek } from '../season/awards.ts'
 import { Swatch } from './Hub.tsx'
 
 export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Season; matchday: number; onClose: () => void; onRewatch?: (fixtureId: number) => void }) {
@@ -59,8 +60,8 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
         )}
         {mine?.result && mine.result.goals.length > 0 && (
           <div className="roundup-scorers">
-            <span>{scorers(0)}</span>
-            <span>{scorers(1)}</span>
+            <span>{scorers(0) && <><BallIcon />{scorers(0)}</>}</span>
+            <span>{scorers(1) && <><BallIcon />{scorers(1)}</>}</span>
           </div>
         )}
         {marks.map((m) => (
@@ -68,6 +69,27 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
             {m}
           </p>
         ))}
+        <div className="awards">
+          {[
+            { label: 'Player of the month', a: playerOfTheMonth(season, matchday), month: true },
+            { label: 'Player of the week', a: playerOfTheWeek(season, matchday), month: false },
+          ].map(({ label, a, month }) =>
+            a ? (
+              <div key={label} className={`award${month ? ' month' : ''}${a.club === season.userTeam ? ' yours' : ''}`}>
+                <span className="award-label">{label}</span>
+                <span className="award-who">
+                  <Swatch kit={season.teams[a.club].kit} /> {a.player.name}
+                </span>
+                <span className="award-line">
+                  {a.rating.toFixed(1)}
+                  {month ? ` avg over ${a.apps}` : ''}
+                  {a.goals ? ` · ${a.goals} ${a.goals === 1 ? 'goal' : 'goals'}` : ''}
+                  {a.assists ? ` · ${a.assists} ${a.assists === 1 ? 'assist' : 'assists'}` : ''}
+                </span>
+              </div>
+            ) : null,
+          )}
+        </div>
         <p className="roundup-place">
           {ordinal(place)} in the table
           {move !== 0 && <span className={`last-move ${move > 0 ? 'up' : 'down'}`}> {move > 0 ? '▲' : '▼'} {Math.abs(move)}</span>}
@@ -104,5 +126,15 @@ export function RoundUp({ season, matchday, onClose, onRewatch }: { season: Seas
         </div>
       </section>
     </div>
+  )
+}
+
+/** A small football before a scorers line. */
+function BallIcon() {
+  return (
+    <svg className="ball-icon" width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+      <circle cx="6" cy="6" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M6 3.6 L8.2 5.2 L7.4 7.8 H4.6 L3.8 5.2 Z" fill="currentColor" />
+    </svg>
   )
 }

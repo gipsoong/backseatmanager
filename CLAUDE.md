@@ -650,5 +650,18 @@ pulling the repo.
   preview's "In form". Links (`draft/links.ts`): starters sharing a club in the database (`PlayerDef.clubs`,
   stamped by `poolPlayer` via `clubsOf`; season.ts must not import POOLS, or the worker bundle grows ~200 KB) get
   +1 (1-2 links) or +2 (3+), the manager's drafted side only; greedy drafts average ~0.55.
+  Difficulty (`Draft.difficulty`, `Season.draftStyle.difficulty`): the manager's opponent that matchday plays
+  ±1.5 on `POSITIONAL` (matchTeam; the rest of the league as it is, so its goals don't move), rerolls 3/2/1,
+  stars capped at 2 (easy) or a fourth for the aim (hard, `starsPossible`). Rules (`RULES`, `draftStyle.rules`):
+  oneStar (`ruleProblem`, `STAR_LINE` 85; not in blind rounds), blind (`isBlind`), noDeals (`windowOpen`).
+  sim-season takes `--difficulty=`. Events (`draft/events.ts`): three a season from the seed (`seasonEvents`,
+  windows 5-12, 15-24, 26-33), targets from the drafted eleven (kept in `Season.choices` once chosen), effects
+  as `Boost`s applied by matchTeam (`eventBoosts`; passed by unchosen = option 0, which is boost-only;
+  option 1 may change condition when chosen, `choose`); `EventCard` on the hub. Awards (`season/awards.ts`):
+  player of the week and of the month (every 4 matchdays) in the round-up. Flavour colours `--flavour-*`
+  (hot, warm, cool, cold, award; light and dark) for form (`FormPill`), scorers, awards and events, apart from
+  the brand's greens. Idle motion: `.live-dot`, the mark's ball bob, `.pitch-sheen` on small pitches, the main
+  hub button breathing. `slotStyle(slot, false)` for bare dots (the shape picker), whose pitches are too
+  narrow for the labels' edge clamp.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

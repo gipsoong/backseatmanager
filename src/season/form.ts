@@ -43,5 +43,10 @@ export function teamInForm(t: TeamDef, seed: number, matchday: number): TeamDef 
   return { ...t, players: t.players.map(f), bench: t.bench.map(f) }
 }
 
+/** A whole side (eleven and bench) moved by `n` points, as form moves a man: difficulty. */
+export function shiftTeam(t: TeamDef, n: number): TeamDef {
+  return { ...t, players: t.players.map((p) => inForm(p, n)), bench: t.bench.map((p) => inForm(p, n)) }
+}
+
 /** Form in a few characters: "▲2", "▼1", or "" when he's at his usual level. */
 export const formMark = (f: number): string => (f > 0 ? `▲${f}` : f < 0 ? `▼${-f}` : '')

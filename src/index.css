@@ -13,6 +13,16 @@
   --brand-pitch-2: #1d5639;
   --brand-amber: #e9a93a;
   --brand-chalk: #f3f1e7;
+  --flavour-hot: #d9573b;
+  --flavour-hot-bg: #fbe6df;
+  --flavour-warm: #b7791f;
+  --flavour-warm-bg: #fbf0d9;
+  --flavour-cool: #4a78b5;
+  --flavour-cool-bg: #e3ecf8;
+  --flavour-cold: #3d5a8a;
+  --flavour-cold-bg: #dde4f0;
+  --flavour-award: #7a4fc4;
+  --flavour-award-bg: #efe8fb;
   --strip: #101512;
   --strip-ink: #f3f5f1;
   --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
@@ -43,11 +53,31 @@
     --played: #8cc79f;
     --buffered: #3a4a3f;
     --goal: #e0b04a;
+    --flavour-hot: #ff8a6b;
+    --flavour-hot-bg: #3a2019;
+    --flavour-warm: #f0bd5e;
+    --flavour-warm-bg: #352914;
+    --flavour-cool: #8db4ea;
+    --flavour-cool-bg: #1b2738;
+    --flavour-cold: #a9bde0;
+    --flavour-cold-bg: #1e2433;
+    --flavour-award: #b99af0;
+    --flavour-award-bg: #2a2140;
     color-scheme: dark;
   }
 }
 
 :root[data-theme='dark'] {
+  --flavour-hot: #ff8a6b;
+  --flavour-hot-bg: #3a2019;
+  --flavour-warm: #f0bd5e;
+  --flavour-warm-bg: #352914;
+  --flavour-cool: #8db4ea;
+  --flavour-cool-bg: #1b2738;
+  --flavour-cold: #a9bde0;
+  --flavour-cold-bg: #1e2433;
+  --flavour-award: #b99af0;
+  --flavour-award-bg: #2a2140;
   --bg: #0f1411;
   --surface: #171e19;
   --ink: #e6ebe6;
@@ -4630,20 +4660,112 @@ p.meta,
   font-size: 0.9em;
 }
 
-/* Form in draft seasons (session 37). */
-.form-note {
-  margin-left: 4px;
-  font-size: 0.75em;
-  font-variant-numeric: tabular-nums;
+/* Form in draft seasons (session 37): a small coloured pill with a word, hot to cold. */
+.form-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   white-space: nowrap;
+  vertical-align: 0.1em;
+  line-height: 1.5;
 }
 
-.form-note.up {
-  color: var(--accent);
+.form-pill svg {
+  flex: none;
 }
 
-.form-note.down {
+.form-pill.hot {
+  color: var(--flavour-hot);
+  background: var(--flavour-hot-bg);
+}
+
+.form-pill.warm {
+  color: var(--flavour-warm);
+  background: var(--flavour-warm-bg);
+}
+
+.form-pill.cool {
+  color: var(--flavour-cool);
+  background: var(--flavour-cool-bg);
+}
+
+.form-pill.cold {
+  color: var(--flavour-cold);
+  background: var(--flavour-cold-bg);
+}
+
+.form-pill.hot svg {
+  animation: flicker 2.4s var(--ease-in-out) infinite alternate;
+  transform-origin: 50% 90%;
+}
+
+@keyframes flicker {
+  from {
+    transform: scale(1) rotate(-3deg);
+  }
+  to {
+    transform: scale(1.12) rotate(3deg);
+  }
+}
+
+/* Mid-season events (session 37). */
+.event-card {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--flavour-award) 35%, var(--line));
+  background: var(--flavour-award-bg);
+}
+
+.event-card .eyebrow {
+  color: var(--flavour-award);
+}
+
+.event-text {
+  margin: 4px 0 10px;
+}
+
+.event-options {
+  display: grid;
+  gap: 8px;
+}
+
+.event-option {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), transform var(--dur-press) var(--ease-out);
+}
+
+.event-option:hover {
+  border-color: var(--flavour-award);
+}
+
+.event-option:active {
+  transform: scale(0.99);
+}
+
+.event-option small {
   color: var(--muted);
+}
+
+.event-note {
+  margin: 8px 0 0;
+  font-size: 0.85em;
 }
 
 /* Draft links (session 37). On phones the count goes in the side's sheet handle instead. */
@@ -4662,4 +4784,170 @@ p.meta,
 .link-note {
   color: var(--accent);
   font-weight: 600;
+}
+
+.tape-a .form-pill {
+  margin: 0 6px 0 0;
+}
+
+/* Round-up flavour (session 37): scorers in the warm colour, awards in the award colour. */
+.roundup-scorers .ball-icon {
+  color: var(--flavour-warm);
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+
+.awards {
+  display: grid;
+  gap: 6px;
+}
+
+.awards:empty {
+  display: none;
+}
+
+.award {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--flavour-cool-bg);
+  animation: rise var(--dur-base) var(--ease-out) 320ms backwards;
+}
+
+.award.month {
+  background: var(--flavour-award-bg);
+}
+
+.award-label {
+  grid-column: 1 / -1;
+  font-family: var(--display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--flavour-cool);
+}
+
+.award.month .award-label {
+  color: var(--flavour-award);
+}
+
+.award.yours .award-label::after {
+  content: ' · yours';
+}
+
+.award-who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.award-line {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Idle life (session 37): small, slow movements so a screen reads as live. All flattened by the
+   reduced-motion rule. */
+.live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--flavour-hot);
+  vertical-align: 0.05em;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--flavour-hot) 55%, transparent);
+  animation: live-pulse 2.2s var(--ease-out) infinite;
+}
+
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--flavour-hot) 55%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+
+/* The mark's ball bobs now and then. */
+.appbar .chalk-ball,
+.logo.big .chalk-ball {
+  animation: ball-bob 6s var(--ease-in-out) 1.5s infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+@keyframes ball-bob {
+  0%,
+  82%,
+  100% {
+    transform: translateY(0);
+  }
+  88% {
+    transform: translateY(-3px);
+  }
+  94% {
+    transform: translateY(0) scaleY(0.9);
+  }
+}
+
+/* Light moving slowly across the small pitches, like cloud over a ground. */
+.mini-pitch,
+.shape-pitch {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.mini-pitch > .pitch-sheen,
+.shape-pitch > .pitch-sheen {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.07) 50%, transparent 65%);
+  background-size: 260% 100%;
+  animation: sheen 14s linear infinite;
+}
+
+@keyframes sheen {
+  from {
+    background-position: 130% 0;
+  }
+  to {
+    background-position: -130% 0;
+  }
+}
+
+/* The main button breathes a little while it waits. */
+.hub .actions .btn:not(.ghost):not(:disabled) {
+  animation: breathe 3.6s var(--ease-in-out) infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+}
+
+/* Run goals still open twinkle softly. */
+.run-goal.open .run-goal-text::before {
+  animation: twinkle 3s var(--ease-in-out) infinite;
+}
+
+@keyframes twinkle {
+  50% {
+    opacity: 0.35;
+  }
 }

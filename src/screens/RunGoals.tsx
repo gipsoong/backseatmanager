@@ -3,8 +3,8 @@
  * the stars. A finished run is kept in this browser's record of runs (per viewer, optional).
  */
 import { useEffect } from 'react'
-import { aimText, bonusText, goalState, starsOf } from '../draft/goals.ts'
-import { draftEyebrow } from '../draft/draft.ts'
+import { aimText, bonusText, goalState, starsOf, starsPossible } from '../draft/goals.ts'
+import { RULES, draftEyebrow } from '../draft/draft.ts'
 import { isOver, matchdays, table, type Season } from '../season/season.ts'
 import { clubRecords } from '../season/stats.ts'
 
@@ -18,6 +18,8 @@ export interface RunRecord {
   record: [number, number, number]
   goals: [number, number]
   stars: number
+  /** Stars the run could earn (older records: 3). */
+  of?: number
 }
 
 const RUNS_KEY = 'matchday.draft.runs'
@@ -40,12 +42,19 @@ function keepRun(s: Season): void {
     key: `${s.seed}-${s.startDate}-${s.teams[s.userTeam].name}`,
     date: new Date().toISOString().slice(0, 10),
     name: s.teams[s.userTeam].name,
-    style: draftEyebrow({ league: s.league, theme: s.draftStyle?.theme, budget: s.draftStyle?.budget !== undefined, daily: s.draftStyle?.daily }).replace(/^Draft · /, ''),
+    style: [
+      draftEyebrow({ league: s.league, theme: s.draftStyle?.theme, budget: s.draftStyle?.budget !== undefined, daily: s.draftStyle?.daily }).replace(/^Draft · /, ''),
+      s.draftStyle?.difficulty === 'hard' ? 'Hard' : s.draftStyle?.difficulty === 'easy' ? 'Easy' : '',
+      ...(s.draftStyle?.rules ?? []).map((r) => RULES.find((x) => x.id === r)?.name ?? ''),
+    ]
+      .filter(Boolean)
+      .join(' · '),
     place,
     points: rows[place - 1].points,
     record: [rec.won, rec.drawn, rec.lost],
     goals: [rec.goalsFor, rec.goalsAgainst],
     stars: starsOf(s),
+    of: starsPossible(s),
   }
   try {
     const runs = pastRuns()
@@ -90,7 +99,7 @@ export function RunGoals({ season }: { season: Season }) {
     <div className="run-goals">
       <div className="run-goals-head">
         <span className="eyebrow">{over ? 'Your run' : 'Run goals'}</span>
-        {over && <Stars n={starsOf(season)} />}
+        {over && <Stars n={starsOf(season)} of={starsPossible(season)} />}
       </div>
       <ul>
         <li className={`run-goal ${mark(over ? aimOk : false, over && !aimOk)}`}>
@@ -102,7 +111,12 @@ export function RunGoals({ season }: { season: Season }) {
           <span className="run-goal-now">{g.met ? 'Done' : g.failed ? 'Missed' : started ? count() : 'Bonus'}</span>
         </li>
       </ul>
-      {over && <p className="meta run-goal-third">A third star for finishing three places above the aim, or winning the league with {Math.round((90 * matchdays(season)) / 38)} points.</p>}
+      {over && starsPossible(season) > 2 && (
+        <p className="meta run-goal-third">
+          A star for finishing three places above the aim, or winning the league with {Math.round((90 * matchdays(season)) / 38)} points
+          {starsPossible(season) === 4 ? ', and one more for meeting the aim on Hard' : ''}.
+        </p>
+      )}
     </div>
   )
 }
@@ -134,7 +148,7 @@ export function PastRuns() {
             <span className="past-run-line">
               {ordinal(r.place)} · {r.points} pts · {r.record.join('-')}
             </span>
-            <Stars n={r.stars} />
+            <Stars n={r.stars} of={r.of ?? 3} />
           </li>
         ))}
       </ul>

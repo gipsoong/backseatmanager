@@ -1,6 +1,7 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
 import { Preview } from "./Preview.tsx";
 import { RunGoals } from "./RunGoals.tsx";
+import { EventCard } from "./EventCard.tsx";
 import { PositionChart } from "./PositionChart.tsx";
 import { useMemo, useState } from "react";
 import type { Formation, Kit, TeamDef } from "../engine/index.ts";
@@ -95,6 +96,7 @@ export function Hub({
   onSign,
   onLoan,
   onRewatch,
+  onChoose,
 }: {
   season: Season;
   busy: boolean;
@@ -116,6 +118,8 @@ export function Hub({
   onLetGo: (id: string, leaving: boolean) => void;
   onSign: (id: string) => void;
   onLoan: (id: string) => void;
+  /** A mid-season event's choice made: the season after it (draft/events.ts). */
+  onChoose?: (s: Season) => void;
   /** Watch one of his kept league matches again (by fixture id). */
   onRewatch?: (fixtureId: number) => void;
 }) {
@@ -240,6 +244,7 @@ export function Hub({
           ) : next ? (
             <>
               <p className="eyebrow">
+                <span className="live-dot" aria-hidden="true" />
                 Next · {dateFmt.format(matchdayDate(season, next.matchday))} ·{" "}
                 {next.home === season.userTeam ? "Home" : "Away"}
               </p>
@@ -258,6 +263,7 @@ export function Hub({
               )}
               <BoardLine season={season} over={false} />
               <RunGoals season={season} />
+              {onChoose && <EventCard season={season} onChoose={onChoose} />}
               {season.career && inTheRed(season) && (
                 <p className="money-warning">{RED_LINE}</p>
               )}

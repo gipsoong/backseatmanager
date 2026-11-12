@@ -4,7 +4,8 @@
  * each fixture has its own match seed, so a match plays out the same whether it's watched or not.
  * No React, no storage: the app keeps a Season and replaces it with the updated one.
  */
-import { teamInForm } from './form.ts'
+import { inForm, shiftTeam, teamInForm } from './form.ts'
+import { type Boost, boostOn, eventBoosts } from '../draft/events.ts'
 import { linkedTeam } from '../draft/links.ts'
 import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, type TimedOrder, ability, cardOverall, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
@@ -162,7 +163,9 @@ export interface Season {
    * Draft mode, how the side was drafted (unset: a classic draft of one league): a theme (a
    * `ThemeId`: club-seasons of all five leagues, filtered), a budget (£m it had), a daily draft's date.
    */
-  draftStyle?: { theme?: string; budget?: number; daily?: string }
+  /** Mid-season events' choices, by event index (draft/events.ts). */
+  choices?: Record<number, { choice: number; ids: string[] }>
+  draftStyle?: { theme?: string; budget?: number; daily?: string; difficulty?: 'easy' | 'hard'; rules?: string[] }
   /** Deals done in the January window (draft mode), oldest first. */
   transfers?: Transfer[]
   /** Offers from other clubs turned down this window (draft mode). */
@@ -358,7 +361,20 @@ export function matchTeam(s: Season, club: number): TeamDef {
   // Draft seasons: everyone in his form for the day (season/form.ts), and the manager's side with
   // its links (draft/links.ts).
   if (s.mode !== 'draft') return side
-  return teamInForm(club === s.userTeam ? linkedTeam(side) : side, s.seed, s.matchday)
+  // Difficulty (draft.ts DIFFICULTY_SHIFT, repeated here so season.ts needn't load the draft's data):
+  // only a side playing the manager's this matchday, so the rest of the league plays as it would.
+  const shift = s.draftStyle?.difficulty === 'hard' ? 1.5 : s.draftStyle?.difficulty === 'easy' ? -1.5 : 0
+  const facing = shift !== 0 && club !== s.userTeam && fixturesOn(s, s.matchday).some((f) => (f.home === club && f.away === s.userTeam) || (f.away === club && f.home === s.userTeam))
+  const level = facing ? shift : 0
+  const own = club === s.userTeam ? withBoosts(linkedTeam(side), eventBoosts(s), s.matchday) : level ? shiftTeam(side, level) : side
+  return teamInForm(own, s.seed, s.matchday)
+}
+
+/** A side with its mid-season events' boosts for the day (draft/events.ts). */
+function withBoosts(t: TeamDef, boosts: Boost[], matchday: number): TeamDef {
+  if (!boosts.length) return t
+  const f = (p: PlayerDef): PlayerDef => inForm(p, boostOn(boosts, p.id, matchday))
+  return { ...t, players: t.players.map(f), bench: t.bench.map(f) }
 }
 
 /** Starting fitness for everyone in a fixture, for the engine. */

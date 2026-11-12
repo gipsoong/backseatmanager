@@ -24,6 +24,10 @@ import {
   place,
   reroll,
   rerollProblem,
+  DIFFICULTIES,
+  RULES,
+  isBlind,
+  ruleProblem,
   twistOf,
   type Twist,
   poolName,
@@ -195,6 +199,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
           </button>
           <div className="sheet-body">
             <div className="mini-pitch">
+              <span className="pitch-sheen" aria-hidden="true" />
               {slots.map((slot, i) => {
                 const p = draft.xi[i]
                 const fit = chosen && !p ? fitFor(chosen, slot) : null
@@ -334,6 +339,34 @@ function PickShape({
           {opts.twists !== false ? ' Twists: a few rounds offer two clubs, a mystery squad, one line only or a strong side, and you get two rerolls.' : ''}
           {opts.daily ? ` Daily: today's offers (${today()}) are the same for everyone who picks these options.` : ''}
         </p>
+        <p className="eyebrow step">Difficulty</p>
+        <div className="segmented league-pick" role="group" aria-label="Difficulty">
+          {DIFFICULTIES.map((x) => (
+            <button key={x.id} type="button" aria-pressed={(opts.difficulty ?? 'normal') === x.id} title={x.blurb} onClick={() => onOpts({ ...opts, difficulty: x.id })}>
+              {x.name}
+            </button>
+          ))}
+        </div>
+        <p className="meta">{DIFFICULTIES.find((x) => x.id === (opts.difficulty ?? 'normal'))!.blurb}.</p>
+        <p className="eyebrow step">Extra rules</p>
+        <div className="segmented league-pick" role="group" aria-label="Extra rules">
+          {RULES.map((x) => {
+            const on = !!opts.rules?.includes(x.id)
+            return (
+              <button
+                key={x.id}
+                type="button"
+                aria-pressed={on}
+                title={x.blurb}
+                onClick={() => onOpts({ ...opts, rules: on ? opts.rules!.filter((y) => y !== x.id) : [...(opts.rules ?? []), x.id] })}
+              >
+                <span className="check" aria-hidden="true">{on ? '✓' : ''}</span>
+                {x.name}
+              </button>
+            )
+          })}
+        </div>
+        {!!opts.rules?.length && <p className="meta">{RULES.filter((x) => opts.rules!.includes(x.id)).map((x) => x.blurb).join('. ')}.</p>}
       </div>
       <p className="meta">
         {DRAFT_ROUNDS} rounds. Each one shows a club's squad from one season: pick one of its players and put him in your side, as one of eleven starters
@@ -345,8 +378,9 @@ function PickShape({
         {FORMATION_NAMES.map((f, i) => (
           <button key={f} type="button" className="shape-card rise" style={stagger(i)} onClick={() => onPick(f)}>
             <span className="shape-pitch" aria-hidden="true">
+              <span className="pitch-sheen" aria-hidden="true" />
               {FORMATIONS[f].map((slot, k) => (
-                <span key={k} className="dot" style={slotStyle(slot)} />
+                <span key={k} className="dot" style={slotStyle(slot, false)} />
               ))}
             </span>
             <span className="shape-name">{f}</span>
@@ -393,7 +427,7 @@ function twistLine(t: Twist): { title: string; text: string } {
 function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chosen: PlayerDef | null; onChoose: (p: PlayerDef) => void; onReroll: () => void }) {
   const { players, pools } = offer(draft)
   const twist = twistOf(draft)
-  const blind = twist?.kind === 'blind'
+  const blind = isBlind(draft)
   const priced = draft.money !== undefined
   const noReroll = rerollProblem(draft)
   const order = (list: PlayerDef[]): PlayerDef[] =>
@@ -425,8 +459,8 @@ function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chose
                   type="button"
                   className={`offer${chosen?.id === p.id ? ' chosen' : ''}${priced ? ' priced' : ''}`}
                   aria-pressed={chosen?.id === p.id}
-                  disabled={!canAfford(draft, p, players)}
-                  title={canAfford(draft, p, players) ? undefined : `£${priceIn(draft, p, players)}m: more than you can spend this round`}
+                  disabled={!canAfford(draft, p, players) || !!ruleProblem(draft, p)}
+                  title={ruleProblem(draft, p) ?? (canAfford(draft, p, players) ? undefined : `£${priceIn(draft, p, players)}m: more than you can spend this round`)}
                   onClick={() => onChoose(p)}
                 >
                   <span className="role"><Positions p={p} /></span>

@@ -356,12 +356,14 @@ export default function App() {
               ...createSeason(d.seed, 0, new Date(), draftLeague(d, name)),
               mode: "draft",
               league: d.league,
-              ...(d.theme || d.money !== undefined || d.daily
+              ...(d.theme || d.money !== undefined || d.daily || d.difficulty || d.rules
                 ? {
                     draftStyle: {
                       theme: d.theme,
                       budget: d.money !== undefined ? budgetFor(d) : undefined,
                       daily: d.daily,
+                      ...(d.difficulty && d.difficulty !== "normal" ? { difficulty: d.difficulty } : {}),
+                      ...(d.rules ? { rules: d.rules } : {}),
                     },
                   }
                 : {}),
@@ -444,6 +446,7 @@ export default function App() {
                 : undefined
             }
             onLineup={(lineup) => void commit({ ...season, lineup })}
+            onChoose={(next) => void commit(next)}
             onTactics={(tactics) =>
               void commit({
                 ...season,

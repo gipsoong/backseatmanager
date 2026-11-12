@@ -88,7 +88,7 @@ export const thisWindow = (s: Season): Transfer[] => {
 
 /** Open while the next match to be played is in January. */
 export const windowOpen = (s: Season): boolean =>
-  !isOver(s) && windowMatchdays(s).includes(s.matchday);
+  !isOver(s) && windowMatchdays(s).includes(s.matchday) && !s.draftStyle?.rules?.includes('noDeals');
 
 /** Deals done in this season's window. */
 export const dealsDone = (s: Season): number =>
