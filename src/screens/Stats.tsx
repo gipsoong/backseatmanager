@@ -10,6 +10,7 @@ import { shortName } from '../names.ts'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { PlayerTable } from './PlayerTable.tsx'
 import { ordinal } from './format.ts'
+import { PositionChart } from './PositionChart.tsx'
 import { Swatch } from './Hub.tsx'
 import { stagger } from './motion.ts'
 import { CountUp } from './CountUp.tsx'
@@ -182,6 +183,7 @@ export function SeasonReview({ season }: { season: Season }) {
           Goals {mine.goalsFor}–{mine.goalsAgainst} (expected {mine.xgFor.toFixed(0)}–{mine.xgAgainst.toFixed(0)}), {mine.cleanSheets} clean sheets.
           {mine.biggestWin && ` Biggest win ${mine.biggestWin.for}–${mine.biggestWin.against} against ${name(mine.biggestWin.opponent)}.`}
         </p>
+        <PositionChart season={season} />
         {season.tips && (
           <p className="meta">
             Tipped {ordinal(season.tips[season.userTeam])} before a ball was kicked

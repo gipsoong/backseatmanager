@@ -1,5 +1,6 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
 import { Preview } from "./Preview.tsx";
+import { PositionChart } from "./PositionChart.tsx";
 import { useMemo, useState } from "react";
 import type { Block, Formation, Kit, TeamDef } from "../engine/index.ts";
 import { ordinal } from "./format.ts";
@@ -554,6 +555,7 @@ export function Hub({
               </tbody>
             </table>
           )}
+          {tab === "table" && <PositionChart season={season} />}
           {tab === "fixtures" && (
             <div className="fixtures">
               <div className="md-nav">
