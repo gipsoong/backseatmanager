@@ -139,7 +139,7 @@ export function checkMatch(
   // Everyone hurt so far (an injury event): only they may go off for an injury.
   const hurt = new Set<number>()
   const managedFrom = [0, 1].map((team) => Math.min(...orders.filter((o) => o.order.kind === 'sub' && o.order.team === team).map((o) => o.tick)))
-  const shape = [home, away].map((t) => ({ formation: t.formation, block: t.block }))
+  const shape = [home, away].map((t) => ({ formation: t.formation, block: t.block, mentality: t.mentality ?? 'balanced' }))
 
   const v0 = (tick: number, rule: string, detail: string): void => {
     violations.push({ tick, rule, detail })
@@ -185,8 +185,8 @@ export function checkMatch(
     }
     for (const team of [0, 1] as const) {
       const t = s.teams[team]
-      for (const key of ['formation', 'block'] as const) {
-        if (t[key] === shape[team][key]) continue
+      for (const key of ['formation', 'block', 'mentality'] as const) {
+        if ((t[key] ?? 'balanced') === shape[team][key]) continue
         const ev = events.some((e) => e.type === key && e.team === team && e[key as never] === t[key])
         const asked = orders.some((o) => o.tick === s.tick - 1 && o.order.kind === key && o.order.team === team && (o.order as Record<string, unknown>)[key] === t[key])
         if (!ev || !asked) v('order-' + key, `team ${team} went to ${t[key]} without ${ev ? 'an order that tick' : 'an event'}`)

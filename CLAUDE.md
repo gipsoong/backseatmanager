@@ -633,6 +633,7 @@ pulling the repo.
   matchday; `tableMoves`; `simulateAhead` (App). `draft/squads-extra.ts`: 37 smaller club-seasons of all five
   leagues, the last entry of `LEAGUES` (pools.ts) so saved pool indexes don't move; check with
   check-squads. `career/jobs.ts` (`jobNews`, `takeJob`): offers and the sack at a career season's end;
-  `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). A mentality setting was tried and dropped (PROGRESS).
+  `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). Mentality (`TeamDef.mentality`, ai.ts `MENTALITY`: keenness, in-possession
+  depth of full-backs and midfielders, late runs; an `Order`; diag-mentality.ts mirror tests; see PROGRESS).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

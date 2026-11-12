@@ -3,7 +3,8 @@
  * the cup's scorers, and the squad.
  */
 import { useState } from "react";
-import type { Block, Formation } from "../engine/index.ts";
+import type { Formation } from "../engine/index.ts";
+import type { Tactics } from "./Squad.tsx";
 import {
   CUP_NAME,
   ROUND_NAMES,
@@ -40,7 +41,7 @@ export function CupHub({
   onNewSeason,
   onLineup,
   onFormation,
-  onBlock,
+  onTactics,
 }: {
   season: Season;
   busy: boolean;
@@ -50,7 +51,7 @@ export function CupHub({
   onNewSeason: () => void;
   onLineup: (ids: string[] | null) => void;
   onFormation: (f: Formation) => void;
-  onBlock?: (b: Block) => void;
+  onTactics?: (t: Tactics) => void;
 }) {
   const [tab, setTab] = useState<"bracket" | "results" | "scorers" | "squad">(
     "bracket",
@@ -184,7 +185,7 @@ export function CupHub({
               season={season}
               onLineup={onLineup}
               onFormation={onFormation}
-              onBlock={onBlock}
+              onTactics={onTactics}
             />
           )}
           </div>

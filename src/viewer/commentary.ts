@@ -48,8 +48,9 @@ export function preMatch(start: MatchState, names: string[]): string[] {
     }
     return names[top]
   }
+  const lean = (t: typeof home): string => (t.mentality === 'attacking' ? ', ready to commit men forward' : t.mentality === 'defensive' ? ', taking no risks' : '')
   return [
-    `${home.name} line up ${home.formation} and ${BLOCK_WORDS[home.block]}; ${away.name} go ${away.formation} and ${BLOCK_WORDS[away.block]}.`,
+    `${home.name} line up ${home.formation} and ${BLOCK_WORDS[home.block]}${lean(home)}; ${away.name} go ${away.formation} and ${BLOCK_WORDS[away.block]}${lean(away)}.`,
     `The ones to watch: ${best(0)} for ${home.name}, ${best(1)} for ${away.name}.`,
   ]
 }
@@ -367,6 +368,18 @@ export function buildCommentary(match: MatchState, events: MatchEvent[]): Line[]
       }
       case 'formation':
         add(e, `${teamName(e.team)} go to a ${e.formation}.`, 'info', e.team)
+        break
+      case 'mentality':
+        add(
+          e,
+          e.mentality === 'attacking'
+            ? `${teamName(e.team)} commit more men forward.`
+            : e.mentality === 'defensive'
+              ? `${teamName(e.team)} keep men back and take fewer risks.`
+              : `${teamName(e.team)} go back to a balanced approach.`,
+          'info',
+          e.team,
+        )
         break
       case 'block':
         add(

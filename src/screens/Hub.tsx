@@ -2,7 +2,8 @@
 import { Preview } from "./Preview.tsx";
 import { PositionChart } from "./PositionChart.tsx";
 import { useMemo, useState } from "react";
-import type { Block, Formation, Kit, TeamDef } from "../engine/index.ts";
+import type { Formation, Kit, TeamDef } from "../engine/index.ts";
+import type { Tactics } from "./Squad.tsx";
 import { ordinal } from "./format.ts";
 import { draftEyebrow } from "../draft/draft.ts";
 import {
@@ -84,7 +85,7 @@ export function Hub({
   onNextSeason,
   onLineup,
   onFormation,
-  onBlock,
+  onTactics,
   onDeal,
   onDecline,
   onEnterCup,
@@ -105,7 +106,7 @@ export function Hub({
   onNextSeason?: (club?: number, sacked?: boolean) => void;
   onLineup: (ids: string[] | null) => void;
   onFormation: (f: Formation) => void;
-  onBlock?: (b: Block) => void;
+  onTactics?: (t: Tactics) => void;
   onDeal: (deal: Deal) => void;
   onDecline: (deal: Deal) => void;
   onEnterCup: () => void;
@@ -478,7 +479,7 @@ export function Hub({
               season={season}
               onLineup={onLineup}
               onFormation={onFormation}
-              onBlock={onBlock}
+              onTactics={onTactics}
             />
           )}
           {tab === "stats" && <Stats season={season} />}

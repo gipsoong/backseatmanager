@@ -15,7 +15,7 @@ const bench = (h: TeamDef, a: TeamDef, team: 0 | 1): number[] => {
   return s.players.filter((p) => p.team === team && !p.onPitch).map((p) => p.idx)
 }
 
-/** The orders the tests give the home side: a new shape and block early, then three changes. */
+/** The orders the tests give the home side: a new shape, block and mentality early, then three changes. */
 function someOrders(h: TeamDef, a: TeamDef): TimedOrder[] {
   const s = createMatch(h, a, { seed: 1 })
   const field = s.players.filter((p) => p.team === 0 && p.onPitch && p.slot.role !== 'GK')
@@ -24,6 +24,7 @@ function someOrders(h: TeamDef, a: TeamDef): TimedOrder[] {
   return [
     order(4000, { kind: 'formation', team: 0, formation: h.formation === '3-5-2' ? '4-4-2' : '3-5-2' }),
     order(4000, { kind: 'block', team: 0, block: h.block === 'high' ? 'low' : 'high' }),
+    order(4000, { kind: 'mentality', team: 0, mentality: 'attacking' }),
     order(20000, { kind: 'sub', team: 0, offIdx: field[9].idx, onIdx: subs[0] }),
     order(20000, { kind: 'sub', team: 0, offIdx: field[5].idx, onIdx: subs[1] }),
     order(26000, { kind: 'sub', team: 0, offIdx: field[2].idx, onIdx: subs[2] }),

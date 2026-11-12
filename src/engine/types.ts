@@ -5,6 +5,8 @@ import type { Vec } from './geometry.ts'
 export type Side = 0 | 1
 export type Role = 'GK' | 'CB' | 'FB' | 'DM' | 'CM' | 'WM' | 'W' | 'ST'
 export type Block = 'low' | 'mid' | 'high'
+/** How much a side commits forward with the ball (unset is balanced); see ai.ts MENTALITY. */
+export type Mentality = 'defensive' | 'balanced' | 'attacking'
 export type Foot = 'left' | 'right'
 
 export type Formation = '4-4-2' | '4-3-3' | '4-2-3-1' | '4-1-4-1' | '3-5-2' | '3-4-3'
@@ -154,6 +156,7 @@ export interface TeamDef {
   kit: Kit
   formation: Formation
   block: Block
+  mentality?: Mentality
   /** Exactly 11, in the formation's slot order (GK first). */
   players: PlayerDef[]
   /** Substitutes (up to 9), in no particular order. */
@@ -361,6 +364,7 @@ export type MatchEvent = EventBase &
     /** The manager's orders (see `Order`): a new shape, re-slotting the men on the pitch where they stand. */
     | { type: 'formation'; team: Side; formation: Formation }
     | { type: 'block'; team: Side; block: Block }
+    | { type: 'mentality'; team: Side; mentality: Mentality }
     /** Hurt, and out for `weeks` matchdays after this one. */
     | { type: 'injury'; idx: number; weeks: number }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }
@@ -413,6 +417,7 @@ export type Order =
   | { kind: 'sub'; team: Side; offIdx: number; onIdx: number }
   | { kind: 'formation'; team: Side; formation: Formation }
   | { kind: 'block'; team: Side; block: Block }
+  | { kind: 'mentality'; team: Side; mentality: Mentality }
 
 export interface TimedOrder {
   /** Given once this tick has been played, before the next. */

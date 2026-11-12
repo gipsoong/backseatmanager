@@ -4,7 +4,7 @@
  * order plays the match on afresh from there (`Timeline.order`).
  */
 import { useMemo, useState } from 'react'
-import { type Block, FORMATIONS, type Formation, MAX_SUBS, type Order, type PlayerState, type Side, orderProblem } from '../engine/index.ts'
+import { type Block, FORMATIONS, type Mentality, type Formation, MAX_SUBS, type Order, type PlayerState, type Side, orderProblem } from '../engine/index.ts'
 import { surname } from './commentary.ts'
 import type { Timeline } from './timeline.ts'
 
@@ -12,6 +12,12 @@ const BLOCKS: [Block, string][] = [
   ['low', 'Low'],
   ['mid', 'Mid'],
   ['high', 'High'],
+]
+
+const MENTALITIES: [Mentality, string][] = [
+  ['defensive', 'Careful'],
+  ['balanced', 'Balanced'],
+  ['attacking', 'Go for it'],
 ]
 
 export function ChangePanel({ timeline, tick, side, onOrder, onClose }: { timeline: Timeline; tick: number; side: Side; onOrder: () => void; onClose: () => void }) {
@@ -79,6 +85,23 @@ export function ChangePanel({ timeline, tick, side, onOrder, onClose }: { timeli
             <div className="segmented" role="group" aria-labelledby="block-label">
               {BLOCKS.map(([b, label]) => (
                 <button type="button" key={b} aria-pressed={team.block === b} onClick={() => team.block !== b && give({ kind: 'block', team: side, block: b })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="changes-row">
+            <span className="changes-label" id="mentality-label">
+              Approach
+            </span>
+            <div className="segmented" role="group" aria-labelledby="mentality-label">
+              {MENTALITIES.map(([m, label]) => (
+                <button
+                  type="button"
+                  key={m}
+                  aria-pressed={(team.mentality ?? 'balanced') === m}
+                  onClick={() => (team.mentality ?? 'balanced') !== m && give({ kind: 'mentality', team: side, mentality: m })}
+                >
                   {label}
                 </button>
               ))}

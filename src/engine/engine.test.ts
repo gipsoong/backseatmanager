@@ -29,6 +29,15 @@ describe('determinism', () => {
   })
 })
 
+describe('mentalities', () => {
+  it.each([7, 8])('an attacking side against a defensive one breaks no invariant (seed %i)', (seed) => {
+    const [h, a] = teams(seed)
+    const { violations, forcedRestarts } = checkMatch({ ...h, mentality: 'attacking' }, { ...a, mentality: 'defensive' }, { seed })
+    expect(violations.slice(0, 10)).toEqual([])
+    expect(forcedRestarts).toBe(0)
+  })
+})
+
 describe('position/outcome consistency (full matches)', () => {
   const SEEDS = [1, 2, 3, 4, 5, 6]
   const results = SEEDS.map((seed) => {

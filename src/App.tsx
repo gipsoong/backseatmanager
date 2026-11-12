@@ -404,11 +404,11 @@ export default function App() {
             onLeague={() => setScreen({ kind: "league" })}
             onNewSeason={newDraft}
             onLineup={(lineup) => void commit({ ...season, lineup })}
-            onBlock={(block) =>
+            onTactics={(tactics) =>
               void commit({
                 ...season,
                 teams: season.teams.map((t, i) =>
-                  i === season.userTeam ? { ...t, block } : t,
+                  i === season.userTeam ? { ...t, ...tactics } : t,
                 ),
               })
             }
@@ -443,11 +443,11 @@ export default function App() {
                 : undefined
             }
             onLineup={(lineup) => void commit({ ...season, lineup })}
-            onBlock={(block) =>
+            onTactics={(tactics) =>
               void commit({
                 ...season,
                 teams: season.teams.map((t, i) =>
-                  i === season.userTeam ? { ...t, block } : t,
+                  i === season.userTeam ? { ...t, ...tactics } : t,
                 ),
               })
             }

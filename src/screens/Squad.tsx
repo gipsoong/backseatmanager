@@ -3,7 +3,7 @@
  * a substitute, to swap them), then who's fit, who's injured and how they're doing.
  */
 import { useState } from 'react'
-import { type Block, FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
+import { type Block, FORMATIONS, type Mentality, type TeamDef, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
 import { shortName, styleLabel } from '../names.ts'
 import { Positions } from './Positions.tsx'
 import { type Season, type SeasonStats, avgRating, isAvailable, lineupFor, playerRating, squadOf } from '../season/season.ts'
@@ -44,17 +44,26 @@ const APPROACHES: [Block, string, string][] = [
   ['high', 'Press high', 'Win it back high up in bursts after losing it: tiring, and leaves space behind'],
 ]
 
+const MENTALITIES: [Mentality, string, string][] = [
+  ['defensive', 'Careful', 'Patient on the ball, full-backs and midfielders hold back: a tighter game, fewer chances either way'],
+  ['balanced', 'Balanced', 'The usual: full-backs and midfielders join in when it’s on'],
+  ['attacking', 'Go for it', 'Full-backs and midfielders push up and get into the box: more chances, more left open behind'],
+]
+
+/** The side's approach, set before a match. */
+export type Tactics = Partial<Pick<TeamDef, 'block' | 'mentality'>>
+
 export function Squad({
   season,
   onLineup,
   onFormation,
-  onBlock,
+  onTactics,
 }: {
   season: Season
   onLineup: (ids: string[] | null) => void
   onFormation: (f: Formation) => void
-  /** How high the side defends (the engine's block): sit deep, a mid block, or press high. */
-  onBlock?: (b: Block) => void
+  /** How high the side defends (the engine's block) and how much it commits forward (its mentality). */
+  onTactics?: (t: Tactics) => void
 }) {
   const club = season.teams[season.userTeam]
   const columns = COLUMNS.filter((c) => !c.career || season.career)
@@ -143,12 +152,24 @@ export function Squad({
             ))}
           </select>
         </label>
-        {onBlock && (
+        {onTactics && (
+          <div className="approach" role="group" aria-label="With the ball">
+            <span className="eyebrow">With the ball</span>
+            <div className="approach-seg">
+              {MENTALITIES.map(([m, label, blurb]) => (
+                <button type="button" key={m} aria-pressed={(club.mentality ?? 'balanced') === m} title={blurb} onClick={() => onTactics({ mentality: m })}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {onTactics && (
           <div className="approach" role="group" aria-label="Without the ball">
             <span className="eyebrow">Without the ball</span>
             <div className="approach-seg">
               {APPROACHES.map(([b, label, blurb]) => (
-                <button type="button" key={b} aria-pressed={club.block === b} title={blurb} onClick={() => onBlock(b)}>
+                <button type="button" key={b} aria-pressed={club.block === b} title={blurb} onClick={() => onTactics({ block: b })}>
                   {label}
                 </button>
               ))}

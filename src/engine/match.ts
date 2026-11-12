@@ -1381,6 +1381,10 @@ export function giveOrder(s: MatchState, order: Order): MatchEvent[] {
     if (s.teams[team].block === order.block) return out
     s.teams[team] = { ...s.teams[team], block: order.block }
     emit(s, out, { type: 'block', team, block: order.block })
+  } else if (order.kind === 'mentality') {
+    if ((s.teams[team].mentality ?? 'balanced') === order.mentality) return out
+    s.teams[team] = { ...s.teams[team], mentality: order.mentality }
+    emit(s, out, { type: 'mentality', team, mentality: order.mentality })
   } else if (order.kind === 'formation') {
     if (s.teams[team].formation === order.formation) return out
     s.teams[team] = { ...s.teams[team], formation: order.formation }

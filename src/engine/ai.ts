@@ -63,7 +63,7 @@ import {
 import { type BallMotion, loftTime, shotVz } from './physics.ts'
 import { ROLE_OFFSET, cardOverall } from './attributes.ts'
 import type { Archetype } from './archetypes.ts'
-import type { Block, Foot, MatchState, PlayerDef, PlayerState, Restart, Role, Side } from './types.ts'
+import type { Block, Foot, MatchState, Mentality, PlayerDef, PlayerState, Restart, Role, Side } from './types.ts'
 
 // ---------------------------------------------------------------------------
 // Frames and lookups
@@ -761,9 +761,23 @@ function decisionFor(s: MatchState, p: PlayerState, opts: ChooseOpts): Decision 
  * goals up eases off (by up to LEAD_EASING at four up), keeping the ball rather than chasing a rout.
  */
 function keenness(s: MatchState, team: Side): number {
-  return Math.max(FAVOURITE_KEENNESS, 1 - Math.max(0, edgeOf(s, team))) * (1 - LEAD_EASING * clamp(leadOf(s, team) - 1, 0, 2) / 2)
+  return MENTALITY[s.teams[team].mentality ?? 'balanced'].keen * Math.max(FAVOURITE_KEENNESS, 1 - Math.max(0, edgeOf(s, team))) * (1 - LEAD_EASING * clamp(leadOf(s, team) - 1, 0, 2) / 2)
 }
 const FAVOURITE_KEENNESS = 0.5
+/**
+ * A side's mentality (session 37): how keen it is to go forward (`keen`, on `keenness`), how far its
+ * full-backs and midfielders push up with the ball (`depth` x MENTALITY_DEPTH, on their attack
+ * depth) and how often they arrive late in the box (`arrival`). Measured in mirror tests (300
+ * matches each): attacking is about level on xGD (-0.0 to +0.06) in a more open game (~+0.1 xG
+ * each way); defensive is level too (-0.17 to +0.12) in a tighter one. Pushing up alone made
+ * attacking worth more; holding back without patience (keen 1) cost defensive ~0.35 xGD.
+ */
+const MENTALITY: Record<Mentality, { keen: number; depth: number; arrival: number }> = {
+  defensive: { keen: 0.8, depth: -0.5, arrival: 0.5 },
+  balanced: { keen: 1, depth: 0, arrival: 1 },
+  attacking: { keen: 1, depth: 1, arrival: 1.5 },
+}
+const MENTALITY_DEPTH: Partial<Record<Role, number>> = { FB: 0.15, CM: 0.15, DM: 0.1, WM: 0.1 }
 const LEAD_EASING = 0.45
 
 /** Goals his side is ahead by. */
@@ -1547,7 +1561,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
   const ballSide = Math.sign(b.y - CENTER.y) === Math.sign(p.slot.y - CENTER.y)
   const presses = !inPossession && wingBack && ballSide && b.x > 35
   const restDepth = tracks ? Math.min(p.slot.depth, 0.55) : presses ? 0.4 : p.slot.depth
-  const depth = restDepth + (inPossession ? attackDepthFor(p) : 0)
+  const depth = restDepth + (inPossession ? attackDepthFor(p) + MENTALITY[s.teams[team].mentality ?? 'balanced'].depth * (MENTALITY_DEPTH[p.slot.role] ?? 0) : 0)
   const x = lineX + depth * length
   // A winger holds the touchline to stretch them; a target man stays central for the cross.
   // Centre-backs split wide with the ball, so a full-back or midfielder has an angle back to them.
@@ -2078,7 +2092,7 @@ function lateRuns(s: MatchState, owner: PlayerState, a: Vec, started: PlayerStat
   for (const p of mates) {
     if (arriving >= 2) return
     if (p.idx === owner.idx || p.runUntil > s.tick) continue
-    const eager = arrivalEagerness(p)
+    const eager = arrivalEagerness(p) * MENTALITY[s.teams[p.team].mentality ?? 'balanced'].arrival
     if (eager <= 0) continue
     // From behind the ball and outside the box, near enough to get there in time.
     const pa = af(s, p.team, p.pos)

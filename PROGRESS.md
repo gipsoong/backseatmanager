@@ -16,7 +16,7 @@ a layout pass at every width and standing-tackle animation (session 31); a caree
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
 (session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35); draft offers rotate between drafts, All of Europe (session 36).
 Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
-high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting (session 37: needs a real trade-off); changes for "Just the
+high, the Bundesliga's goals ~0.4 low, see session 34; AI staff choosing a mentality by the score; changes for "Just the
 result" matches; replays from the hub's results).
 
 ## Done (session 37): Backseat Manager, phones, rewatch, more clubs, job offers
@@ -70,13 +70,16 @@ The owner asked for a long autonomous push (depth, animations, phone UI, brandin
   away down, from sampled frames (ball owner deep in the other half) plus shots' xG; only slices already played.
 - **Round-up** scorers under the score, and `milestones` (records.ts): 10/25/50… goals, 50/100… appearances
   under him (outside a career: goals of the season).
-- **Mentality tried and dropped** (not shipped): a `TeamDef.mentality` scaling `keenness` (0.75 / 1.3) and late
-  runs (`arrivalEagerness`, 0.5 / 1.5), as an order like the block. Byte-identical when unset, but a mirror test
-  (same squad, 100 matches a set, two sets) had "careful" beating balanced by +0.10 to +0.22 xGD and "attacking"
-  losing -0.11 to -0.15; late runs alone (0.3 / 2) the same way (+0.05 to +0.14, -0.09). So the AI is already at
-  or past the best keenness and number of runners: more of either gives the opponent more than it gains, and
-  a choice where one option is simply better isn't one. A real mentality needs a trade-off the engine pays for
-  (e.g. men left back making counters less dangerous), measured with a mirror test before any UI.
+- **Mentality** (`TeamDef.mentality`, ai.ts `MENTALITY`; an order like the block, harness `order-mentality`;
+  Squad "With the ball": Careful / Balanced / Go for it; the Change panel's "Approach"). First try (keenness
+  0.75/1.3 and late runs) was dropped: careful beat balanced by +0.10 to +0.22 xGD and attacking lost -0.11 to
+  -0.15, i.e. the AI already sits at or past the best keenness and number of late runners. What works:
+  attacking pushes full-backs and midfielders up in possession (`MENTALITY_DEPTH`, x1) with 1.5x late runs, and
+  is about level (+0.06, +0.02, 0.00 xGD in three 100-match mirror sets) in a more open game (~+0.1 xG each way);
+  defensive holds them back (x-0.5), 0.5x late runs and is more patient (keenness 0.8), level too (0.85 gave
+  -0.17, -0.07, +0.09; 0.75 gave +0.12, +0.09) in a tighter game. Holding back without the patience cost ~0.35
+  xGD. `node scripts/diag-mentality.ts <a> <b> [n] [seed]`. Unset or balanced is byte-identical
+  (fingerprint.ts `all 397356966cf2`). AI clubs stay balanced; giving staff a mentality by score would be next.
 
 ## Done (session 36): draft variety
 
