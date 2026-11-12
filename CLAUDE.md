@@ -598,7 +598,7 @@ pulling the repo.
   overall-carrying player's attributes until `cardOverall` has moved as far, and his overall with them.
   money.ts prices by `standingOf` (made-up players net of ROLE_OFFSET, overall-carriers as they are);
   `wageAt(o, role, standing)`. Made-up careers are byte-identical (`node scripts/fingerprint-career.ts`:
-  two fake summers, seeds 1-3, `all 079b6011db15`). `node scripts/check-real.ts [id]`: names spelled
+  two fake summers, seeds 1-3, `all 0015f930c30c` since session 37 added `PastSeason.club` and season lines' `name`). `node scripts/check-real.ts [id]`: names spelled
   unlike the squads files, feet and birth years against pools.ts and cards.ts, each club's eleven, block,
   aim, wages. `sim-career.ts <seed> <seasons> [out] --real[=id]` plays one and prints the table (with each
   club's starting eleven rank) and top scorers. `node scripts/check-real-growth.ts [seed] [summers] [names…]`:

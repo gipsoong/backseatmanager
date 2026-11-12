@@ -56,6 +56,13 @@ The owner asked for a long autonomous push (depth, animations, phone UI, brandin
   Squad tab ("Without the ball": Sit deep / Mid block / Press high, `Hub`/`Cup` `onBlock`); a scouts'
   range for a young player's ceiling (`scoutRange`, Career.tsx: potential ±3 around a hashed offset) on his
   card and in the academy news; the Change panel scrolls into view below an upright pitch.
+- **Before a match**: a preview on the next-match card (`screens/Preview.tsx`: place, form, the eleven's overall,
+  top scorers, the earlier meeting) and two pre-match lines in the commentary before kick-off (`preMatch`,
+  commentary.ts: shapes and blocks, the best outfield man of each side).
+- **All-time leaders** (`career/records.ts` `allTime`, `leaders`; History tab): goals and appearances under the
+  manager over every finished season (at the club he was at) and this one. Season lines of the manager's club
+  keep the player's `name`, so men who've left or retired still show. fingerprint-career.ts is now
+  `all 0015f930c30c` (the new `club` and `name` fields; no logic changed).
 - **Mentality tried and dropped** (not shipped): a `TeamDef.mentality` scaling `keenness` (0.75 / 1.3) and late
   runs (`arrivalEagerness`, 0.5 / 1.5), as an order like the block. Byte-identical when unset, but a mirror test
   (same squad, 100 matches a set, two sets) had "careful" beating balanced by +0.10 to +0.22 xGD and "attacking"

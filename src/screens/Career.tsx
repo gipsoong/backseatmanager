@@ -1,6 +1,7 @@
 /** Career mode's pieces on screen: the summer's news, the board's target, past seasons, and a player's change and career. */
 import { AIM_LINE, CUP_TROPHY, aimMet, managerRecord } from '../career/career.ts'
 import type { JobNews } from '../career/jobs.ts'
+import { allTime, leaders } from '../career/records.ts'
 import { realLeague } from '../career/real.ts'
 import { type Season, playerRating, squadOf, table } from '../season/season.ts'
 import { ordinal } from './format.ts'
@@ -195,6 +196,7 @@ export function History({ season }: { season: Season }) {
           {` The board's target met ${r.met === 1 ? 'once' : r.met === 2 ? 'twice' : `${r.met} times`}.`}
         </p>
       </section>
+      <AllTimeLeaders season={season} />
       <div className="table-scroll">
         <table className="league history-table">
           <thead>
@@ -240,6 +242,36 @@ export function History({ season }: { season: Season }) {
         </table>
       </div>
     </div>
+  )
+}
+
+/** His players' all-time leaders under him: goals and appearances, this season included. */
+function AllTimeLeaders({ season }: { season: Season }) {
+  const rows = allTime(season)
+  const lists = [
+    { key: 'goals' as const, title: 'Top scorers' },
+    { key: 'apps' as const, title: 'Most appearances' },
+  ]
+  if (!rows.some((r) => r.apps > 0)) return null
+  return (
+    <section className="all-time" aria-label="Your all-time leaders">
+      <p className="eyebrow">Under you, all time</p>
+      <div className="all-time-lists">
+        {lists.map((l) => (
+          <div key={l.key}>
+            <h3>{l.title}</h3>
+            <ol>
+              {leaders(rows, l.key).map((r, i) => (
+                <li key={r.id} className="row-in" style={stagger(i)}>
+                  <span className="all-time-name">{r.name}</span>
+                  <span className="all-time-n">{r[l.key]}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

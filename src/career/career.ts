@@ -57,6 +57,8 @@ export interface SeasonLine {
   goals: number
   assists: number
   rating: number | null
+  /** His name, kept for the manager's club's players (session 37), for the club's all-time records. */
+  name?: string
 }
 
 export interface PastSeason {
@@ -635,6 +637,7 @@ export function pastSeason(s: Season): PastSeason {
         goals: st.goals,
         assists: st.assists,
         rating: r === null ? null : Math.round(r * 100) / 100,
+        ...(club === s.userTeam ? { name: p.name } : {}),
       }
       if (st.goals > 0 && (!top || st.goals > top.goals)) top = { name: p.name, club, goals: st.goals }
       if (club === s.userTeam && st.goals > 0 && (!mine || st.goals > mine.goals)) mine = { name: p.name, goals: st.goals }

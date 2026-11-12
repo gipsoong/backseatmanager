@@ -4275,3 +4275,52 @@ p.meta,
   padding: 0;
   color: var(--muted);
 }
+
+/* History: the manager's all-time leaders, two short lists side by side. */
+.all-time {
+  margin: 16px 0;
+}
+
+.all-time-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14em), 1fr));
+  gap: 12px 24px;
+}
+
+.all-time h3 {
+  margin: 4px 0 6px;
+  font-size: 0.95rem;
+}
+
+.all-time ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: at;
+}
+
+.all-time li {
+  display: grid;
+  grid-template-columns: 1.6em minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 18%, transparent);
+  counter-increment: at;
+}
+
+.all-time li::before {
+  content: counter(at);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.all-time-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.all-time-n {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
