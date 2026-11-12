@@ -373,6 +373,14 @@ export default function App() {
             onLeague={() => setScreen({ kind: "league" })}
             onNewSeason={newDraft}
             onLineup={(lineup) => void commit({ ...season, lineup })}
+            onBlock={(block) =>
+              void commit({
+                ...season,
+                teams: season.teams.map((t, i) =>
+                  i === season.userTeam ? { ...t, block } : t,
+                ),
+              })
+            }
             onFormation={(formation) =>
               void commit({
                 ...season,
@@ -403,6 +411,14 @@ export default function App() {
                 : undefined
             }
             onLineup={(lineup) => void commit({ ...season, lineup })}
+            onBlock={(block) =>
+              void commit({
+                ...season,
+                teams: season.teams.map((t, i) =>
+                  i === season.userTeam ? { ...t, block } : t,
+                ),
+              })
+            }
             // A new shape: the staff pick the side for it again.
             onFormation={(formation) =>
               void commit({

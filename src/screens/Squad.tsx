@@ -3,7 +3,7 @@
  * a substitute, to swap them), then who's fit, who's injured and how they're doing.
  */
 import { useState } from 'react'
-import { FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
+import { type Block, FORMATIONS, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
 import { shortName, styleLabel } from '../names.ts'
 import { Positions } from './Positions.tsx'
 import { type Season, type SeasonStats, avgRating, isAvailable, lineupFor, playerRating, squadOf } from '../season/season.ts'
@@ -38,14 +38,23 @@ function appearances(st: SeasonStats): string {
   return subs ? `${st.starts} (${subs})` : String(st.starts)
 }
 
+const APPROACHES: [Block, string, string][] = [
+  ['low', 'Sit deep', 'A low block: compact around the box, little pressing, hit on the break'],
+  ['mid', 'Mid block', 'Hold a line around halfway and press in midfield'],
+  ['high', 'Press high', 'Win it back high up in bursts after losing it: tiring, and leaves space behind'],
+]
+
 export function Squad({
   season,
   onLineup,
   onFormation,
+  onBlock,
 }: {
   season: Season
   onLineup: (ids: string[] | null) => void
   onFormation: (f: Formation) => void
+  /** How high the side defends (the engine's block): sit deep, a mid block, or press high. */
+  onBlock?: (b: Block) => void
 }) {
   const club = season.teams[season.userTeam]
   const columns = COLUMNS.filter((c) => !c.career || season.career)
@@ -134,6 +143,18 @@ export function Squad({
             ))}
           </select>
         </label>
+        {onBlock && (
+          <div className="approach" role="group" aria-label="Without the ball">
+            <span className="eyebrow">Without the ball</span>
+            <div className="approach-seg">
+              {APPROACHES.map(([b, label, blurb]) => (
+                <button type="button" key={b} aria-pressed={club.block === b} title={blurb} onClick={() => onBlock(b)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="meta">{season.lineup ? 'You picked this side.' : 'The staff picked this side, resting tired players.'}</p>
         {season.lineup && (
           <button type="button" className="btn ghost" onClick={() => onLineup(null)}>

@@ -1,6 +1,6 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
 import { useMemo, useState } from "react";
-import type { Formation, Kit, TeamDef } from "../engine/index.ts";
+import type { Block, Formation, Kit, TeamDef } from "../engine/index.ts";
 import { ordinal } from "./format.ts";
 import { draftEyebrow } from "../draft/draft.ts";
 import {
@@ -11,6 +11,7 @@ import {
   matchdays,
   squadOf,
   table,
+  tableMoves,
   userFixture,
 } from "../season/season.ts";
 import { Squad } from "./Squad.tsx";
@@ -79,6 +80,7 @@ export function Hub({
   onNextSeason,
   onLineup,
   onFormation,
+  onBlock,
   onDeal,
   onDecline,
   onEnterCup,
@@ -97,6 +99,7 @@ export function Hub({
   onNextSeason?: (club?: number, sacked?: boolean) => void;
   onLineup: (ids: string[] | null) => void;
   onFormation: (f: Formation) => void;
+  onBlock?: (b: Block) => void;
   onDeal: (deal: Deal) => void;
   onDecline: (deal: Deal) => void;
   onEnterCup: () => void;
@@ -127,6 +130,7 @@ export function Hub({
   const offers = useMemo(() => offersFor(season), [season]);
   const rows = table(season);
   const over = isOver(season);
+  const moves = useMemo(() => tableMoves(season), [season]);
   // The summer's job market, once the league is done (career only).
   const jobs = useMemo(() => (over && season.career ? jobNews(season) : null), [over, season]);
   const next = over ? undefined : userFixture(season, season.matchday);
@@ -375,12 +379,20 @@ export function Hub({
             <p className="last">
               <span className="eyebrow">Last time</span>
               <span className="last-score">
+                <ResultChip
+                  mine={last.home === season.userTeam ? last.result.score : [last.result.score[1], last.result.score[0]]}
+                />{" "}
                 {season.teams[last.home].name}{" "}
                 <strong>
                   {last.result.score[0]}–{last.result.score[1]}
                 </strong>{" "}
                 {season.teams[last.away].name}
               </span>
+              {last.matchday === season.matchday - 1 && moves[season.userTeam] !== 0 && (
+                <span className={`last-move ${moves[season.userTeam] > 0 ? "up" : "down"}`}>
+                  {moves[season.userTeam] > 0 ? "▲ Up" : "▼ Down"} {Math.abs(moves[season.userTeam])} to {ordinal(place)}
+                </span>
+              )}
               {potm(season, last.result) && (
                 <span>Player of the match: {potm(season, last.result)}</span>
               )}
@@ -439,6 +451,7 @@ export function Hub({
               season={season}
               onLineup={onLineup}
               onFormation={onFormation}
+              onBlock={onBlock}
             />
           )}
           {tab === "stats" && <Stats season={season} />}
@@ -478,7 +491,17 @@ export function Hub({
                       className={`row-in${r.team === season.userTeam ? " mine" : ""}`}
                       style={stagger(i)}
                     >
-                      <td className="pos">{i + 1}</td>
+                      <td className="pos">
+                        {i + 1}
+                        {moves[r.team] !== 0 && (
+                          <span
+                            className={`move ${moves[r.team] > 0 ? "up" : "down"}`}
+                            title={`${moves[r.team] > 0 ? "Up" : "Down"} ${Math.abs(moves[r.team])} since last matchday`}
+                          >
+                            {moves[r.team] > 0 ? "▲" : "▼"}
+                          </span>
+                        )}
+                      </td>
                       <td className="team">
                         <Swatch kit={t.kit} /> {t.name}
                       </td>
@@ -587,6 +610,16 @@ export function Hub({
         </section>
       </div>
     </div>
+  );
+}
+
+/** W, D or L for his side's score, as a small coloured chip. */
+function ResultChip({ mine }: { mine: [number, number] }) {
+  const r = mine[0] > mine[1] ? "W" : mine[0] === mine[1] ? "D" : "L";
+  return (
+    <span className={`res-chip ${r}`} title={r === "W" ? "Won" : r === "D" ? "Drawn" : "Lost"}>
+      {r}
+    </span>
   );
 }
 

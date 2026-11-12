@@ -518,9 +518,9 @@ export interface TableRow {
 }
 
 /** The league table: points, then goal difference, then goals scored, then name. */
-export function table(s: Season): TableRow[] {
+export function table(s: Season, before = Infinity): TableRow[] {
   const rows: TableRow[] = s.teams.map((_, team) => ({ team, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, points: 0, form: [] }))
-  const played = s.fixtures.filter((f) => f.result).sort((a, b) => a.matchday - b.matchday)
+  const played = s.fixtures.filter((f) => f.result && f.matchday < before).sort((a, b) => a.matchday - b.matchday)
   for (const f of played) {
     const [h, a] = f.result!.score
     for (const [team, gf, ga] of [
@@ -543,6 +543,20 @@ export function table(s: Season): TableRow[] {
   return rows.sort(
     (x, y) => y.points - x.points || gd(y) - gd(x) || y.goalsFor - x.goalsFor || s.teams[x.team].name.localeCompare(s.teams[y.team].name),
   )
+}
+
+/**
+ * Places each club moved on the last matchday played, by club (+ up, - down; 0 before the second
+ * matchday or when level).
+ */
+export function tableMoves(s: Season): number[] {
+  const last = Math.max(0, ...s.fixtures.filter((f) => f.result).map((f) => f.matchday))
+  const moves = new Array<number>(s.teams.length).fill(0)
+  if (last < 2) return moves
+  const now = table(s)
+  const was = table(s, last)
+  now.forEach((r, i) => (moves[r.team] = was.findIndex((w) => w.team === r.team) - i))
+  return moves
 }
 
 /**

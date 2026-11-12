@@ -1514,7 +1514,8 @@ h1 .swatch,
 
 .league .pos {
   color: var(--muted);
-  width: 2em;
+  width: 2.6em;
+  white-space: nowrap;
 }
 
 .league .pts {
@@ -1552,6 +1553,63 @@ h1 .swatch,
 @media (max-width: 560px) {
   .league .wide {
     display: none;
+  }
+}
+
+/* Table movement since the last matchday, beside the position. */
+.league .pos .move {
+  display: inline-block;
+  margin-left: 3px;
+  font-size: 0.55rem;
+  vertical-align: 2px;
+}
+
+.move.up,
+.last-move.up {
+  color: #3f9a5a;
+}
+
+.move.down,
+.last-move.down {
+  color: #c8372d;
+}
+
+.last-move {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.res-chip {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35em;
+  height: 1.35em;
+  margin-right: 2px;
+  border-radius: 4px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #fff;
+  vertical-align: 1px;
+  animation: chip-in var(--dur-slow) var(--ease-out) 120ms backwards;
+}
+
+.res-chip.W {
+  background: #3f9a5a;
+}
+
+.res-chip.D {
+  background: #8a939b;
+}
+
+.res-chip.L {
+  background: #c8372d;
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
   }
 }
 
@@ -1706,6 +1764,45 @@ th .sort.on {
   gap: 2px;
   min-width: 0;
   max-width: 100%;
+}
+
+.approach {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.approach .eyebrow {
+  margin: 0;
+}
+
+.approach-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.approach-seg button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.approach-seg button:first-child {
+  border-left: 0;
+}
+
+.approach-seg button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .shape .eyebrow {
