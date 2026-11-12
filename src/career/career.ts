@@ -78,6 +78,8 @@ export interface PastSeason {
   cup?: { winner: number; run: string }
   /** The manager's matches that season, league and cup (from save version 5). */
   record?: { won: number; drawn: number; lost: number }
+  /** The club he managed that season (session 37; unset in older saves: the club he's at). */
+  club?: number
 }
 
 /** What happened at the manager's club over the summer, for the hub. */
@@ -105,6 +107,8 @@ export interface Career {
   freeAgents?: FreeAgent[]
   /** Free agents signed this season. */
   signings?: FreeSigning[]
+  /** He took this job over the summer (session 37): where he came from, and whether he was let go. */
+  moved?: { from: number; sacked: boolean }
   /** This season's domestic cup (from save version 5; an upgraded save gets one from its next season). */
   cup?: Cup
   /**
@@ -557,7 +561,7 @@ export function nextSeason(s: Season): Season {
 
   const seed = (s.seed * 7 + c.number * 7919) % 1_000_003
   const base = createSeason(seed, s.userTeam, new Date(Date.UTC(year, 0, 1)), teams)
-  let next: Season = { ...base, career: { number: c.number + 1, people, aim: 'topHalf', history, levels: c.levels, finance, summer, ...(real ? { league: c.league } : {}) } }
+  let next: Season = { ...base, career: { number: c.number + 1, people, aim: 'topHalf', history, levels: c.levels, finance, summer, ...(real ? { league: c.league } : {}), ...(c.balance ? { balance: c.balance } : {}) } }
   // The other clubs fill their places: from the free agents if one fits (near the overall they'd
   // sign at; the one who does most for their eleven for his wages), otherwise a signing from elsewhere.
   // (The manager's club, filled only if he's left it short, leaves the free agents to him.)
@@ -654,6 +658,7 @@ export function pastSeason(s: Season): PastSeason {
     lines,
     ...(cup && winner !== null ? { cup: { winner, run: cupRun(cup, s.userTeam) ?? '' } } : {}),
     record,
+    club: s.userTeam,
   }
 }
 
@@ -736,6 +741,9 @@ function balanced(s: Season): Season {
   const league = realLeague(c.league)
   if (!league || c.balance) return s
   const b = balanceOf(league)
+  // Until session 37 the summer dropped `balance`, so a real career past its first season comes
+  // here already balanced (its first season's players were): only the record of it is put back.
+  if (c.number >= 2) return { ...s, career: { ...c, balance: b } }
   const rng = new Rng(s.seed * 37 + 3 + c.number)
   const up = (p: PlayerDef): PlayerDef => {
     if (p.overall === undefined) return p

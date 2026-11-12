@@ -19,6 +19,37 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37): Backseat Manager, phones, rewatch, more clubs, job offers
+
+The owner asked for a long autonomous push (depth, animations, phone UI, branding, a bigger database).
+- **Branding** (owner chose the name on a decision card): the game is **Backseat Manager**. `screens/Logo.tsx`
+  (`LogoMark`: a mown-pitch rounded square, chalk X and curved run, amber ball; `Logo`: mark + two-line
+  wordmark, Barlow Condensed 700/500), `public/favicon.svg` the same mark, brand tokens `--brand-*` on `:root`,
+  start screen hero (`.hero`), slim `.appbar` above the hub back to the menu (there was no way back before).
+  Storage names stay `matchday*` so saves carry over.
+- **Upright pitch on phones** (pitch.ts `View.portrait`, `UPRIGHT_PAD`; MatchViewer `uprightPitch`): a narrow,
+  tall window draws the pitch upright, as tall as the screen leaves room for (x = 105 goal at the top). Only the
+  top-down cameras turn (`wideCamera`, `zoomCamera` project rotated), so text stays upright; the behind-goal
+  camera is unchanged. Pads above/below keep the scorebug and replay/goal strips off the goals.
+- **Watch it again** (season.ts `Rewatch`, `rewatchOf`, `keepRewatch`; `Season.rewatch`, last `REWATCH_MAX` 12):
+  the manager's league matches keep what they were played from (both sides, seed, the match's players'
+  fitness, in-match orders); Fixtures and "Last time" offer "▶ Goals", which plays it again in Goals mode
+  (`Timeline` takes `orders`; App screen `rewatch`). Checked in the browser: the replay ends on the recorded score.
+- **More club-seasons** (`draft/squads-extra.ts`, added after every other pool so no saved index moves): 37
+  mid-table and smaller sides (PL 12: Stoke 10/11, Fulham 11/12 and 23/24, Norwich 11/12, West Brom 12/13,
+  Southampton 13/14, Sunderland 13/14, Hull 13/14, Bournemouth 16/17 and 24/25, Watford 18/19, Brentford 21/22;
+  La Liga 9, Bundesliga 6, Serie A 6, Ligue 1 4). diag-draft 10 1: PL league eleven 80.1 -> 79.0 and the greedy
+  classic eleven 84.2 -> 82.7 (gap 4.1 -> 3.7), budgets follow (PL £85m -> £70m). sim-season PL seeds 1-3:
+  goals a match 2.89-3.08, top scorer 28-37, champions 92-102 (session 35: 2.88-3.21, 28-39).
+- **Job market** (`career/jobs.ts`): at a career season's end, `jobNews` judges the manager: offers from
+  stronger clubs (by eleven rank) if he met the target or finished 2+ places above his eleven's rank (reach
+  grows with it and a title), the sack if he missed twice running or went down when not meant to (then only
+  weaker clubs call), otherwise maybe one club his size. `takeJob` (after `nextSeason`) moves `userTeam`, sets
+  the new club's aim and `Career.moved`; `PastSeason.club` records where each season was; History shows clubs.
+- **Bug fixed**: `nextSeason` dropped `Career.balance`, so a real career past its first season was balanced
+  again on every reload (`balanced`), pushing players toward the middle twice. Now carried; a save that lost it
+  just gets the record back (number >= 2), nobody moved again.
+
 ## Done (session 36): draft variety
 
 The owner: draft mode keeps showing the same players and teams. Measured (200 drafts in a row, seeds

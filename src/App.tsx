@@ -49,6 +49,7 @@ import {
   userCupTie,
 } from "./career/cup.ts";
 import { letGo, renew, signFreeAgent } from "./career/contracts.ts";
+import { takeJob } from "./career/jobs.ts";
 import { MatchViewer } from "./viewer/MatchViewer.tsx";
 import { Timeline } from "./viewer/timeline.ts";
 
@@ -391,7 +392,14 @@ export default function App() {
             onNewSeason={season.mode === "draft" ? newDraft : () => newSeason()}
             onNextSeason={
               season.career
-                ? () => void commit(marketDay(nextSeason(season)))
+                ? (club, sacked) =>
+                    void commit(
+                      marketDay(
+                        club === undefined
+                          ? nextSeason(season)
+                          : takeJob(nextSeason(season), club, sacked ?? false),
+                      ),
+                    )
                 : undefined
             }
             onLineup={(lineup) => void commit({ ...season, lineup })}

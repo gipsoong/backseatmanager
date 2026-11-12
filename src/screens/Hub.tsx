@@ -24,7 +24,8 @@ import {
 import { SeasonReview, Stats } from "./Stats.tsx";
 import { TabBar, type TabDef } from "./Tabs.tsx";
 import { stagger } from "./motion.ts";
-import { BoardLine, History, SummerNote, careerLabel } from "./Career.tsx";
+import { BoardLine, History, JobOffers, SummerNote, careerLabel } from "./Career.tsx";
+import { jobNews } from "../career/jobs.ts";
 import { surname } from "../viewer/commentary.ts";
 import {
   CUP_NAME,
@@ -92,7 +93,8 @@ export function Hub({
   onSimulate: () => void;
   onNewSeason: () => void;
   /** Career mode: on to next season with the same club. */
-  onNextSeason?: () => void;
+  /** On to next season, at `club` if he takes a job there (`sacked`: he was let go). */
+  onNextSeason?: (club?: number, sacked?: boolean) => void;
   onLineup: (ids: string[] | null) => void;
   onFormation: (f: Formation) => void;
   onDeal: (deal: Deal) => void;
@@ -125,6 +127,8 @@ export function Hub({
   const offers = useMemo(() => offersFor(season), [season]);
   const rows = table(season);
   const over = isOver(season);
+  // The summer's job market, once the league is done (career only).
+  const jobs = useMemo(() => (over && season.career ? jobNews(season) : null), [over, season]);
   const next = over ? undefined : userFixture(season, season.matchday);
   // A cup tie midweek comes before the weekend's league match.
   const cupTie = userCupTie(season);
@@ -333,14 +337,24 @@ export function Hub({
                   </>
                 ) : season.career && onNextSeason ? (
                   <>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={onNextSeason}
-                      disabled={busy}
-                    >
-                      Next season
-                    </button>
+                    {jobs && (
+                      <JobOffers
+                        season={season}
+                        news={jobs}
+                        busy={busy}
+                        onTake={(club) => onNextSeason(club, jobs.sacked)}
+                      />
+                    )}
+                    {!(jobs?.sacked && jobs.offers.length) && (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => onNextSeason()}
+                        disabled={busy}
+                      >
+                        {jobs?.offers.length ? `Stay at ${season.teams[season.userTeam].name}` : "Next season"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn ghost"

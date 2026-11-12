@@ -1,5 +1,6 @@
 /** Career mode's pieces on screen: the summer's news, the board's target, past seasons, and a player's change and career. */
 import { AIM_LINE, CUP_TROPHY, aimMet, managerRecord } from '../career/career.ts'
+import type { JobNews } from '../career/jobs.ts'
 import { realLeague } from '../career/real.ts'
 import { type Season, squadOf, table } from '../season/season.ts'
 import { ordinal } from './format.ts'
@@ -65,6 +66,12 @@ export function SummerNote({ season }: { season: Season }) {
     academy.length > 0 && `Up from the academy: ${list(academy.map((p) => `${p.name} (${season.career!.people[p.id].age}, ${p.role})`))}.`,
     sm.released.length > 0 && `Released: ${list(sm.released)}.`,
   ].filter(Boolean)
+  const moved = season.career?.moved
+  if (moved) {
+    lines.unshift(
+      `${moved.sacked ? `Let go by ${season.teams[moved.from].name}, you` : `You left ${season.teams[moved.from].name} and`} took over at ${season.teams[season.userTeam].name}. ${AIM_LINE[season.career!.aim]}: that's the board's target here.`,
+    )
+  }
   if (!lines.length) return null
   return (
     <div className="summer-note">
@@ -74,6 +81,47 @@ export function SummerNote({ season }: { season: Season }) {
           {l}
         </p>
       ))}
+    </div>
+  )
+}
+
+/** The summer's job market at a season's end: the board's verdict and any clubs that want him. */
+export function JobOffers({ season, news, busy, onTake }: { season: Season; news: JobNews; busy: boolean; onTake: (club: number) => void }) {
+  const n = season.teams.length
+  return (
+    <div className={`jobs${news.sacked ? ' sacked' : ''}`}>
+      <p className="eyebrow">{news.sacked ? 'The board has let you go' : 'Job offers'}</p>
+      <p className="meta">
+        {news.sacked
+          ? `Two seasons short of the target, or down when you shouldn't have been. ${news.offers.length ? 'A few clubs still want you:' : ''}`
+          : news.offers.length
+            ? news.overachieved >= 2
+              ? `Your side finished ${news.overachieved} places above where its eleven ranked, and bigger clubs noticed.`
+              : 'A club has asked whether you would talk to them.'
+            : 'No other club has called this summer.'}
+      </p>
+      {news.offers.length > 0 && (
+        <ul className="job-list">
+          {news.offers.map((o, i) => {
+            const t = season.teams[o.club]
+            return (
+              <li key={o.club} className="rise" style={stagger(i)}>
+                <span className="job-club">
+                  <span>
+                    <Swatch kit={t.kit} /> {t.name}
+                  </span>
+                  <small>
+                    {ordinal(o.rank)}-strongest eleven of {n} · {ordinal(table(season).findIndex((r) => r.team === o.club) + 1)} this season
+                  </small>
+                </span>
+                <button type="button" className="btn ghost slim" disabled={busy} onClick={() => onTake(o.club)}>
+                  Take the job
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
@@ -115,7 +163,10 @@ export function History({ season }: { season: Season }) {
           </div>
         </dl>
         <p className="meta">
-          {r.seasons} {r.seasons === 1 ? 'season' : 'seasons'} at {season.teams[season.userTeam].name}
+          {r.seasons} {r.seasons === 1 ? 'season' : 'seasons'}{' '}
+          {new Set(season.career!.history.map((h) => h.club ?? season.userTeam)).size > 1
+            ? `at ${new Set(season.career!.history.map((h) => h.club ?? season.userTeam)).size} clubs`
+            : `at ${season.teams[season.career!.history[0]?.club ?? season.userTeam].name}`}
           {trophyLine.length ? `: ${trophyLine.join(' and ')}` : ''}.
           {r.played > 0 && ` Won ${r.won}, drawn ${r.drawn}, lost ${r.lost} in league and cup.`}
           {` The board's target met ${r.met === 1 ? 'once' : r.met === 2 ? 'twice' : `${r.met} times`}.`}
@@ -139,6 +190,11 @@ export function History({ season }: { season: Season }) {
               <tr key={p.number} className={`row-in${p.trophies.length ? ' mine' : ''}`} style={stagger(i)}>
                 <td className="team">
                   {p.year}–{String(p.year + 1).slice(2)}
+                  {new Set(past.map((h) => h.club ?? season.userTeam)).size > 1 && (
+                    <span className="history-club">
+                      <Swatch kit={season.teams[p.club ?? season.userTeam].kit} /> {season.teams[p.club ?? season.userTeam].name}
+                    </span>
+                  )}
                   {p.trophies.length > 0 && (
                     <span className="trophy trophies">
                       {[p.trophies.includes('League title') && 'Champions', p.trophies.includes(CUP_TROPHY) && 'Cup winners'].filter(Boolean).join(' · ')}

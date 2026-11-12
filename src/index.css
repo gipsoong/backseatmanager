@@ -3283,6 +3283,64 @@ div.draft-hint .meta {
   color: var(--ink);
 }
 
+.jobs {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--goal);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.jobs.sacked {
+  border-left-color: #b4412f;
+}
+
+.jobs .meta {
+  margin: 0;
+}
+
+.job-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.job-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.job-club {
+  display: grid;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.job-list .btn {
+  flex: none;
+  white-space: nowrap;
+}
+
+.job-club small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.history-club {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .last-rewatch {
   justify-self: start;
   min-height: 40px;
