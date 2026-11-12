@@ -204,6 +204,11 @@ h1 .v {
   background: #37623f;
 }
 
+.pitch-wrap.upright {
+  margin-inline: auto;
+  border-radius: 8px;
+}
+
 .pitch-wrap canvas {
   display: block;
   width: 100%;
@@ -2682,6 +2687,31 @@ button.name-link {
 .fit span {
   transform-origin: left center;
   animation: grow var(--dur-slow) var(--ease-out) 80ms backwards;
+}
+
+/* The slim bar above the hub: the mark, back to the menu. */
+.appbar {
+  display: flex;
+  align-items: center;
+  margin-block: -8px -6px;
+}
+
+.appbar-home {
+  min-height: 40px;
+  padding: 4px 8px 4px 4px;
+  margin-left: -4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+}
+
+.appbar-home .logo-top,
+.appbar-home .logo-bottom {
+  font-size: 0.82rem;
+}
+
+.appbar-home .logo-bottom {
+  color: var(--goal);
 }
 
 /* Brand: the mark and the two-line wordmark (screens/Logo.tsx). */

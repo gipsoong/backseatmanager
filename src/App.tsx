@@ -1,3 +1,4 @@
+import { Logo } from "./screens/Logo.tsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { randomTeam } from "./engine/index.ts";
 import { budgetFor, draftLeague } from "./draft/draft.ts";
@@ -264,6 +265,18 @@ export default function App() {
 
   return (
     <main>
+      {(screen.kind === "hub" || screen.kind === "league") && season && (
+        <nav className="appbar">
+          <button
+            type="button"
+            className="appbar-home"
+            aria-label="Backseat Manager: back to the menu"
+            onClick={() => setScreen({ kind: "start" })}
+          >
+            <Logo />
+          </button>
+        </nav>
+      )}
       <div className="screen" key={screenKey}>
       {screen.kind === "loading" && <p className="meta">Loading…</p>}
       {screen.kind === "start" && (

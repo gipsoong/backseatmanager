@@ -34,10 +34,20 @@ export interface View {
   width: number
   height: number
   dpr: number
+  /**
+   * The pitch turned upright (a phone held in portrait): the x = 105 goal at the top, the
+   * y = 0 touchline on the left. Only the top-down cameras turn; text stays upright.
+   */
+  portrait?: boolean
 }
 
-export function viewFor(width: number, dpr: number): View {
-  return { width, height: width * PITCH_ASPECT, dpr }
+/** CSS pixels kept clear above and below an upright pitch: the scorebug above, replay and goal strips below. */
+export const UPRIGHT_PAD = { top: 34, bottom: 48 }
+
+export function viewFor(width: number, dpr: number, portrait = false): View {
+  return portrait
+    ? { width, height: width / PITCH_ASPECT + UPRIGHT_PAD.top + UPRIGHT_PAD.bottom, dpr, portrait }
+    : { width, height: width * PITCH_ASPECT, dpr }
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +73,13 @@ export interface Camera {
 
 /** Raised broadcast view of the whole pitch; height shown as a gentle lift. */
 export function wideCamera(v: View): Camera {
+  if (v.portrait) {
+    const s = v.width / (PITCH_WIDTH + MARGIN * 2)
+    return {
+      perspective: false,
+      project: (x, y, z = 0) => ({ x: (y + MARGIN) * s, y: UPRIGHT_PAD.top + (PITCH_LENGTH + MARGIN - x) * s - z * s * 0.55, k: s }),
+    }
+  }
   const s = v.width / (PITCH_LENGTH + MARGIN * 2)
   return {
     perspective: false,
@@ -72,6 +89,20 @@ export function wideCamera(v: View): Camera {
 
 /** The same view, closer: centred on (cx, cy), `zoom` times the wide scale, kept on the pitch. */
 export function zoomCamera(v: View, cx: number, cy: number, zoom: number): Camera {
+  if (v.portrait) {
+    // Upright: screen x runs along y, screen y back along x.
+    const s = (v.width / (PITCH_WIDTH + MARGIN * 2)) * zoom
+    const halfW = v.width / 2 / s
+    const inner = v.height - UPRIGHT_PAD.top - UPRIGHT_PAD.bottom
+    const halfH = inner / 2 / s
+    const y0 = Math.min(Math.max(cy, -MARGIN + halfW), PITCH_WIDTH + MARGIN - halfW)
+    const x0 = Math.min(Math.max(cx, -MARGIN + halfH), PITCH_LENGTH + MARGIN - halfH)
+    return {
+      perspective: false,
+      closeUp: true,
+      project: (x, y, z = 0) => ({ x: v.width / 2 + (y - y0) * s, y: UPRIGHT_PAD.top + inner / 2 - (x - x0) * s - z * s * 0.55, k: s }),
+    }
+  }
   const s = (v.width / (PITCH_LENGTH + MARGIN * 2)) * zoom
   const halfW = v.width / 2 / s
   const halfH = v.height / 2 / s

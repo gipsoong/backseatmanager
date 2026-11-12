@@ -14,7 +14,7 @@ import {
   replayMoments,
   runsAt,
 } from './highlights.ts'
-import { type Animation, type Camera, PITCH_ASPECT, type View, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
+import { type Animation, type Camera, PITCH_ASPECT, type View, UPRIGHT_PAD, behindGoalCamera, drawFrame, fixtureKits, viewFor, wideCamera, zoomCamera } from './pitch.ts'
 import { type NetState, netAt } from './net.ts'
 import { Commentary, Players, Stats } from './panels.tsx'
 import { playerLines } from './players.ts'
@@ -42,6 +42,13 @@ const ANGLE_VIEWS = [
   { name: 'Behind the goal', short: 'Goal', rate: 15 },
 ] as const
 const ANGLE_FADE_MS = 250
+/** Room the match screen needs besides an upright pitch: the header, scrubber and controls. */
+const UPRIGHT_CHROME = 230
+
+/** A phone held upright (a narrow, tall window): the pitch is drawn upright, filling the screen. */
+function uprightPitch(width: number): boolean {
+  return width < 600 && window.innerHeight > window.innerWidth * 1.25
+}
 
 /** Replayable moments among `events`, with teams and goal ends read from the match. */
 function momentsOf(timeline: Timeline, events: MatchEvent[]): ReplayMoment[] {
@@ -100,6 +107,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
   const wrapRef = useRef<HTMLDivElement>(null)
   const coverRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<View>(viewFor(600, 1))
+  const [upright, setUpright] = useState(false)
   // Values the animation loop reads without restarting.
   const live = useRef({ playing, speed, showRoles, showCaptions, mode })
   useEffect(() => {
@@ -128,16 +136,28 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
     if (!wrap || !canvas) return
     const resize = (): void => {
       const dpr = window.devicePixelRatio || 1
-      const v = viewFor(wrap.clientWidth, dpr)
+      // A phone held upright gets the pitch upright too, as tall as the screen leaves room for.
+      const full = wrap.parentElement?.clientWidth ?? wrap.clientWidth
+      const portrait = uprightPitch(full)
+      const room = window.innerHeight - UPRIGHT_CHROME
+      const width = portrait ? Math.min(full, Math.max(240, (room - UPRIGHT_PAD.top - UPRIGHT_PAD.bottom) * PITCH_ASPECT)) : full
+      wrap.style.width = portrait ? `${width}px` : ''
+      const v = viewFor(width, dpr, portrait)
       viewRef.current = v
+      setUpright(portrait)
       canvas.width = Math.round(v.width * dpr)
       canvas.height = Math.round(v.height * dpr)
+      canvas.style.width = portrait ? `${v.width}px` : ''
       canvas.style.height = `${v.height}px`
     }
     resize()
     const ro = new ResizeObserver(resize)
-    ro.observe(wrap)
-    return () => ro.disconnect()
+    ro.observe(wrap.parentElement ?? wrap)
+    window.addEventListener('resize', resize)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', resize)
+    }
   }, [])
 
   // One loop: simulate ahead, advance the playhead (or the replay), draw.
@@ -357,7 +377,7 @@ export function MatchViewer({ timeline, manage, onOrder }: { timeline: Timeline;
   return (
     <div className="viewer">
       <div className="stage">
-        <div className="pitch-wrap" ref={wrapRef} style={{ aspectRatio: `${1 / PITCH_ASPECT}` }}>
+        <div className={`pitch-wrap${upright ? ' upright' : ''}`} ref={wrapRef} style={upright ? undefined : { aspectRatio: `${1 / PITCH_ASPECT}` }}>
           <canvas ref={canvasRef} aria-label={`${home.name} against ${away.name}`} />
           <div className={`cut-cover${replayAngle ? ' replay' : ''}`} ref={coverRef} aria-hidden={cutTo === null}>
             {cutTo !== null && !replayAngle && (
