@@ -188,7 +188,14 @@ export function checkMatch(
       for (const key of ['formation', 'block', 'mentality'] as const) {
         if ((t[key] ?? 'balanced') === shape[team][key]) continue
         const ev = events.some((e) => e.type === key && e.team === team && e[key as never] === t[key])
-        const asked = orders.some((o) => o.tick === s.tick - 1 && o.order.kind === key && o.order.team === team && (o.order as Record<string, unknown>)[key] === t[key])
+        const staff = events.some((e) => e.type === 'mentality' && key === 'mentality' && e.team === team && e.staff)
+        if (staff) {
+          // The staff chase a one-goal deficit and protect a one-goal lead, nothing else, and only at a stoppage.
+          const diff = s.score[team] - s.score[1 - team]
+          const fits = t.mentality === 'attacking' ? diff === -1 : t.mentality === 'defensive' ? diff === 1 : true
+          if (!fits || s.phase.kind !== 'restart') v('staff-mentality', `team ${team}'s staff went ${t.mentality} at ${s.score.join('-')}`)
+        }
+        const asked = staff || orders.some((o) => o.tick === s.tick - 1 && o.order.kind === key && o.order.team === team && (o.order as Record<string, unknown>)[key] === t[key])
         if (!ev || !asked) v('order-' + key, `team ${team} went to ${t[key]} without ${ev ? 'an order that tick' : 'an event'}`)
         shape[team][key] = t[key] as never
       }

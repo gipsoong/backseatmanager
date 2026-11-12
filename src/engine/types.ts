@@ -364,7 +364,8 @@ export type MatchEvent = EventBase &
     /** The manager's orders (see `Order`): a new shape, re-slotting the men on the pitch where they stand. */
     | { type: 'formation'; team: Side; formation: Formation }
     | { type: 'block'; team: Side; block: Block }
-    | { type: 'mentality'; team: Side; mentality: Mentality }
+    /** `staff`: the side's staff changed it by the score, not the manager. */
+    | { type: 'mentality'; team: Side; mentality: Mentality; staff?: boolean }
     /** Hurt, and out for `weeks` matchdays after this one. */
     | { type: 'injury'; idx: number; weeks: number }
     | { type: 'offside'; idx: number; kickTick: number; pos: Vec }

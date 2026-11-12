@@ -126,6 +126,7 @@ import type {
   MatchConfig,
   MatchEvent,
   MatchState,
+  Mentality,
   Order,
   PlayerState,
   Restart,
@@ -1272,6 +1273,7 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       injuryCover(s, r, team, out)
       continue
     }
+    staffMentality(s, team, minute, out)
     let made = 0
     // As the laws have it: five substitutions, in no more than three stoppages.
     if (s.subWindows[team] >= 3) continue
@@ -1291,6 +1293,34 @@ function substitutions(s: MatchState, r: Restart, out: MatchEvent[]): void {
       emit(s, out, { type: 'sub', team, offIdx: off.idx, onIdx: on.idx, reason: off.injured ? 'injury' : 'tired' })
     }
   }
+}
+
+/**
+ * The staff's approach by the score, at a stoppage, for a side whose manager hasn't set one (or
+ * whose staff set it): a goal down from STAFF_CHASE_FROM they go for it, a goal up from
+ * STAFF_HOLD_FROM they see it out, otherwise balanced. (Chasing at two or more down, or from 65',
+ * added routs and goals in calibrate: won by 4+ up to 11-12%.)
+ */
+function staffMentality(s: MatchState, team: Side, minute: number, out: MatchEvent[]): void {
+  const now = s.teams[team].mentality
+  if (now !== undefined && !staffSet(s, team)) return
+  if (s.period > 2 || s.shootout) return
+  const diff = s.score[team] - s.score[1 - team]
+  const want: Mentality = diff === -1 && minute >= STAFF_CHASE_FROM ? 'attacking' : diff === 1 && minute >= STAFF_HOLD_FROM ? 'defensive' : 'balanced'
+  if ((now ?? 'balanced') === want) return
+  s.teams[team] = { ...s.teams[team], mentality: want }
+  emit(s, out, { type: 'mentality', team, mentality: want, staff: true })
+}
+const STAFF_CHASE_FROM = 70
+const STAFF_HOLD_FROM = 80
+
+/** Whether the side's last change of approach was its staff's. */
+function staffSet(s: MatchState, team: Side): boolean {
+  for (let i = s.events.length - 1; i >= 0; i--) {
+    const e = s.events[i]
+    if (e.type === 'mentality' && e.team === team) return e.staff === true
+  }
+  return false
 }
 
 /**
