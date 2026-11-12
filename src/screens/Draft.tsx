@@ -165,6 +165,27 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
                 onDone(draft, name.trim() || 'Backseat XI')
               }}
             >
+              <div className="draft-summary">
+                <div>
+                  <span className="eyebrow">Rating</span>
+                  <strong>{draftRating(draft)}</strong>
+                </div>
+                <div>
+                  <span className="eyebrow">Links</span>
+                  <strong>{linksOf(draft.xi).length}</strong>
+                </div>
+                <div className="draft-summary-stars">
+                  <span className="eyebrow">Your best</span>
+                  <span>
+                    {[...draft.xi, ...draft.bench]
+                      .filter((p): p is PlayerDef => !!p)
+                      .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
+                      .slice(0, 3)
+                      .map((p) => `${surname(p.name)} ${p.overall}`)
+                      .join(' · ')}
+                  </span>
+                </div>
+              </div>
               <label htmlFor="club-name">Name your side</label>
               <input id="club-name" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
               <p className="meta">A 38-match season against 19 {where}. No transfers: this squad is the squad. Finish in the top four to play on in the European Cup.</p>
@@ -398,6 +419,9 @@ function PickShape({
 
 const ROLE_ORDER = ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
 
+/** A rating's tier, for its badge's colour: a star, a good player, or a squad player. */
+const tierOf = (o: number): string => (o >= 88 ? ' tier-elite' : o >= 85 ? ' tier-star' : o < 75 ? ' tier-low' : '')
+
 /** Whom he'd link with in your eleven so far (draft/links.ts). */
 function LinkNote({ p, xi }: { p: PlayerDef; xi: (PlayerDef | null)[] }) {
   const links = linksFor(p, xi)
@@ -472,7 +496,7 @@ function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chose
                     </small>
                   </span>
                   {priced && <span className="price">£{priceIn(draft, p, players)}m</span>}
-                  <span className={`rating${blind ? ' hidden-rating' : ''}`}>{blind ? '?' : p.overall}</span>
+                  <span className={`rating${blind ? ' hidden-rating' : tierOf(p.overall ?? 0)}`}>{blind ? '?' : p.overall}</span>
                 </button>
               </li>
             ))}

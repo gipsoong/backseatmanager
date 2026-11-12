@@ -4782,7 +4782,7 @@ p.meta,
 }
 
 .link-note {
-  color: var(--accent);
+  color: var(--flavour-cool);
   font-weight: 600;
 }
 
@@ -4950,4 +4950,61 @@ p.meta,
   50% {
     opacity: 0.35;
   }
+}
+
+/* Offer ratings by tier (session 37): stars in the warm flavour, the very best with a soft shine. */
+.offer .rating.tier-star {
+  color: var(--flavour-warm);
+  background: var(--flavour-warm-bg);
+}
+
+.offer .rating.tier-elite {
+  color: var(--flavour-hot);
+  background: linear-gradient(110deg, var(--flavour-warm-bg) 30%, color-mix(in srgb, var(--flavour-warm) 25%, var(--flavour-warm-bg)) 50%, var(--flavour-warm-bg) 70%);
+  background-size: 250% 100%;
+  animation: shine 5s linear infinite;
+}
+
+.offer .rating.tier-low {
+  color: var(--muted);
+}
+
+@keyframes shine {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* The finished draft's summary (session 37). */
+.draft-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 10px;
+  background: var(--flavour-warm-bg);
+}
+
+.draft-summary > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.draft-summary strong {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.draft-summary .eyebrow {
+  color: var(--flavour-warm);
+}
+
+.draft-summary-stars span:last-child {
+  font-weight: 600;
 }
