@@ -16,7 +16,7 @@ a layout pass at every width and standing-tackle animation (session 31); a caree
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
 (session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35); draft offers rotate between drafts, All of Europe (session 36).
 Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
-high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting; changes for "Just the
+high, the Bundesliga's goals ~0.4 low, see session 34; a mentality setting (session 37: needs a real trade-off); changes for "Just the
 result" matches; replays from the hub's results).
 
 ## Done (session 37): Backseat Manager, phones, rewatch, more clubs, job offers
@@ -49,6 +49,20 @@ The owner asked for a long autonomous push (depth, animations, phone UI, brandin
 - **Bug fixed**: `nextSeason` dropped `Career.balance`, so a real career past its first season was balanced
   again on every reload (`balanced`), pushing players toward the middle twice. Now carried; a save that lost it
   just gets the record back (number >= 2), nobody moved again.
+- **Matchday feel**: a full-time round-up after each league matchday the manager plays (`screens/RoundUp.tsx`:
+  his result, the other scores staggered in, place and move, form chips, "▶ Watch the goals"); table arrows
+  (`tableMoves`, `table(s, before)`); "Last time" with a W/D/L chip and places moved; "Play the next N
+  matchdays" (App `simulateAhead`, stops when a window opens); the block chosen before a match on the
+  Squad tab ("Without the ball": Sit deep / Mid block / Press high, `Hub`/`Cup` `onBlock`); a scouts'
+  range for a young player's ceiling (`scoutRange`, Career.tsx: potential ±3 around a hashed offset) on his
+  card and in the academy news; the Change panel scrolls into view below an upright pitch.
+- **Mentality tried and dropped** (not shipped): a `TeamDef.mentality` scaling `keenness` (0.75 / 1.3) and late
+  runs (`arrivalEagerness`, 0.5 / 1.5), as an order like the block. Byte-identical when unset, but a mirror test
+  (same squad, 100 matches a set, two sets) had "careful" beating balanced by +0.10 to +0.22 xGD and "attacking"
+  losing -0.11 to -0.15; late runs alone (0.3 / 2) the same way (+0.05 to +0.14, -0.09). So the AI is already at
+  or past the best keenness and number of runners: more of either gives the opponent more than it gains, and
+  a choice where one option is simply better isn't one. A real mentality needs a trade-off the engine pays for
+  (e.g. men left back making counters less dangerous), measured with a mirror test before any UI.
 
 ## Done (session 36): draft variety
 
