@@ -16,7 +16,7 @@ a layout pass at every width and standing-tackle animation (session 31); a caree
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
 (session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35); draft offers rotate between drafts, All of Europe (session 36).
 Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
-high, the Bundesliga's goals ~0.4 low, see session 34; AI staff choosing a mentality by the score; changes for "Just the
+high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
 ## Done (session 37): Backseat Manager, phones, rewatch, more clubs, job offers
@@ -79,7 +79,12 @@ The owner asked for a long autonomous push (depth, animations, phone UI, brandin
   defensive holds them back (x-0.5), 0.5x late runs and is more patient (keenness 0.8), level too (0.85 gave
   -0.17, -0.07, +0.09; 0.75 gave +0.12, +0.09) in a tighter game. Holding back without the patience cost ~0.35
   xGD. `node scripts/diag-mentality.ts <a> <b> [n] [seed]`. Unset or balanced is byte-identical
-  (fingerprint.ts `all 397356966cf2`). AI clubs stay balanced; giving staff a mentality by score would be next.
+  (fingerprint.ts `all 397356966cf2`). Staff by the score (match.ts `staffMentality`, at
+  each stoppage, for a side whose manager hasn't set one): a goal down from 70' they go for it, a goal up from
+  80' they see it out (events carry `staff`; harness `staff-mentality`). Chasing from 65' at one or two down
+  added goals and routs (calibrate: won by 4+ 11-12%); the narrow rule against the old engine, three 80-match
+  sets: goals a match 2.95/3.31/3.30 -> 2.90/3.29/3.39, routs 7.5/8.8/8.8% -> 7.5/8.8/7.5%. fingerprint.ts now
+  `all ec8b06a26edf`.
 
 ## Done (session 36): draft variety
 

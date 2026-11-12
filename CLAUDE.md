@@ -634,6 +634,7 @@ pulling the repo.
   leagues, the last entry of `LEAGUES` (pools.ts) so saved pool indexes don't move; check with
   check-squads. `career/jobs.ts` (`jobNews`, `takeJob`): offers and the sack at a career season's end;
   `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). Mentality (`TeamDef.mentality`, ai.ts `MENTALITY`: keenness, in-possession
-  depth of full-backs and midfielders, late runs; an `Order`; diag-mentality.ts mirror tests; see PROGRESS).
+  depth of full-backs and midfielders, late runs; an `Order`; diag-mentality.ts mirror tests; see PROGRESS). Staff set it by the score late on (`staffMentality`, match.ts)
+  unless the manager has chosen one.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
