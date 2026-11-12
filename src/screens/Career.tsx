@@ -121,7 +121,9 @@ export function JobOffers({ season, news, busy, onTake }: { season: Season; news
           : news.offers.length
             ? news.overachieved >= 2
               ? `Your side finished ${news.overachieved} places above where its eleven ranked, and bigger clubs noticed.`
-              : 'A club has asked whether you would talk to them.'
+              : news.offers.length === 1
+                ? 'A club has asked whether you would talk to them.'
+                : `${news.offers.length} clubs have asked whether you would talk to them.`
             : 'No other club has called this summer.'}
       </p>
       {news.offers.length > 0 && (
