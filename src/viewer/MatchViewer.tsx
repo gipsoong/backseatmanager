@@ -497,6 +497,8 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
                   if (replay.current) endReplay()
                   setPlaying(false)
                   setChanging(true)
+                  // Below an upright pitch the panel starts off screen: bring it up.
+                  if (upright) requestAnimationFrame(() => document.querySelector('.changes')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
                 }}
               >
                 Change
