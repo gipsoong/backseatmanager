@@ -4324,3 +4324,21 @@ p.meta,
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* Who's on top, above the scrubber: home bars up, away bars down (only minutes already played). */
+.momentum {
+  flex: 1 1 100%;
+  display: block;
+  width: 100%;
+  height: 28px;
+  margin-bottom: -6px;
+}
+
+.momentum-mid {
+  stroke: var(--line);
+  stroke-width: 0.08;
+}
+
+.momentum-bar {
+  animation: fade-in var(--dur-base) var(--ease-out) backwards;
+}

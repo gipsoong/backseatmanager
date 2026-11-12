@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CENTER, type MatchEvent, type Side, ownGoalX } from '../engine/index.ts'
 import { ChangePanel } from './ChangePanel.tsx'
 import { buildCommentary, matchNames, preMatch } from './commentary.ts'
+import { momentum } from './momentum.ts'
 import {
   ANIMATION_LEAD,
   type ReplayMoment,
@@ -43,7 +44,7 @@ const ANGLE_VIEWS = [
 ] as const
 const ANGLE_FADE_MS = 250
 /** Room the match screen needs besides an upright pitch: the header, scrubber and controls. */
-const UPRIGHT_CHROME = 230
+const UPRIGHT_CHROME = 262
 
 /** A phone held upright (a narrow, tall window): the pitch is drawn upright, filling the screen. */
 function uprightPitch(width: number): boolean {
@@ -353,6 +354,9 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
   }, [timeline, events, tick])
   // Rough full length so the scrubber doesn't jump around while the rest simulates.
   const total = timeline.done ? timeline.lastTick : Math.max(recorded, Math.round(match.halfTicks * 2 * 0.68))
+  // Who's been on top, a slice at a time, up to the playhead (recomputed as each slice ends).
+  const slice = Math.floor((tick * MOMENTUM_BINS) / total)
+  const pressure = useMemo(() => momentum(timeline, tick, total, MOMENTUM_BINS), [timeline, slice, total, timeline.version])
   // Short names, with an initial where two men in the match share one.
   const names = useMemo(() => matchNames(match), [match])
   const before = useMemo(() => preMatch(timeline.stateAt(0), names), [timeline, names])
@@ -442,6 +446,7 @@ export function MatchViewer({ timeline, manage, onOrder, initialMode = 'full' }:
         </div>
 
         <div className="controls">
+          <Momentum values={pressure} bins={MOMENTUM_BINS} kits={kits} />
           <div className="scrubber">
             <input
               id="scrubber"
@@ -627,6 +632,32 @@ function currentGoal(events: MatchEvent[]): Extract<MatchEvent, { type: 'goal' }
     if (e.type === 'restart' || e.type === 'halfTime' || e.type === 'extraTime' || e.type === 'shootout' || e.type === 'fullTime') return null
   }
   return null
+}
+
+const MOMENTUM_BINS = 48
+
+/** Bars above the scrubber: up for the home side's pressure, down for the away side's. */
+function Momentum({ values, bins, kits }: { values: number[]; bins: number; kits: { shirt: string; number: string }[] }) {
+  const peak = Math.max(6, ...values.map(Math.abs))
+  // A white or pale shirt would vanish on the page: its number's colour instead.
+  const colour = (k: { shirt: string; number: string }): string => (light(k.shirt) ? k.number : k.shirt)
+  return (
+    <svg className="momentum" viewBox={`0 -10 ${bins} 20`} preserveAspectRatio="none" aria-hidden="true">
+      <line x1={0} x2={bins} y1={0} y2={0} className="momentum-mid" />
+      {values.map((v, i) => {
+        const h = Math.sqrt(Math.abs(v) / peak) * 10
+        return h < 0.3 ? null : <rect key={i} x={i + 0.12} width={0.76} y={v > 0 ? -h : 0} height={h} fill={colour(kits[v > 0 ? 0 : 1])} className="momentum-bar" />
+      })}
+    </svg>
+  )
+}
+
+/** Whether a #rrggbb colour is pale (relative luminance over ~0.7). */
+function light(hex: string): boolean {
+  const n = parseInt(hex.slice(1, 7), 16)
+  if (Number.isNaN(n)) return false
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 180
 }
 
 /** "HT" between half-time and the second-half kick-off, "ET" before each half of extra time, "FT" (or "AET") at the end. */
