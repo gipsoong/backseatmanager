@@ -5,6 +5,7 @@ import { budgetFor, draftLeague } from "./draft/draft.ts";
 import { decline, makeDeal } from "./draft/transfers.ts";
 import { Draft } from "./screens/Draft.tsx";
 import { Hub } from "./screens/Hub.tsx";
+import { RoundUp } from "./screens/RoundUp.tsx";
 import { CupHub } from "./screens/Cup.tsx";
 import { Match } from "./screens/Match.tsx";
 import { PickTeam } from "./screens/PickTeam.tsx";
@@ -77,6 +78,8 @@ export default function App() {
   const [season, setSeason] = useState<Season | null>(null);
   const [screen, setScreen] = useState<Screen>({ kind: "loading" });
   const [busy, setBusy] = useState(false);
+  // The league matchday just played, for the full-time round-up over the hub.
+  const [roundUp, setRoundUp] = useState<number | null>(null);
   // The rest of the matchday, playing in the background while the manager watches his match.
   const others = useRef<Promise<Map<number, Result>> | null>(null);
 
@@ -200,6 +203,7 @@ export default function App() {
       results.set(f.id, result);
       const kept = keepRewatch(s, f.id, rewatchOf(s, f, timeline.orders), result.score);
       await commit(advanceCup(marketDay(completeMatchday(kept, results))));
+      setRoundUp(s.matchday);
     }
     others.current = null;
     setBusy(false);
@@ -234,6 +238,7 @@ export default function App() {
       const f = userFixture(s, s.matchday);
       const mine = f && results.get(f.id);
       const kept = f && mine ? keepRewatch(s, f.id, rewatchOf(s, f), mine.score) : s;
+      setRoundUp(s.matchday);
       await commit(
         advanceCup(
           marketDay(
@@ -302,6 +307,17 @@ export default function App() {
             <Logo />
           </button>
         </nav>
+      )}
+      {screen.kind === "hub" && season && roundUp !== null && !season.cupEntered && (
+        <RoundUp
+          season={season}
+          matchday={roundUp}
+          onClose={() => setRoundUp(null)}
+          onRewatch={(id) => {
+            setRoundUp(null);
+            rewatch(season, id);
+          }}
+        />
       )}
       <div className="screen" key={screenKey}>
       {screen.kind === "loading" && <p className="meta">Loading…</p>}
