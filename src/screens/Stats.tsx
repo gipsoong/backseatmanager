@@ -4,7 +4,7 @@ import { type Season, matchdays, table } from '../season/season.ts'
 import { type ClubRecord, clubRecords, leaderboards } from '../season/stats.ts'
 import { PlayerCard } from './PlayerCard.tsx'
 import { BoardLine } from './Career.tsx'
-import { type Standout, review } from '../season/review.ts'
+import { type Feat, type Standout, honours, review } from '../season/review.ts'
 import { FORMATIONS } from '../engine/index.ts'
 import { shortName } from '../names.ts'
 import { slotLabel, slotStyle } from './pitchLayout.ts'
@@ -111,6 +111,9 @@ function Clubs({ season, records }: { season: Season; records: ClubRecord[] }) {
   )
 }
 
+/** Hat-tricks listed in the review (yours first); the rest are counted. */
+const HAT_TRICKS_SHOWN = 5
+
 /** The season in review: your record, who stood out and the matches to remember, then every club's. */
 export function SeasonReview({ season }: { season: Season }) {
   const rows = table(season)
@@ -120,10 +123,8 @@ export function SeasonReview({ season }: { season: Season }) {
   const invincible = mine.lost === 0
   const perfect = mine.won === matchdays(season)
   const name = (t: number): string => season.teams[t].name
-  const leaders = leaderboards(season, 1)
-  const top = (title: string) => leaders.find((b) => b.title === title)?.rows[0]
-  const scorer = top('Goals')
   const r = review(season)
+  const h = honours(season)
   const [viewing, setViewing] = useState<string | null>(null)
   if (viewing) return <PlayerCard season={season} id={viewing} onClose={() => setViewing(null)} />
   const who = (x: Standout) => (
@@ -133,6 +134,18 @@ export function SeasonReview({ season }: { season: Season }) {
         {x.player.name}
       </button>
     </>
+  )
+  const feat = (x: Feat, title: string) => (
+    <li key={`${title}-${x.fixture.id}-${x.player.id}`} className={x.club === season.userTeam ? 'mine' : undefined}>
+      <span className="eyebrow">{title}</span>
+      <span className="standout-name">
+        <Swatch kit={season.teams[x.club].kit} />{' '}
+        <button type="button" className="name-link" onClick={() => setViewing(x.player.id)}>
+          {x.player.name}
+        </button>
+      </span>
+      <span className="meta">{x.line}</span>
+    </li>
   )
   // The team of the season on the pitch, in a 4-3-3.
   const shape = FORMATIONS['4-3-3']
@@ -197,7 +210,8 @@ export function SeasonReview({ season }: { season: Season }) {
         <BoardLine season={season} over />
         <p className="meta">
           {name(rows[0].team)} are champions.
-          {scorer && ` Golden Boot: ${scorer.player.name}, ${scorer.value} goals (${name(scorer.club)}).`}
+          {h.overachievers &&
+            ` Side of the season: ${name(h.overachievers.club)}, tipped ${ordinal(h.overachievers.tip)} and ${ordinal(h.overachievers.place)} at the end.`}
         </p>
       </section>
 
@@ -206,6 +220,59 @@ export function SeasonReview({ season }: { season: Season }) {
           <h4>Player of the season</h4>
           <p className="standout-name">{who(r.playerOfSeason)}</p>
           <p className="meta">{r.playerOfSeason.line}</p>
+        </section>
+      )}
+
+      {h.awards.length > 0 && (
+        <section className="review-block rise" style={stagger(3)}>
+          <h4>Awards</h4>
+          <div className="awards honours">
+            {h.awards.map(({ title, who: x, line }, i) => (
+              <div key={title} className={`award${i < 3 ? ' month' : ''}${x.club === season.userTeam ? ' yours' : ''}`} style={stagger(i)}>
+                <span className="award-label">
+                  <TrophyIcon /> {title}
+                </span>
+                <span className="award-who">{who(x)}</span>
+                <span className="award-line">{line}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {h.months.length > 0 && (
+        <section className="review-block rise" style={stagger(3)}>
+          <h4>Players of the month</h4>
+          <ol className="notable months">
+            {h.months.map(({ month, award: a }) => (
+              <li key={month} className={a.club === season.userTeam ? 'mine' : undefined}>
+                <span className="md">Month {month}</span>
+                <span className="standout-name">
+                  <Swatch kit={season.teams[a.club].kit} />{' '}
+                  <button type="button" className="name-link" onClick={() => setViewing(a.player.id)}>
+                    {a.player.name}
+                  </button>
+                </span>
+                <span className="meta">
+                  {a.rating.toFixed(1)} avg{a.goals ? ` · ${a.goals} G` : ''}
+                  {a.assists ? ` · ${a.assists} A` : ''}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
+      {(h.displays.length > 0 || h.hatTricks.length > 0) && (
+        <section className="review-block rise" style={stagger(4)}>
+          <h4>Feats</h4>
+          <ul className="standouts">
+            {h.displays.map((x, i) => feat(x, i === 0 ? 'Display of the season' : 'Best displays'))}
+            {[...h.hatTricks.filter((x) => x.club === season.userTeam), ...h.hatTricks.filter((x) => x.club !== season.userTeam)]
+              .slice(0, HAT_TRICKS_SHOWN)
+              .map((x) => feat(x, 'Hat-trick'))}
+          </ul>
+          {h.hatTricks.length > HAT_TRICKS_SHOWN && <p className="meta">{h.hatTricks.length} hat-tricks in the league this season.</p>}
         </section>
       )}
 
@@ -313,5 +380,14 @@ export function SeasonReview({ season }: { season: Season }) {
       </table>
       </div>
     </div>
+  )
+}
+
+/** A small cup, for the awards. */
+function TrophyIcon() {
+  return (
+    <svg className="trophy-icon" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4 2h8v3a4 4 0 0 1-8 0V2Zm-2 1h2v2a2 2 0 0 1-2-2Zm10 0h2a2 2 0 0 1-2 2V3ZM7 9h2v3h2v2H5v-2h2V9Z" fill="currentColor" />
+    </svg>
   )
 }

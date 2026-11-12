@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { FORMATIONS, fitFor } from '../engine/index.ts'
-import { LINE_ROLES, STAR_LINE, canAfford, isBlind, ruleProblem, REROLLS, TWISTS, isComplete, newDraft, offer, place, reroll, rerollProblem, roundOf, twistOf, type Draft } from './draft.ts'
+import { LINE_ROLES, STAR_LINE, draftLeague, peakOf, canAfford, isBlind, ruleProblem, REROLLS, TWISTS, isComplete, newDraft, offer, place, reroll, rerollProblem, roundOf, twistOf, type Draft } from './draft.ts'
 
 /** Fill a draft the way the screen allows: a player who fits an open place (keepers only in goal). */
 function fill(d: Draft, upTo = 20): Draft {
@@ -101,5 +101,27 @@ describe('difficulty and rules', () => {
     }
     const stars = [...d.xi, ...d.bench].filter((p) => (p?.overall ?? 0) >= STAR_LINE).length
     expect(stars).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('prime drafts', () => {
+  it('offer every player at his best season, never below that season', () => {
+    const plain = newDraft(4, '4-3-3')
+    const prime = newDraft(4, '4-3-3', 'Premier League', { prime: true })
+    expect(prime.rounds).toEqual(plain.rounds)
+    const a = offer(plain).players
+    const b = offer(prime).players
+    expect(b.map((p) => p.name)).toEqual(a.map((p) => p.name))
+    b.forEach((p, i) => {
+      expect(p.overall!).toBeGreaterThanOrEqual(a[i].overall!)
+      expect(p.overall).toBe(peakOf(p.name)[0])
+    })
+    expect(b.some((p, i) => p.overall! > a[i].overall!)).toBe(true)
+  })
+
+  it('play the whole league at its peak too', () => {
+    const d = fill(newDraft(6, '4-3-3', 'Premier League', { prime: true }))
+    const teams = draftLeague(d, 'Test')
+    for (const t of teams.slice(1)) for (const p of t.players) if (/^p\d+-\d+$/.test(p.id)) expect(p.overall).toBe(peakOf(p.name)[0])
   })
 })

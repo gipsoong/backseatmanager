@@ -39,6 +39,8 @@ export interface Draft {
   /** How hard the league plays (session 37; unset is normal) and any extra rules. */
   difficulty?: Difficulty
   rules?: RuleId[]
+  /** A prime draft: every player, yours and the league's, at his best season's overall (`peakOf`). */
+  prime?: boolean
 }
 
 /**
@@ -94,7 +96,7 @@ const poolsIn = (league: League): number[] => POOLS.flatMap((p, i) => (leagueOf(
 
 // ---- Themes ----
 
-export type ThemeId = 'europe' | 'era-2010' | 'era-2015' | 'era-2020' | 'underdogs' | 'no-stars'
+export type ThemeId = 'europe' | 'era-2000' | 'era-2010' | 'era-2015' | 'era-2020' | 'underdogs' | 'no-stars'
 
 export interface Theme {
   id: ThemeId
@@ -123,7 +125,8 @@ export const NO_STARS_CAP = 80
 /** Themed drafts take club-seasons from all five leagues; the league you play in follows the theme. */
 export const THEMES: Theme[] = [
   { id: 'europe', name: 'All of Europe', blurb: 'Every club-season of all five leagues', pool: () => true },
-  { id: 'era-2010', name: '2010–2015', blurb: 'Seasons 2010/11 to 2014/15', pool: (p) => startYear(p) <= 2014 },
+  { id: 'era-2000', name: '2000s', blurb: 'Seasons 2000/01 to 2009/10', pool: (p) => startYear(p) <= 2009 },
+  { id: 'era-2010', name: '2010–2015', blurb: 'Seasons 2010/11 to 2014/15', pool: (p) => startYear(p) >= 2010 && startYear(p) <= 2014 },
   { id: 'era-2015', name: '2015–2020', blurb: 'Seasons 2015/16 to 2019/20', pool: (p) => startYear(p) >= 2015 && startYear(p) <= 2019 },
   { id: 'era-2020', name: '2020–now', blurb: 'Seasons 2020/21 to 2024/25', pool: (p) => startYear(p) >= 2020 },
   { id: 'underdogs', name: 'Underdogs', blurb: "No club-season from a league's usual top clubs", pool: (p) => !TOP_CLUBS.has(p.club) },
@@ -150,16 +153,16 @@ export function draftPools(d: { theme?: string; league?: League }): number[] {
   return theme ? themePools(theme) : poolsIn(d.league ?? 'Premier League')
 }
 
-/** What a draft is of, in a few words: "Premier League 2010–now", "Underdogs · Europe's top five". */
+/** What a draft is of, in a few words: "Premier League 2000–now", "Underdogs · Europe's top five". */
 export function draftLabel(d: { theme?: string; league?: string }): string {
   const theme = themeOf(d.theme)
-  if (theme?.id === 'europe') return "Europe's top five 2010–now"
-  return theme ? `${theme.name} · Europe's top five` : `${d.league ?? 'Premier League'} 2010–now`
+  if (theme?.id === 'europe') return "Europe's top five 2000–now"
+  return theme ? `${theme.name} · Europe's top five` : `${d.league ?? 'Premier League'} 2000–now`
 }
 
 /** A draft's eyebrow: "Draft · Underdogs · Europe's top five · Budget · Daily". */
-export function draftEyebrow(d: { theme?: string; league?: string; budget?: boolean; daily?: string }): string {
-  return ['Draft', draftLabel(d), d.budget && 'Budget', d.daily && 'Daily'].filter(Boolean).join(' · ')
+export function draftEyebrow(d: { theme?: string; league?: string; budget?: boolean; daily?: string; prime?: boolean }): string {
+  return ['Draft', draftLabel(d), d.prime && 'Prime', d.budget && 'Budget', d.daily && 'Daily'].filter(Boolean).join(' · ')
 }
 
 // ---- Budget ----
@@ -173,10 +176,10 @@ export const BUDGET_EDGE = 1
  * The level of a draft's league: the average club-season's best eleven overalls (in the theme),
  * a little above what its sides put out once the draft and earlier sides have taken their men.
  */
-export function leagueLevel(d: { theme?: string; league?: League }): number {
+export function leagueLevel(d: { theme?: string; league?: League; prime?: boolean }): number {
   const theme = themeOf(d.theme)
   const elevens = draftPools(d).map((i) => {
-    const best = POOLS[i].players.map(([, , o]) => o).filter((o) => inTheme(theme, o)).sort((a, b) => b - a).slice(0, 11)
+    const best = POOLS[i].players.map(([n, , o]) => (d.prime ? peakOf(n)[0] : o)).filter((o) => inTheme(theme, o)).sort((a, b) => b - a).slice(0, 11)
     return best.reduce((a, b) => a + b, 0) / best.length
   })
   return elevens.reduce((a, b) => a + b, 0) / elevens.length
@@ -186,7 +189,7 @@ export function leagueLevel(d: { theme?: string; league?: League }): number {
  * What a budget draft has to spend on twenty players, in £m: eleven at a little over the
  * league's level, nine subs at the least price, rounded to £5m. The Premier League's is £85m, Ligue 1's £45m.
  */
-export function budgetFor(d: { theme?: string; league?: League }): number {
+export function budgetFor(d: { theme?: string; league?: League; prime?: boolean }): number {
   const eleven = 11 * 2 ** ((leagueLevel(d) + BUDGET_EDGE - 72) / 4)
   return Math.round((eleven + DRAFT_SUBS * MIN_PRICE) / 5) * 5
 }
@@ -278,10 +281,29 @@ export const levelOf = (overall: number): number => 13.5 + (Math.min(overall, 86
  * his archetype's at his overall), made into sub-attributes spread by position and archetype.
  * Anything off the card (a keeper's outfield skills) comes from his archetype's shape at his level.
  */
-export function poolPlayer(poolIdx: number, i: number): PlayerDef {
+export function poolPlayer(poolIdx: number, i: number, prime = false): PlayerDef {
   const pool = POOLS[poolIdx]
-  const [name, positions, overall] = pool.players[i]
-  return { ...cardPlayer(`p${poolIdx}-${i}`, name, positions, overall, Number(pool.season.slice(0, 4))), clubs: clubsOf(name) }
+  const [name, positions, seasonOverall] = pool.players[i]
+  const [overall, year] = prime ? peakOf(name) : [seasonOverall, Number(pool.season.slice(0, 4))]
+  return { ...cardPlayer(`p${poolIdx}-${i}`, name, positions, overall, year), clubs: clubsOf(name) }
+}
+
+let PEAKS: Map<string, [number, number]> | null = null
+/**
+ * A prime draft's player (session 37): his best overall in the database and the season it was in
+ * (the first, if he had it more than once), so his card is that season's.
+ */
+export function peakOf(name: string): [number, number] {
+  if (!PEAKS) {
+    PEAKS = new Map()
+    for (const pool of POOLS)
+      for (const [n, , o] of pool.players) {
+        const year = Number(pool.season.slice(0, 4))
+        const was = PEAKS.get(n)
+        if (!was || o > was[0] || (o === was[0] && year < was[1])) PEAKS.set(n, [o, year])
+      }
+  }
+  return PEAKS.get(name) ?? [0, 0]
 }
 
 let CLUBS: Map<string, string[]> | null = null
@@ -342,6 +364,8 @@ export interface DraftOptions {
   twists?: boolean
   difficulty?: Difficulty
   rules?: RuleId[]
+  /** Every player at his peak (`Draft.prime`). */
+  prime?: boolean
 }
 
 /** A draft offers at most this many seasons of one club (a league's top clubs have five). */
@@ -382,6 +406,7 @@ export function newDraft(seed: number, formation: Formation, league: League = 'P
     d.theme = theme.id
     delete d.league
   }
+  if (opts.prime) d.prime = true
   if (opts.budget) d.money = budgetFor(d)
   if (opts.daily) d.daily = opts.daily
   if (opts.difficulty && opts.difficulty !== 'normal') d.difficulty = opts.difficulty
@@ -474,7 +499,7 @@ export function offer(d: Draft): { pool: Pool; players: PlayerDef[]; pools: { po
   const twist = twistOf(d)
   const of = (idx: number): PlayerDef[] =>
     POOLS[idx].players
-      .map((_, i) => poolPlayer(idx, i))
+      .map((_, i) => poolPlayer(idx, i, d.prime))
       .filter((p) => !drafted.has(p.name) && inTheme(theme, p.overall ?? 0) && (twist?.kind !== 'line' || LINE_ROLES[twist.line].includes(p.role)))
   const idx = d.rounds[roundOf(d)]
   const pools = [idx, ...(twist?.kind === 'pair' ? [twist.other] : [])].map((i) => ({ pool: POOLS[i], players: of(i) }))
@@ -525,10 +550,10 @@ export function draftTeam(d: Draft, name: string): TeamDef {
  * the next nine on the bench. Players in `taken` (by name: drafted, or already playing for
  * another side in the league) are gone. With `fill` a short bench is made up to nine (`fillBench`).
  */
-export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[poolIdx].formation, theme?: string, fill = true): TeamDef {
+export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[poolIdx].formation, theme?: string, fill = true, prime = false): TeamDef {
   const pool = POOLS[poolIdx]
   const t = themeOf(theme)
-  const left = pool.players.map((_, i) => poolPlayer(poolIdx, i)).filter((p) => !taken.has(p.name) && inTheme(t, p.overall ?? 0))
+  const left = pool.players.map((_, i) => poolPlayer(poolIdx, i, prime)).filter((p) => !taken.has(p.name) && inTheme(t, p.overall ?? 0))
   const players = FORMATIONS[formation].map((slot, i) => {
     const best = left.reduce((a, b) => ((b.overall ?? 0) * fitFor(b, slot) > (a.overall ?? 0) * fitFor(a, slot) ? b : a))
     left.splice(left.indexOf(best), 1)
@@ -547,7 +572,7 @@ export function poolTeam(poolIdx: number, taken: Set<string>, formation = POOLS[
     players,
     bench,
   }
-  return fill ? fillBench(team, poolIdx, new Set([...taken, ...players.map((p) => p.name), ...bench.map((p) => p.name)]), theme) : team
+  return fill ? fillBench(team, poolIdx, new Set([...taken, ...players.map((p) => p.name), ...bench.map((p) => p.name)]), theme, prime) : team
 }
 
 /**
@@ -560,7 +585,7 @@ const BENCH_NEEDS: Role[] = ['GK', 'CB', 'FB', 'CM', 'ST', 'CB', 'W', 'DM', 'FB'
 const MADE_UP_BELOW = 2
 
 /** A club-season's bench made up to nine, with a keeper on it; `taken` (names) gets the newcomers. */
-export function fillBench(team: TeamDef, poolIdx: number, taken: Set<string>, theme?: string): TeamDef {
+export function fillBench(team: TeamDef, poolIdx: number, taken: Set<string>, theme?: string, prime = false): TeamDef {
   const pool = POOLS[poolIdx]
   const t = themeOf(theme)
   const bench = [...team.bench]
@@ -574,10 +599,11 @@ export function fillBench(team: TeamDef, poolIdx: number, taken: Set<string>, th
   POOLS.flatMap((q, qi) => (q.club === pool.club && leagueOf(q) === leagueOf(pool) && qi !== poolIdx ? [qi] : []))
     .sort((a, b) => Math.abs(Number(POOLS[a].season.slice(0, 4)) - year) - Math.abs(Number(POOLS[b].season.slice(0, 4)) - year) || a - b)
     .forEach((qi) =>
-      POOLS[qi].players.forEach(([name, , overall], i) => {
+      POOLS[qi].players.forEach(([name, , seasonOverall], i) => {
+        const overall = prime ? peakOf(name)[0] : seasonOverall
         if (taken.has(name) || seen.has(name) || !inTheme(t, overall) || overall > weakest) return
         seen.add(name)
-        others.push(poolPlayer(qi, i))
+        others.push(poolPlayer(qi, i, prime))
       }),
     )
   const rng = new Rng(hash(poolName(pool)) + 7)
@@ -610,14 +636,20 @@ export function draftLeague(d: Draft, name: string): TeamDef[] {
   const rng = new Rng(d.seed + 1)
   const clubs = new Set<string>()
   const pools = rng.shuffle(draftPools(d)).filter((i) => !clubs.has(POOLS[i].club) && clubs.add(POOLS[i].club))
-  const chosen = pools.slice(0, DRAFT_LEAGUE_SIZE - 1)
-  const teams = chosen.map((i) => {
-    const team = poolTeam(i, taken, POOLS[i].formation, d.theme, false)
+  // A club-season whose keepers are all gone (drafted, or in goal for another of their clubs'
+  // seasons, as Lehmann is for Arsenal and Dortmund) is passed over for the next.
+  const chosen: number[] = []
+  const teams: TeamDef[] = []
+  for (const i of pools) {
+    if (chosen.length === DRAFT_LEAGUE_SIZE - 1) break
+    const team = poolTeam(i, taken, POOLS[i].formation, d.theme, false, d.prime)
+    if (team.players[0].role !== 'GK') continue
     for (const p of [...team.players, ...team.bench]) taken.add(p.name)
-    return team
-  })
+    chosen.push(i)
+    teams.push(team)
+  }
   // Then short benches are made up, once every side has its own men (fill-ins take nobody's).
-  const filled = teams.map((t, k) => fillBench(t, chosen[k], taken, d.theme))
+  const filled = teams.map((t, k) => fillBench(t, chosen[k], taken, d.theme, d.prime))
   const league = [draftTeam(d, name), ...withBlocks(filled, new Rng(d.seed + 2))]
   return league.map((t, k) => withReserves(t, k, taken, d.seed))
 }

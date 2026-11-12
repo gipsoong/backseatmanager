@@ -5008,3 +5008,36 @@ p.meta,
 .draft-summary-stars span:last-child {
   font-weight: 600;
 }
+
+/* Season honours (session 37): the awards night, players of the month, feats. */
+.awards.honours {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+
+.awards.honours .award {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.awards.honours .award-line {
+  white-space: normal;
+}
+
+.notable.months {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+}
+
+.trophy-icon {
+  vertical-align: -1px;
+  margin-right: 2px;
+}
+
+.notable.months li {
+  grid-template-columns: 4.6em minmax(0, 1fr);
+}
+
+.notable.months .standout-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

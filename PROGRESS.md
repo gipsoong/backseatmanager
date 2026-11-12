@@ -14,10 +14,32 @@ more, 4-2-3-1 levelled (session 26); draft variety: budget, themed and daily dra
 in-match changes while watching (session 29); a polish pass on replays, variety and phones (session 30);
 a layout pass at every width and standing-tackle animation (session 31); a career in the real
 Premier League 2024/25 (session 32); real careers in La Liga, Bundesliga, Serie A and Ligue 1 2024/25
-(session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35); draft offers rotate between drafts, All of Europe (session 36).
+(session 33); real players balanced toward their league's middle (session 34); injured players valued in deals, midfielders' goals (session 35); draft offers rotate between drafts, All of Europe (session 36); draft depth, the 2000s, Prime (session 37).
 Next: the owner's call (La Liga and Serie A champions still run ~10 points high and their goals ~0.4
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
+
+## Done (session 37, final hours): Prime, the 2000s, season honours
+
+The owner had most of a week's usage left and picked the 2000s era, then asked for a Prime toggle and a
+fuller end-of-season review with player awards.
+- **Prime** (`Draft.prime`, `draftStyle.prime`, `peakOf`): every player, yours and the league's (and cup
+  guests), at his best overall in the database with that season's card. The whole league, not only your
+  picks, or a prime side would win every title. Budgets follow (`leagueLevel`). Three greedy-draft sims:
+  2.90, 3.07, 3.24 goals a match, champions 95-107 (the greedy side each time, as without Prime).
+- **The 2000s** (`squads-2000s.ts`, last in `LEAGUES`): 43 club-seasons 2000/01-2009/10, all five
+  leagues (Invincibles, Galácticos, Ronaldinho's and Pep's Barcelona, Ancelotti's Milans, Inter's treble,
+  Lyon, Leeds 00/01, Super Depor, Valencia 03/04 …). A "2000s" theme; classic league drafts now span
+  2000-now, so draft fingerprints changed (`all 1c9a3c799f74`; club, career and knockout hashes as before).
+  `draftLeague` passes over a club-season with no keeper left (Lehmann keeps goal for Arsenal and
+  Dortmund). Sims: 2000s theme 2.87 and 3.05 goals a match; classic Premier League 3.44 (one seed, more running).
+- **Season honours** (review.ts `honours`, Stats.tsx `SeasonReview`): awards (Golden Boot, Playmaker,
+  Golden Glove, defender/midfielder/forward of the season, young player in a career), every player of
+  the month, the best displays and hat-tricks (yours first, five shown), the side that beat its tip by
+  most. `scripts/diag-honours.ts <season.json>`.
+- **Final pass** (owner's ask): 38 cards for 2000s stars (archetype cards gave Henry pace 87, Figo 97,
+  Vieira shooting 86); harness on 20 2000s/Prime draft matches, no violations; layout audit clean at 390
+  and 1280 on career and draft saves.
 
 ## Done (session 37, last): difficulty, events, flavour
 

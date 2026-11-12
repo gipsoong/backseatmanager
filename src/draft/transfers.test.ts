@@ -45,9 +45,11 @@ describe('the January window', () => {
   })
 
   it('values an injured player by his quality, less a little for the time he misses', () => {
-    const star = [...theirs].sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))[0]
+    // The league's best outfield player, at whichever club has him.
+    const club = open.teams.map((t, k) => ({ k, p: squadOf(t).filter((p) => p.role !== 'GK').sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))[0] })).slice(1).sort((a, b) => (b.p.overall ?? 0) - (a.p.overall ?? 0))[0]
+    const star = club.p
     const fringe = [...mine].filter((p) => p.role !== 'GK').sort((a, b) => (a.overall ?? 0) - (b.overall ?? 0))[0]
-    const deal = { club: 1, give: [fringe.id], get: [star.id] }
+    const deal = { club: club.k, give: [fringe.id], get: [star.id] }
     const injured = (weeks: number): Season => ({
       ...open,
       condition: { ...open.condition, [star.id]: { fitness: 0.3, injuredUntil: open.matchday + weeks } },
@@ -57,7 +59,9 @@ describe('the January window', () => {
     expect(month.ok).toBe(false)
     expect(month.them!.value).toBeLessThan(-3)
     // Where he'd play for you is judged as if he were fit.
-    expect(month.you!.reasons[0]).toBe(judge(open, deal).you!.reasons[0])
+    // (the same place; his number there is less the injury's cost)
+    const place = (r: string): string => r.replace(/\(\d+\)/g, '')
+    expect(place(month.you!.reasons[0])).toBe(place(judge(open, deal).you!.reasons[0]))
     expect(month.you!.reasons.join(' ')).toContain('injured')
     // Worth less the longer he's out.
     const fit = judge(open, deal).them!.value

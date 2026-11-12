@@ -356,7 +356,7 @@ export default function App() {
               ...createSeason(d.seed, 0, new Date(), draftLeague(d, name)),
               mode: "draft",
               league: d.league,
-              ...(d.theme || d.money !== undefined || d.daily || d.difficulty || d.rules
+              ...(d.theme || d.money !== undefined || d.daily || d.difficulty || d.rules || d.prime
                 ? {
                     draftStyle: {
                       theme: d.theme,
@@ -364,6 +364,7 @@ export default function App() {
                       daily: d.daily,
                       ...(d.difficulty && d.difficulty !== "normal" ? { difficulty: d.difficulty } : {}),
                       ...(d.rules ? { rules: d.rules } : {}),
+                      ...(d.prime ? { prime: true } : {}),
                     },
                   }
                 : {}),

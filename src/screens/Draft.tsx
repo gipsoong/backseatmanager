@@ -98,7 +98,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
     )
   const theme = themeOf(draft.theme)
   const where = theme ? `${theme.name} club-seasons from Europe's top five leagues` : `${draft.league ?? 'Premier League'} sides from 2010 to now`
-  const eyebrow = draftEyebrow({ league: draft.league, theme: draft.theme, budget: draft.money !== undefined, daily: draft.daily })
+  const eyebrow = draftEyebrow({ league: draft.league, theme: draft.theme, budget: draft.money !== undefined, daily: draft.daily, prime: draft.prime })
 
   const slots = FORMATIONS[draft.formation]
   const done = isComplete(draft)
@@ -311,10 +311,10 @@ function PickShape({
   onBack: () => void
 }) {
   const theme = themeOf(opts.theme)
-  const budget = budgetFor({ theme: opts.theme, league })
+  const budget = budgetFor({ theme: opts.theme, league, prime: opts.prime })
   return (
     <div className="start draft-start">
-      <p className="eyebrow">{draftEyebrow({ league, theme: opts.theme, budget: opts.budget, daily: opts.daily ? today() : undefined })}</p>
+      <p className="eyebrow">{draftEyebrow({ league, theme: opts.theme, budget: opts.budget, daily: opts.daily ? today() : undefined, prime: opts.prime })}</p>
       <h1>Draft a side. Try to go unbeaten.</h1>
       <div className="draft-options">
         <p className="eyebrow step">Players from</p>
@@ -352,12 +352,17 @@ function PickShape({
             <span className="check" aria-hidden="true">{opts.twists !== false ? '✓' : ''}</span>
             Twists
           </button>
+          <button type="button" aria-pressed={!!opts.prime} onClick={() => onOpts({ ...opts, prime: !opts.prime })}>
+            <span className="check" aria-hidden="true">{opts.prime ? '✓' : ''}</span>
+            Prime
+          </button>
         </div>
         <p className="meta">
           {opts.budget
             ? `£${budget}m for all twenty. Every player has a price by his overall, from £1m; a cheap pick leaves money for a star later. Enough is always kept back to fill your squad.`
             : 'Take whoever you like from each club.'}
           {opts.twists !== false ? ' Twists: a few rounds offer two clubs, a mystery squad, one line only or a strong side, and you get two rerolls.' : ''}
+          {opts.prime ? ' Prime: every player, yours and the league\'s, is at his best season\'s rating.' : ''}
           {opts.daily ? ` Daily: today's offers (${today()}) are the same for everyone who picks these options.` : ''}
         </p>
         <p className="eyebrow step">Difficulty</p>

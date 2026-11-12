@@ -7,6 +7,7 @@ import { ratingGroup } from '../viewer/players.ts'
 import { type Fixture, type Season, type SeasonStats, avgRating, playerRating, squadOf, squadRating, table } from './season.ts'
 import { count, goalsPrevented, onTargetRate } from './stats.ts'
 import { ordinal } from '../screens/format.ts'
+import { type Award, MONTH, playerOfTheMonth } from './awards.ts'
 
 export interface Standout {
   player: PlayerDef
@@ -32,6 +33,34 @@ export interface Review {
   /** Across the league: finishing, creating, defending, keeping. */
   singledOut: { title: string; who: Standout }[]
   games: NotableGame[]
+}
+
+/** An end-of-season award (session 37): a trophy, who won it, and why in a line. */
+export interface SeasonAward {
+  title: string
+  who: Standout
+  line: string
+}
+
+/** A one-off: a hat-trick, or the season's best single display. */
+export interface Feat {
+  player: PlayerDef
+  club: number
+  fixture: Fixture
+  line: string
+  /** A display's match rating. */
+  rating?: number
+}
+
+export interface Honours {
+  awards: SeasonAward[]
+  /** Each month's player of the month (awards.ts), in order. */
+  months: { month: number; award: Award }[]
+  hatTricks: Feat[]
+  /** The season's three best match ratings. */
+  displays: Feat[]
+  /** The club that beat the pundits' tip by the most places (with tips). */
+  overachievers: { club: number; tip: number; place: number } | null
 }
 
 const avgOf = (st: SeasonStats): number => avgRating(st) ?? 0
@@ -193,4 +222,79 @@ export function notableGames(s: Season): NotableGame[] {
   const best = new Map<number, NotableGame & { weight: number }>()
   for (const g of games) if (!best.has(g.fixture.id) || best.get(g.fixture.id)!.weight < g.weight) best.set(g.fixture.id, g)
   return [...best.values()].sort((a, b) => b.weight - a.weight).slice(0, 8)
+}
+
+/**
+ * The season's honours (session 37): the awards night (golden boot, playmaker, golden glove, the
+ * best of each line, a young player in a career), every player of the month, hat-tricks, the best
+ * single displays, and the side that most outdid its tip. From the season alone.
+ */
+export function honours(s: Season): Honours {
+  const played = Math.max(1, s.matchday - 1)
+  const rate = onTargetRate(s)
+  const all: Standout[] = []
+  s.teams.forEach((t, club) => {
+    for (const player of squadOf(t)) {
+      const st = s.stats[player.id]
+      if (st?.apps) all.push({ player, club, st, avg: avgOf(st), line: seasonLine(player, st, rate) })
+    }
+  })
+  const regulars = all.filter((x) => count(x.st, 'minutes') >= played * 45)
+  const awards: SeasonAward[] = []
+  const give = (title: string, list: Standout[], key: (x: Standout) => number[], line: (x: Standout) => string): void => {
+    const best = [...list].sort((a, b) => {
+      const [ka, kb] = [key(a), key(b)]
+      const i = ka.findIndex((v, j) => v !== kb[j])
+      return i < 0 ? 0 : kb[i] - ka[i]
+    })[0]
+    if (best && key(best)[0] > 0) awards.push({ title, who: best, line: line(best) })
+  }
+  const mins = (x: Standout): number => count(x.st, 'minutes')
+  give('Golden Boot', all, (x) => [x.st.goals, -mins(x)], (x) => `${plural(x.st.goals, 'goal')}${count(x.st, 'penGoals') ? ` (${count(x.st, 'penGoals')} pens)` : ''} in ${x.st.apps} apps, ${count(x.st, 'xg').toFixed(1)} xG`)
+  give('Playmaker', all, (x) => [x.st.assists, count(x.st, 'xa')], (x) => `${plural(x.st.assists, 'assist')}, ${count(x.st, 'keyPasses')} chances created`)
+  give('Golden Glove', all.filter((x) => x.player.role === 'GK'), (x) => [count(x.st, 'cleanSheets'), goalsPrevented(x.st, rate)], (x) => `${plural(count(x.st, 'cleanSheets'), 'clean sheet')}, ${signed(goalsPrevented(x.st, rate))} goals prevented`)
+  const line = (title: string, groups: string[]): void =>
+    give(title, regulars.filter((x) => groups.includes(ratingGroup(x.player.role))), (x) => [x.avg], (x) => x.line)
+  line('Defender of the season', ['DEF'])
+  line('Midfielder of the season', ['DM', 'MID'])
+  line('Forward of the season', ['ATT'])
+  const people = s.career?.people
+  if (people) give('Young player of the season', regulars.filter((x) => (people[x.player.id]?.age ?? 99) <= 21), (x) => [x.avg], (x) => `${people[x.player.id].age} · ${x.line}`)
+
+  const months: Honours['months'] = []
+  for (let md = MONTH; md <= played; md += MONTH) {
+    const award = playerOfTheMonth(s, md)
+    if (award) months.push({ month: md / MONTH, award })
+  }
+
+  const whoIs = new Map(all.map((x) => [x.player.id, x]))
+  const hatTricks: Feat[] = []
+  const displays: Feat[] = []
+  for (const f of s.fixtures) {
+    const r = f.result
+    if (!r) continue
+    for (const a of r.appearances) {
+      const x = whoIs.get(a.id)
+      if (!x) continue
+      const opp = s.teams[x.club === f.home ? f.away : f.home].name
+      if (a.goals >= 3)
+        hatTricks.push({ player: x.player, club: x.club, fixture: f, line: `${a.goals === 3 ? 'Hat-trick' : `${a.goals} goals`} against ${opp}, MD ${f.matchday}` })
+      if (a.minutes < 60) continue
+      const bits = [a.goals && plural(a.goals, 'goal'), a.assists && plural(a.assists, 'assist')].filter(Boolean).join(', ')
+      if (displays.length === 3 && a.rating <= displays[2].rating!) continue
+      displays.push({ player: x.player, club: x.club, fixture: f, rating: a.rating, line: `${a.rating.toFixed(1)} against ${opp}, MD ${f.matchday}${bits ? ` · ${bits}` : ''}` })
+      displays.sort((p, q) => q.rating! - p.rating!)
+      displays.splice(3)
+    }
+  }
+  hatTricks.sort((a, b) => a.fixture.matchday - b.fixture.matchday)
+
+  let overachievers: Honours['overachievers'] = null
+  if (s.tips) {
+    table(s).forEach((row, i) => {
+      const tip = s.tips![row.team]
+      if (tip - (i + 1) > 0 && (!overachievers || tip - (i + 1) > overachievers.tip - overachievers.place)) overachievers = { club: row.team, tip, place: i + 1 }
+    })
+  }
+  return { awards, months, hatTricks, displays, overachievers }
 }

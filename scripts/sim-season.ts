@@ -26,7 +26,8 @@ const league = (args[5] ?? 'Premier League') as League
 const force = args[6]
 
 // A greedy 4-3-3 draft: the best player who fits an open place each round.
-let d = newDraft(seed, '4-3-3', league, { theme, budget })
+const prime = flags.includes('--prime')
+let d = newDraft(seed, '4-3-3', league, { theme, budget, prime })
 const slots = FORMATIONS['4-3-3']
 if (force) {
   const [name, overall] = force.split(':')
@@ -67,7 +68,7 @@ let s: Season = {
   ...createSeason(d.seed, 0, new Date(Date.UTC(2026, 5, 1)), draftLeague(d, 'Backseat XI')),
   mode: 'draft',
   league: d.league,
-  ...(theme || budget || difficulty ? { draftStyle: { theme, budget: budget ? budgetFor(d) : undefined, ...(difficulty ? { difficulty } : {}) } } : {}),
+  ...(theme || budget || difficulty || prime ? { draftStyle: { theme, budget: budget ? budgetFor(d) : undefined, ...(difficulty ? { difficulty } : {}), ...(prime ? { prime } : {}) } } : {}),
 }
 console.error(`our eleven ${draftRating(d)}${d.money !== undefined ? `, £${d.money}m left` : ''}`)
 const t0 = Date.now()

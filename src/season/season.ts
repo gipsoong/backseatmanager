@@ -165,7 +165,7 @@ export interface Season {
    */
   /** Mid-season events' choices, by event index (draft/events.ts). */
   choices?: Record<number, { choice: number; ids: string[] }>
-  draftStyle?: { theme?: string; budget?: number; daily?: string; difficulty?: 'easy' | 'hard'; rules?: string[] }
+  draftStyle?: { theme?: string; budget?: number; daily?: string; difficulty?: 'easy' | 'hard'; rules?: string[]; prime?: boolean }
   /** Deals done in the January window (draft mode), oldest first. */
   transfers?: Transfer[]
   /** Offers from other clubs turned down this window (draft mode). */

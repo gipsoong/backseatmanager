@@ -664,4 +664,13 @@ pulling the repo.
   hub button breathing. `slotStyle(slot, false)` for bare dots (the shape picker), whose pitches are too
   narrow for the labels' edge clamp.
 
+- Prime, the 2000s, honours (session 37, last). `squads-2000s.ts` (43 club-seasons 2000/01-2009/10, all
+  five leagues) is the last of `LEAGUES` in pools.ts; a man in it and another file is spelt the same (a
+  different man of the same name gets a full name and a known-as: "Fred Chaves Guedes, …, Fred"). Theme
+  `era-2000`; classic drafts span 2000-now. `draftLeague` skips a club-season left without a keeper.
+  Prime (`Draft.prime`, `draftStyle.prime`): `poolPlayer(pool, i, prime)` plays him at `peakOf(name)`
+  (best overall in the database, that season's card), threaded through `poolTeam`, `fillBench`, cup
+  guests and `leagueLevel`. `honours` (season/review.ts): season awards, players of the month, feats.
+  `CARDS` gained 38 stars of the 2000s (Henry, Zidane, Figo …) whose archetype cards read wrong.
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

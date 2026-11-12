@@ -10,14 +10,16 @@ import * as bundesliga from './squads-bundesliga.ts'
 import * as serieA from './squads-seriea.ts'
 import * as ligue1 from './squads-ligue1.ts'
 import * as extra from './squads-extra.ts'
+import * as noughties from './squads-2000s.ts'
 
 export type { League, Pool } from './squads.ts'
 
-const LEAGUES = [laLiga, bundesliga, serieA, ligue1, extra]
+const LEAGUES = [laLiga, bundesliga, serieA, ligue1, extra, noughties]
 
 /**
  * Every club-season: the Premier League first (saves refer to pools by index), then the rest, then
- * the extra club-seasons of every league (session 37), last so no earlier index moves.
+ * the extra club-seasons of every league (session 37), then the 2000s (session 37), last so no
+ * earlier index moves.
  */
 export const POOLS: Pool[] = [...PREMIER_LEAGUE, ...LEAGUES.flatMap((l) => l.POOLS)]
 

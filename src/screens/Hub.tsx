@@ -172,6 +172,7 @@ export function Hub({
                   theme: season.draftStyle?.theme,
                   budget: season.draftStyle?.budget !== undefined,
                   daily: season.draftStyle?.daily,
+                  prime: season.draftStyle?.prime,
                 })
               : season.career
                 ? careerLabel(season)

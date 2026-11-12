@@ -43,7 +43,7 @@ function keepRun(s: Season): void {
     date: new Date().toISOString().slice(0, 10),
     name: s.teams[s.userTeam].name,
     style: [
-      draftEyebrow({ league: s.league, theme: s.draftStyle?.theme, budget: s.draftStyle?.budget !== undefined, daily: s.draftStyle?.daily }).replace(/^Draft · /, ''),
+      draftEyebrow({ league: s.league, theme: s.draftStyle?.theme, budget: s.draftStyle?.budget !== undefined, daily: s.draftStyle?.daily, prime: s.draftStyle?.prime }).replace(/^Draft · /, ''),
       s.draftStyle?.difficulty === 'hard' ? 'Hard' : s.draftStyle?.difficulty === 'easy' ? 'Easy' : '',
       ...(s.draftStyle?.rules ?? []).map((r) => RULES.find((x) => x.id === r)?.name ?? ''),
     ]

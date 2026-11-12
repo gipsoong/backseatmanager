@@ -174,7 +174,8 @@ function pickGuests(s: Season, rng: Rng): TeamDef[] {
     s.teams.flatMap((t) => [...t.players, ...t.bench].map((p) => p.name)),
   );
   const theme = themeOf(s.draftStyle?.theme);
-  if (theme) return themedGuests(s, rng, taken, themePools(theme), theme.id);
+  const prime = s.draftStyle?.prime === true;
+  if (theme) return themedGuests(s, rng, taken, themePools(theme), theme.id, prime);
   const home = s.league ?? "Premier League";
   const guests: TeamDef[] = [];
   for (const league of LEAGUES.filter((l) => l !== home)) {
@@ -189,7 +190,7 @@ function pickGuests(s: Season, rng: Rng): TeamDef[] {
     for (const i of rng.shuffle(strong)) {
       if (clubs.has(POOLS[i].club) || clubs.size >= PER_LEAGUE) continue;
       clubs.add(POOLS[i].club);
-      const team = poolTeam(i, taken);
+      const team = poolTeam(i, taken, POOLS[i].formation, undefined, true, prime);
       for (const p of [...team.players, ...team.bench]) taken.add(p.name);
       guests.push(team);
     }
@@ -207,6 +208,7 @@ function themedGuests(
   taken: Set<string>,
   pools: number[],
   theme: string,
+  prime: boolean,
 ): TeamDef[] {
   const inLeague = new Set(s.teams.map((t) => t.name));
   const clubs = new Set(
@@ -223,7 +225,7 @@ function themedGuests(
   for (const i of rng.shuffle(strong)) {
     if (clubs.has(POOLS[i].club) || guests.length >= PER_LEAGUE * 4) continue;
     clubs.add(POOLS[i].club);
-    const team = poolTeam(i, taken, POOLS[i].formation, theme);
+    const team = poolTeam(i, taken, POOLS[i].formation, theme, true, prime);
     for (const p of [...team.players, ...team.bench]) taken.add(p.name);
     guests.push(team);
   }
