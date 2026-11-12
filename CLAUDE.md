@@ -625,4 +625,14 @@ pulling the repo.
   the spread suggests: real cards are worth more per reading point than made-up ones (stars' pace), and
   results saturate (top v bottom still ~2.8 a game at 0.5). See PROGRESS (session 34) for the sims.
 
+- Backseat Manager (session 37; the game's name, the owner's pick; storage keys stay `matchday*`).
+  `screens/Logo.tsx` (mark + wordmark), `public/favicon.svg`, `--brand-*` tokens, `.hero` start, `.appbar`.
+  Upright pitch on tall phones (pitch.ts `View.portrait`, `UPRIGHT_PAD`; MatchViewer `uprightPitch`): only the
+  top-down cameras rotate. Rewatch (season.ts `Rewatch`, `rewatchOf`, `keepRewatch`, last 12 of the manager's
+  league matches; App screen `rewatch`, MatchViewer `initialMode`). `screens/RoundUp.tsx` after each league
+  matchday; `tableMoves`; `simulateAhead` (App). `draft/squads-extra.ts`: 37 smaller club-seasons of all five
+  leagues, the last entry of `LEAGUES` (pools.ts) so saved pool indexes don't move; check with
+  check-squads. `career/jobs.ts` (`jobNews`, `takeJob`): offers and the sack at a career season's end;
+  `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). A mentality setting was tried and dropped (PROGRESS).
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.
