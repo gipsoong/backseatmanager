@@ -19,6 +19,18 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37, last): difficulty, events, flavour
+
+The owner picked difficulty/rules and mid-season events (not the shared leaderboard or cup goals), and from
+another thread asked for a reworked form indicator, colours beyond the brand for "flavour" items, a fix
+for the squashed shape picker and idle animation.
+- Difficulty: the manager's opponent that matchday plays ±1.5 (±3 first: a greedy side lost ~30 points on
+  Hard, far too much). Sims of one drafted side: Normal ~3rd; Hard 4th 83 pts and 6th 73; Easy 1st 96 and
+  109; league goals 2.9-3.2 throughout. Rules: One star, Blind draft, No deals.
+- Events: three a season, two choices each, effects as short boosts; first option if passed by.
+- Round-up awards (player of the week and month), `--flavour-*` colours, form pills, tiered offer badges,
+  a finished-draft summary, idle motion. UI audit (390, career and draft saves): clean.
+
 ## Done (session 37, later): draft runs that differ
 
 The owner plays draft by default and asked for each run to be more dynamic; career is finished for now.
