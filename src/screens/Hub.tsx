@@ -1,4 +1,5 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
+import { Preview } from "./Preview.tsx";
 import { useMemo, useState } from "react";
 import type { Block, Formation, Kit, TeamDef } from "../engine/index.ts";
 import { ordinal } from "./format.ts";
@@ -239,6 +240,7 @@ export function Hub({
                 <span className="v">v</span>{" "}
                 <TeamName team={season.teams[next.away]} />
               </h2>
+              <Preview season={season} fixture={next} />
               <BoardLine season={season} over={false} />
               {season.career && inTheRed(season) && (
                 <p className="money-warning">{RED_LINE}</p>

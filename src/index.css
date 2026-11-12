@@ -4202,3 +4202,59 @@ p.meta,
     scroll-behavior: auto !important;
   }
 }
+
+/* Match preview on the hub's next-match card: the two sides side by side. */
+.tape {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+  animation: rise var(--dur-base) var(--ease-out) backwards;
+}
+
+.tape-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 18%, transparent);
+}
+
+.tape-h,
+.tape-a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tape-h {
+  text-align: left;
+}
+
+.tape-a {
+  text-align: right;
+}
+
+.tape-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+  min-width: 6.5em;
+}
+
+.tape .f {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 1px;
+  border-radius: 50%;
+}
+
+.tape-note {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
