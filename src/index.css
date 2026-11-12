@@ -4629,3 +4629,37 @@ p.meta,
   font-variant-numeric: tabular-nums;
   font-size: 0.9em;
 }
+
+/* Form in draft seasons (session 37). */
+.form-note {
+  margin-left: 4px;
+  font-size: 0.75em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.form-note.up {
+  color: var(--accent);
+}
+
+.form-note.down {
+  color: var(--muted);
+}
+
+/* Draft links (session 37). On phones the count goes in the side's sheet handle instead. */
+@media (max-width: 560px) {
+  .team-rating.links {
+    display: none;
+  }
+}
+
+@media (min-width: 561px) {
+  .sheet-links {
+    display: none;
+  }
+}
+
+.link-note {
+  color: var(--accent);
+  font-weight: 600;
+}

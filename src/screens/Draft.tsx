@@ -41,6 +41,7 @@ import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { shortName as surname, styleLabel } from '../names.ts'
 import { Positions } from './Positions.tsx'
 import { PastRuns } from './RunGoals.tsx'
+import { linksFor, linksOf } from '../draft/links.ts'
 
 /** Club-seasons this browser was offered lately, so the next draft offers others (kept per browser; optional). */
 const RECENT_KEY = 'matchday.draft.recent'
@@ -133,6 +134,10 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
               <small>Left</small>£{draft.money}m
             </span>
           )}
+          <span className="rating big team-rating links" title="Links: starters who played for the same club. A linked starter plays a little better (+1, or +2 with three links or more)">
+            <small>Links</small>
+            {linksOf(draft.xi).length}
+          </span>
           <span className="rating big team-rating" title="Team rating: the starters' overalls, less for anyone out of position">
             <small>Rating</small>
             {draftRating(draft) || '–'}
@@ -184,7 +189,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
             <span className="grip" aria-hidden="true" />
             <span className="sheet-title">{chosen ? `Place ${surname(chosen.name)}` : 'Your side'}</span>
             <span className="sheet-count">
-              {starters}/11 · {subs}/{draft.bench.length} subs
+              {starters}/11 · {subs}/{draft.bench.length} subs<span className="sheet-links"> · {linksOf(draft.xi).length} links</span>
             </span>
             <span className="chev" aria-hidden="true" />
           </button>
@@ -332,7 +337,8 @@ function PickShape({
       </div>
       <p className="meta">
         {DRAFT_ROUNDS} rounds. Each one shows a club's squad from one season: pick one of its players and put him in your side, as one of eleven starters
-        or {DRAFT_SUBS} substitutes. A player out of position counts for less. You can change the shape later.
+        or {DRAFT_SUBS} substitutes. A player out of position counts for less. Starters who played for the same club link up and
+        play a little better together. You can change the shape later.
       </p>
       <p className="eyebrow step">Choose a shape to start</p>
       <div className="shape-grid">
@@ -357,6 +363,18 @@ function PickShape({
 }
 
 const ROLE_ORDER = ['GK', 'CB', 'FB', 'DM', 'CM', 'WM', 'W', 'ST']
+
+/** Whom he'd link with in your eleven so far (draft/links.ts). */
+function LinkNote({ p, xi }: { p: PlayerDef; xi: (PlayerDef | null)[] }) {
+  const links = linksFor(p, xi)
+  if (!links.length) return null
+  return (
+    <span className="link-note" title={links.map((l) => `${l.with.name} (${l.club})`).join(', ')}>
+      {' · '}
+      {links.length === 1 ? `links with ${surname(links[0].with.name)}` : `${links.length} links`}
+    </span>
+  )
+}
 
 /** What a twisted round asks, in a line. */
 function twistLine(t: Twist): { title: string; text: string } {
@@ -414,7 +432,10 @@ function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chose
                   <span className="role"><Positions p={p} /></span>
                   <span className="name">
                     {p.name}
-                    <small className="style">{styleLabel(p)}</small>
+                    <small className="style">
+                      {styleLabel(p)}
+                      <LinkNote p={p} xi={draft.xi} />
+                    </small>
                   </span>
                   {priced && <span className="price">£{priceIn(draft, p, players)}m</span>}
                   <span className={`rating${blind ? ' hidden-rating' : ''}`}>{blind ? '?' : p.overall}</span>

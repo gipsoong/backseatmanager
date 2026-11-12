@@ -636,6 +636,19 @@ pulling the repo.
   `PastSeason.club`, `Career.moved`. `scoutRange` (Career.tsx). Loans (`career/loans.ts`, `Career.loans`, back in `nextSeason` with
   `LOAN_PLAYED`). Mentality (`TeamDef.mentality`, ai.ts `MENTALITY`: keenness, in-possession
   depth of full-backs and midfielders, late runs; an `Order`; diag-mentality.ts mirror tests; see PROGRESS). Staff set it by the score late on (`staffMentality`, match.ts)
-  unless the manager has chosen one.
+  unless the manager has chosen one. Viewer sub strip (`currentSubs`, MatchViewer).
+- Draft depth (session 37, the owner plays draft by default). Twists (`DraftOptions.twists`, on in the screen, off in
+  scripts so they draft as before): `withTwists` (own Rng, rounds untouched but for `star`) gives `TWISTS` 5 rounds
+  after the first a `Twist` (pair: a spare club-season beside it; blind: overalls hidden, sorted by name; line:
+  only that line's players, the whole squad if none of them could go in an open place; star: the strongest spare
+  swapped in), `REROLLS` 2 (`reroll`, the next of `spares`); `offer(d).pools` lists each club-season's players.
+  Run goals (`draft/goals.ts`, nothing saved: from the seed and `tips`): aim `tip - 1`, a bonus by tip fifth
+  (`BONUS_TARGETS`, ~45% met in draft sims; `scripts/diag-goals-run.ts <season.json>…`), `starsOf` 0-3;
+  `screens/RunGoals.tsx` on the hub, and the record of runs in localStorage (`matchday.draft.runs`, `PastRuns` on
+  the draft start). Form (`season/form.ts`): a per-player random walk from seed, id and matchday (sd ~1.6,
+  ±4), added to `POSITIONAL` (keepers' skills) by `matchTeam` in draft seasons; shown as ▲/▼ in the squad and the
+  preview's "In form". Links (`draft/links.ts`): starters sharing a club in the database (`PlayerDef.clubs`,
+  stamped by `poolPlayer` via `clubsOf`; season.ts must not import POOLS, or the worker bundle grows ~200 KB) get
+  +1 (1-2 links) or +2 (3+), the manager's drafted side only; greedy drafts average ~0.55.
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

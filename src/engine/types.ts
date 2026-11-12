@@ -141,6 +141,8 @@ export interface PlayerDef {
    * ROLE_OFFSET), which `shownRatings` puts back. Unset in older saves (their attributes are the card).
    */
   cardShift?: number
+  /** A draft player's clubs in the database, for links (draft/links.ts); unset for anyone else. */
+  clubs?: string[]
 }
 
 /** Shirt colours. `family` is used to spot clashes between two kits. */

@@ -2,6 +2,7 @@
  * The manager's squad: the eleven on a pitch in the chosen shape (tap one player, then another or
  * a substitute, to swap them), then who's fit, who's injured and how they're doing.
  */
+import { formMark, formOf } from '../season/form.ts'
 import { useState } from 'react'
 import { type Block, FORMATIONS, type Mentality, type TeamDef, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
 import { shortName, styleLabel } from '../names.ts'
@@ -271,6 +272,7 @@ export function Squad({
                 <td className="rtg-cell">
                   {playerRating(p)}
                   <Change season={season} id={p.id} />
+                  <FormNote season={season} id={p.id} />
                 </td>
                 <td>
                   <span className="fit" title={`${Math.round(c.fitness * 100)}% fit`}>
@@ -290,5 +292,17 @@ export function Squad({
       </table>
       </div>
     </div>
+  )
+}
+
+/** His form for the next match, in draft seasons (season/form.ts): "▲2" in form, "▼1" out of it. */
+export function FormNote({ season, id }: { season: Season; id: string }) {
+  if (season.mode !== 'draft') return null
+  const f = formOf(season.seed, id, season.matchday)
+  if (!f) return null
+  return (
+    <span className={`form-note ${f > 0 ? 'up' : 'down'}`} title={f > 0 ? `In form: playing ${f} above his usual level` : `Out of form: playing ${-f} below his usual level`}>
+      {formMark(f)}
+    </span>
   )
 }

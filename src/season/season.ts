@@ -4,6 +4,8 @@
  * each fixture has its own match seed, so a match plays out the same whether it's watched or not.
  * No React, no storage: the app keeps a Season and replaces it with the updated one.
  */
+import { teamInForm } from './form.ts'
+import { linkedTeam } from '../draft/links.ts'
 import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, type TimedOrder, ability, cardOverall, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
 import type { Career } from '../career/career.ts'
@@ -352,7 +354,11 @@ export function matchTeam(s: Season, club: number): TeamDef {
     .filter((p) => !xi.includes(p) && isAvailable(s, p))
     .sort((a, b) => ability(b) - ability(a))
     .slice(0, BENCH_SIZE)
-  return { ...t, players: xi, bench }
+  const side = { ...t, players: xi, bench }
+  // Draft seasons: everyone in his form for the day (season/form.ts), and the manager's side with
+  // its links (draft/links.ts).
+  if (s.mode !== 'draft') return side
+  return teamInForm(club === s.userTeam ? linkedTeam(side) : side, s.seed, s.matchday)
 }
 
 /** Starting fitness for everyone in a fixture, for the engine. */

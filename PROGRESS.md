@@ -19,6 +19,25 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37, later): draft runs that differ
+
+The owner plays draft by default and asked for each run to be more dynamic; career is finished for now.
+They picked twists, run goals, form and links, and turned down rival AI drafters.
+- **Twists and rerolls** (draft.ts `withTwists`): five rounds after the first get a twist (two clubs to
+  choose from, mystery ratings, one line only, a strong club-season dropped in) and two rerolls swap a
+  round's club-season. A "Twists" toggle on the start (on by default); scripts leave them off, so
+  fingerprints, greedy drafts and sims draft exactly as before.
+- **Run goals** (draft/goals.ts, screens/RunGoals.tsx): an aim one place above the pundits' tip and a
+  bonus by tip fifth (goals, clean sheets, unbeaten run, few defeats, a big scorer, points off the
+  favourites), each met ~45% of the time over five draft sim-seasons (diag-goals-run). Up to three stars;
+  finished runs are kept in this browser and listed on the draft start.
+- **Form** (season/form.ts): every player's form drifts week to week (±4, sd ~1.6), added to his technique
+  in draft seasons. Three draft sim-seasons with it: 3.08, 3.13, 3.14 goals a match (3.19 and 3.06
+  before), champions 87-94.
+- **Links** (draft/links.ts): starters who were ever at the same club get +1 (one or two links) or +2
+  (three or more), the manager's side only. Greedy drafts average +0.55; a side built for links can
+  reach +1.5 or so (worth ~0.2-0.3 goals a game). Shown on offers ("links with Salah") and in the header.
+
 ## Done (session 37): Backseat Manager, phones, rewatch, more clubs, job offers
 
 The owner asked for a long autonomous push (depth, animations, phone UI, branding, a bigger database).

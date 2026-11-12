@@ -254,7 +254,18 @@ export const levelOf = (overall: number): number => 13.5 + (Math.min(overall, 86
 export function poolPlayer(poolIdx: number, i: number): PlayerDef {
   const pool = POOLS[poolIdx]
   const [name, positions, overall] = pool.players[i]
-  return cardPlayer(`p${poolIdx}-${i}`, name, positions, overall, Number(pool.season.slice(0, 4)))
+  return { ...cardPlayer(`p${poolIdx}-${i}`, name, positions, overall, Number(pool.season.slice(0, 4))), clubs: clubsOf(name) }
+}
+
+let CLUBS: Map<string, string[]> | null = null
+/** Every club the database has him at, by name (for links, draft/links.ts). */
+export function clubsOf(name: string): string[] {
+  if (!CLUBS) {
+    const m = new Map<string, Set<string>>()
+    for (const pool of POOLS) for (const [n] of pool.players) m.set(n, (m.get(n) ?? new Set<string>()).add(pool.club))
+    CLUBS = new Map([...m].map(([n, c]) => [n, [...c].sort()]))
+  }
+  return CLUBS.get(name) ?? []
 }
 
 /**

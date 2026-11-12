@@ -4,6 +4,7 @@
  */
 import { type ReactNode, useMemo } from 'react'
 import { shortName } from '../names.ts'
+import { formMark, formOf } from '../season/form.ts'
 import { type Fixture, type Season, lineupFor, playerRating, squadOf, table } from '../season/season.ts'
 
 const ordinal = (n: number): string => {
@@ -20,7 +21,14 @@ function sideOf(season: Season, club: number, place: number, form: ('W' | 'D' | 
     const g = season.stats[p.id]?.goals ?? 0
     if (g > 0 && (!top || g > top.goals)) top = { name: shortName(p.name), goals: g }
   }
-  return { place, form, eleven, top }
+  // Draft seasons: the eleven's man in the best form this week (season/form.ts).
+  let hot: { name: string; form: number } | null = null
+  if (season.mode === 'draft')
+    for (const p of xi) {
+      const f = formOf(season.seed, p.id, season.matchday)
+      if (f > 0 && (!hot || f > hot.form)) hot = { name: shortName(p.name), form: f }
+    }
+  return { place, form, eleven, top, hot }
 }
 
 export function Preview({ season, fixture }: { season: Season; fixture: Fixture }) {
@@ -51,6 +59,8 @@ export function Preview({ season, fixture }: { season: Season; fixture: Fixture 
       {started && line('Place', ordinal(home.place), ordinal(away.place))}
       {started && line('Form', dots(home.form), dots(away.form), 'Last five, oldest first')}
       {line('Eleven', home.eleven, away.eleven, 'Average overall of the side picked this week')}
+      {season.mode === 'draft' &&
+        line('In form', home.hot ? `${home.hot.name} ${formMark(home.hot.form)}` : '–', away.hot ? `${away.hot.name} ${formMark(away.hot.form)}` : '–', 'Form swings through the season: a player in form plays above his overall')}
       {started && line('Top scorer', home.top ? `${home.top.name} ${home.top.goals}` : '–', away.top ? `${away.top.name} ${away.top.goals}` : '–')}
       {earlier?.result && (
         <p className="tape-note">
