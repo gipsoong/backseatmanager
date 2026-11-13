@@ -66,12 +66,39 @@ function remember(d: DraftState, pools: number[] = [...d.rounds, ...Object.value
   }
 }
 
+/** The draft start's choices last used in this browser, so the next draft starts with them (optional). */
+const OPTIONS_KEY = 'matchday.draft.options'
+type Saved = { league?: League; name?: string; opts?: DraftOptions }
+function savedOptions(): Saved {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(OPTIONS_KEY) ?? '{}')
+    if (!v || typeof v !== 'object') return {}
+    const s = v as Saved
+    const opts = { ...(s.opts ?? {}) }
+    if (opts.theme && !themeOf(opts.theme)) delete opts.theme
+    if (opts.daily) opts.daily = today()
+    delete opts.recent
+    return { league: LEAGUES.includes(s.league as League) ? s.league : undefined, name: typeof s.name === 'string' ? s.name : undefined, opts }
+  } catch {
+    return {}
+  }
+}
+function saveOptions(s: Saved): void {
+  try {
+    localStorage.setItem(OPTIONS_KEY, JSON.stringify(s))
+  } catch {
+    // No storage: the start screen opens with the defaults.
+  }
+}
+
 export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: DraftState, name: string) => void; onBack: () => void }) {
   const [draft, setDraft] = useState<DraftState | null>(null)
   const [chosen, setChosen] = useState<PlayerDef | null>(null)
-  const [name, setName] = useState('Backseat XI')
-  const [league, setLeague] = useState<League>('Premier League')
-  const [opts, setOpts] = useState<DraftOptions>({})
+  const [saved] = useState(savedOptions)
+  const [name, setName] = useState(saved.name ?? 'Backseat XI')
+  const [league, setLeague] = useState<League>(saved.league ?? 'Premier League')
+  const [opts, setOpts] = useState<DraftOptions>(saved.opts ?? {})
+  useEffect(() => saveOptions({ league, name, opts }), [league, name, opts])
   // The place filled last, so it can settle in; and the phone's sheet held open to show it.
   const [placed, setPlaced] = useState<string | null>(null)
   const [peek, setPeek] = useState(false)
@@ -97,7 +124,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
       />
     )
   const theme = themeOf(draft.theme)
-  const where = theme ? `${theme.name} club-seasons from Europe's top five leagues` : `${draft.league ?? 'Premier League'} sides from 2010 to now`
+  const where = theme ? `${theme.name} club-seasons from Europe's top five leagues` : `${draft.league ?? 'Premier League'} sides from 2000 to now`
   const eyebrow = draftEyebrow({ league: draft.league, theme: draft.theme, budget: draft.money !== undefined, daily: draft.daily, prime: draft.prime })
 
   const slots = FORMATIONS[draft.formation]

@@ -6,6 +6,7 @@
  */
 import { ARCHETYPES, FORMATIONS, Rng, TRAIT_LEAN, ROLE_OFFSET, archetypeOf, cardAttributes, cardFor, fitFor, freshName, makeAttributes, makePlayerAt, makeTraits, shapedAttributes, traitMean, type Archetype, type Card, type Formation, type Kit, type PlayerDef, type Role, type TeamDef, type Traits } from '../engine/index.ts'
 import { cardOf } from './cards.ts'
+import { PEAKS } from './peaks.ts'
 import { ARCHETYPE, FLAIR, HOT_HEADS, LEFT_FOOTED, POOLS, type League, type Pool, SIDE, TIRELESS, WEAK_FOOT } from './pools.ts'
 
 /** Nine on the bench, as in the Premier League. */
@@ -288,31 +289,62 @@ export function poolPlayer(poolIdx: number, i: number, prime = false): PlayerDef
   return { ...cardPlayer(`p${poolIdx}-${i}`, name, positions, overall, year), clubs: clubsOf(name) }
 }
 
-let PEAKS: Map<string, [number, number]> | null = null
+let BEST: Map<string, [number, number]> | null = null
 /**
- * A prime draft's player (session 37): his best overall in the database and the season it was in
- * (the first, if he had it more than once), so his card is that season's.
+ * A prime draft's player (session 37): his best overall and the season it was for, so his card is
+ * that season's: the best of his club-seasons (the first, if he had it more than once), or his
+ * career peak (`PEAKS`) where that's higher.
  */
 export function peakOf(name: string): [number, number] {
-  if (!PEAKS) {
-    PEAKS = new Map()
+  if (!BEST) {
+    BEST = new Map()
     for (const pool of POOLS)
       for (const [n, , o] of pool.players) {
         const year = Number(pool.season.slice(0, 4))
-        const was = PEAKS.get(n)
-        if (!was || o > was[0] || (o === was[0] && year < was[1])) PEAKS.set(n, [o, year])
+        const was = BEST.get(n)
+        if (!was || o > was[0] || (o === was[0] && year < was[1])) BEST.set(n, [o, year])
       }
   }
-  return PEAKS.get(name) ?? [0, 0]
+  const best = BEST.get(name) ?? [0, 0]
+  const peak = PEAKS[name]
+  return peak && peak[0] > best[0] ? peak : best
 }
 
 let CLUBS: Map<string, string[]> | null = null
-/** Every club the database has him at, by name (for links, draft/links.ts). */
+/** Seasons at a club more than this many years apart are separate spells (Ronaldo's at United). */
+const SPELL_GAP = 4
+/**
+ * Every spell the database has him at a club, by name, as "Club@2006-2009" (for links,
+ * draft/links.ts): his seasons there in our club-seasons, a year either side, split where they're
+ * over `SPELL_GAP` years apart. Two men link only if their spells at a club overlap, so De Gea
+ * (Atlético 2009/10) doesn't link with Suárez (Atlético 2020s).
+ */
 export function clubsOf(name: string): string[] {
   if (!CLUBS) {
-    const m = new Map<string, Set<string>>()
-    for (const pool of POOLS) for (const [n] of pool.players) m.set(n, (m.get(n) ?? new Set<string>()).add(pool.club))
-    CLUBS = new Map([...m].map(([n, c]) => [n, [...c].sort()]))
+    const years = new Map<string, Map<string, number[]>>()
+    for (const pool of POOLS) {
+      const y = Number(pool.season.slice(0, 4))
+      for (const [n] of pool.players) {
+        const byClub = years.get(n) ?? new Map<string, number[]>()
+        byClub.set(pool.club, [...(byClub.get(pool.club) ?? []), y])
+        years.set(n, byClub)
+      }
+    }
+    CLUBS = new Map(
+      [...years].map(([n, byClub]) => [
+        n,
+        [...byClub].sort(([a], [b]) => a.localeCompare(b)).flatMap(([club, ys]) => {
+          const sorted = [...new Set(ys)].sort((a, b) => a - b)
+          const spells: [number, number][] = []
+          for (const y of sorted) {
+            const last = spells[spells.length - 1]
+            if (last && y - last[1] <= SPELL_GAP) last[1] = y
+            else spells.push([y, y])
+          }
+          return spells.map(([from, to]) => `${club}@${from - 1}-${to + 1}`)
+        }),
+      ]),
+    )
   }
   return CLUBS.get(name) ?? []
 }

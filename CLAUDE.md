@@ -672,5 +672,11 @@ pulling the repo.
   (best overall in the database, that season's card), threaded through `poolTeam`, `fillBench`, cup
   guests and `leagueLevel`. `honours` (season/review.ts): season awards, players of the month, feats.
   `CARDS` gained 38 stars of the 2000s (Henry, Zidane, Figo …) whose archetype cards read wrong.
+  `peakOf` also reads `PEAKS` (draft/peaks.ts): recalled FIFA/FC career peaks a point or more above a
+  man's best club-season (Modrić 91 in 2018, Sterling 88), the higher wins. Links (links.ts) need the
+  same club *and* overlapping spells: `clubsOf` stamps "Club@from-to" (pool years there, widened a year,
+  split past `SPELL_GAP` 4), an entry without '@' (old saves) matches any; `spelled` (store.ts) re-stamps
+  old saves. The draft start's choices (league, name, options; daily re-dated) are kept in localStorage
+  (`matchday.draft.options`, Draft.tsx).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

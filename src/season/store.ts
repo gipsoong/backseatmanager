@@ -3,7 +3,7 @@ import { openDB } from 'idb'
 import { type Attributes, type LegacyAttributes, type PlayerDef, archetypeFrom, upgradeAttributes } from '../engine/index.ts'
 import type { Season } from './season.ts'
 import { upgradeCareer } from '../career/career.ts'
-import { poolPlayer, withReserves } from '../draft/draft.ts'
+import { clubsOf, poolPlayer, withReserves } from '../draft/draft.ts'
 import { POOLS } from '../draft/pools.ts'
 
 const db = () =>
@@ -21,7 +21,14 @@ export async function loadSeason(): Promise<Season | null> {
 
 /** Any save we can carry on, brought up to date: sub-attributes, then a career for club mode. */
 export function upgradeSave(s: Season): Season {
-  return upgradeCareer(reserved(shifted(upgraded(s))))
+  return upgradeCareer(reserved(spelled(shifted(upgraded(s)))))
+}
+
+/** A draft save from before links knew seasons: each player's clubs as spells (`clubsOf`). */
+function spelled(s: Season): Season {
+  if (s.mode !== 'draft') return s
+  const up = (p: PlayerDef): PlayerDef => (p.clubs?.some((c) => !c.includes('@')) ? { ...p, clubs: clubsOf(p.name) } : p)
+  return { ...s, teams: s.teams.map((t) => ({ ...t, players: t.players.map(up), bench: t.bench.map(up) })) }
 }
 
 /**

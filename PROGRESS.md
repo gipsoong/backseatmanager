@@ -19,6 +19,14 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37, after playtest)
+- Prime used only our club-seasons' best, so men whose peak season we lack read low: `PEAKS` (41
+  players, e.g. Sánchez 88, Sterling 88, Modrić 91, Koulibaly 89, Foden 88). Young 82 and Milner 80
+  were already near their real peaks and stay.
+- Links needed only a shared club in any season (De Gea and Suárez both at Atlético, years apart):
+  now spells must overlap.
+- The draft start remembers its options in this browser.
+
 ## Done (session 37, final hours): Prime, the 2000s, season honours
 
 The owner had most of a week's usage left and picked the 2000s era, then asked for a Prime toggle and a

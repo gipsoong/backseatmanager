@@ -1,6 +1,6 @@
 /**
- * Links (session 37, draft mode): two of your starters are linked if they played for the same club
- * in any season the database has (`PlayerDef.clubs`, from `clubsOf` in draft.ts when he's made). A linked
+ * Links (session 37, draft mode): two of your starters are linked if they were at the same club at
+ * the same time, as far as the database's seasons show (`PlayerDef.clubs`, from `clubsOf` in draft.ts when he's made). A linked
  * starter knows the others' game a little: +1 to his technique and reading (as form does,
  * season/form.ts) with one or two links, +2 with three or more. Only the manager's drafted side gets
  * it: club-seasons already play as a club.
@@ -8,11 +8,25 @@
 import type { PlayerDef, TeamDef } from '../engine/index.ts'
 import { inForm } from '../season/form.ts'
 
-/** The club two players share, if any (the first alphabetically). */
+/** A club entry, "Club@2006-2009" (an older save's entries are the club alone: any season). */
+function spell(entry: string): { club: string; from: number; to: number } {
+  const at = entry.lastIndexOf('@')
+  if (at < 0) return { club: entry, from: -Infinity, to: Infinity }
+  const [from, to] = entry.slice(at + 1).split('-').map(Number)
+  return { club: entry.slice(0, at), from, to }
+}
+
+/** The club two players were at together, if any (spells that overlap; the first alphabetically). */
 export function sharedClub(a: PlayerDef, b: PlayerDef): string | null {
   if (a.name === b.name) return null
-  const theirs = new Set(b.clubs ?? [])
-  return (a.clubs ?? []).filter((c) => theirs.has(c)).sort()[0] ?? null
+  const theirs = (b.clubs ?? []).map(spell)
+  return (
+    (a.clubs ?? [])
+      .map(spell)
+      .filter((x) => theirs.some((y) => y.club === x.club && x.from <= y.to && y.from <= x.to))
+      .map((x) => x.club)
+      .sort()[0] ?? null
+  )
 }
 
 export interface Link {
