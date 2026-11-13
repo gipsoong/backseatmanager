@@ -64,7 +64,7 @@ const PREMIER_LEAGUE: Pool[] = [
     Lauren, FB, 82
     Ashley Cole, FB, 84
     Gaël Clichy, FB, 68
-    Patrick Vieira, CM/DM, 92
+    Patrick Vieira, CM/DM, 90
     Gilberto Silva, DM, 84
     Edu, CM, 79
     Ray Parlour, CM/WM, 77
@@ -502,7 +502,7 @@ const BUNDESLIGA: Pool[] = [
     Bixente Lizarazu, FB, 85
     Michael Tarnat, FB/CM, 78
     Jens Jeremies, DM, 81
-    Stefan Effenberg, CM, 89
+    Stefan Effenberg, CM, 87
     Thorsten Fink, CM, 76
     Owen Hargreaves, CM/DM, 72
     Ciriaco Sforza, CM, 78
@@ -574,7 +574,7 @@ const BUNDESLIGA: Pool[] = [
     Otto Addo, WM, 75
     Ewerthon, W/ST, 82
     Jan Koller, ST, 85
-    Márcio Amoroso, ST, 87
+    Márcio Amoroso, ST, 85
     Heiko Herrlich, ST, 72
     Sunday Oliseh, DM, 76
   `),
@@ -592,7 +592,7 @@ const BUNDESLIGA: Pool[] = [
     Krisztián Lisztes, CM, 77
     Ümit Davala, CM/FB, 77
     Johan Micoud, CM, 88
-    Aílton, ST, 87
+    Aílton, ST, 85
     Ivan Klasnić, ST, 81
     Angelos Charisteas, ST, 76
     Nelson Valdez, ST, 71
@@ -675,7 +675,7 @@ const SERIE_A: Pool[] = [
     Cafu, FB, 87
     Giuseppe Pancaro, FB, 77
     Andrea Pirlo, DM, 87
-    Gennaro Gattuso, DM/CM, 86
+    Gennaro Gattuso, DM/CM, 85
     Clarence Seedorf, CM, 86
     Massimo Ambrosini, CM/DM, 79
     Cristian Brocchi, CM, 74
@@ -697,7 +697,7 @@ const SERIE_A: Pool[] = [
     Marek Jankulovski, FB, 81
     Cafu, FB, 81
     Andrea Pirlo, DM, 89
-    Gennaro Gattuso, DM/CM, 87
+    Gennaro Gattuso, DM/CM, 85
     Clarence Seedorf, CM, 87
     Massimo Ambrosini, CM/DM, 81
     Yoann Gourcuff, CM, 75
@@ -828,7 +828,7 @@ const SERIE_A: Pool[] = [
     Zdravko Kuzmanović, CM, 78
     Martin Jørgensen, WM, 77
     Mario Santana, WM, 76
-    Adrian Mutu, ST/W, 86
+    Adrian Mutu, ST/W, 84
     Christian Vieri, ST, 79
     Giampaolo Pazzini, ST, 79
     Pablo Osvaldo, ST, 72

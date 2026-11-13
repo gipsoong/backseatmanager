@@ -142,7 +142,7 @@ export const POOLS: Pool[] = [
     Martin Ødegaard, CM/W, 88
     Mikel Merino, CM/DM/ST, 83
     Ethan Nwaneri, W/CM, 70
-    Bukayo Saka, W/WM, 88
+    Bukayo Saka, W/WM, 87
     Gabriel Martinelli, W/ST, 83
     Leandro Trossard, W/ST/CM, 81
     Raheem Sterling, W, 80
@@ -157,7 +157,7 @@ export const POOLS: Pool[] = [
     Gary Cahill, CB, 81
     David Luiz, CB/DM, 82
     Branislav Ivanović, FB/CB, 84
-    Ashley Cole, FB, 85
+    Ashley Cole, FB, 86
     José Bosingwa, FB, 78
     Ryan Bertrand, FB/WM, 73
     John Obi Mikel, DM, 79, Mikel
@@ -258,7 +258,7 @@ export const POOLS: Pool[] = [
     Enzo Fernández, CM/DM, 84
     Conor Gallagher, CM/DM, 80
     Roméo Lavia, DM, 75
-    Cole Palmer, W/CM, 84
+    Cole Palmer, W/CM, 86
     Raheem Sterling, W, 84
     Noni Madueke, W, 76
     Mykhailo Mudryk, W, 77
@@ -321,13 +321,13 @@ export const POOLS: Pool[] = [
     Andrew Robertson, FB, 84
     Kostas Tsimikas, FB, 77
     Conor Bradley, FB, 74
-    Ryan Gravenberch, DM/CM, 82
+    Ryan Gravenberch, DM/CM, 84
     Alexis Mac Allister, CM/DM, 86
     Wataru Endō, DM, 77
     Dominik Szoboszlai, CM/W, 82
     Curtis Jones, CM, 79
     Harvey Elliott, CM/W, 76
-    Mohamed Salah, W/ST, 89
+    Mohamed Salah, W/ST, 90
     Luis Díaz, W/ST, 84
     Cody Gakpo, W/ST, 82
     Federico Chiesa, W, 79
@@ -368,7 +368,7 @@ export const POOLS: Pool[] = [
     Gaël Clichy, FB, 80
     Aleksandar Kolarov, FB/WM, 80
     Fernandinho, CM/DM, 83
-    Yaya Touré, CM/DM, 87
+    Yaya Touré, CM/DM, 88
     Javi García, DM, 79, Javi García
     James Milner, WM/CM, 80
     David Silva, CM/WM, 88
@@ -411,7 +411,7 @@ export const POOLS: Pool[] = [
     Aymeric Laporte, CB, 84
     Kyle Walker, FB, 84
     João Cancelo, FB, 87
-    Rodri, DM, 88
+    Rodri, DM, 89
     Kalvin Phillips, DM/CM, 79
     Kevin De Bruyne, CM, 91
     İlkay Gündoğan, CM/DM, 85
@@ -420,7 +420,7 @@ export const POOLS: Pool[] = [
     Phil Foden, W/CM, 85
     Riyad Mahrez, W, 85
     Cole Palmer, W/CM, 68
-    Erling Haaland, ST, 89
+    Erling Haaland, ST, 90
     Julián Álvarez, ST/W, 80
   `),
 

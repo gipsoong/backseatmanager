@@ -678,5 +678,13 @@ pulling the repo.
   split past `SPELL_GAP` 4), an entry without '@' (old saves) matches any; `spelled` (store.ts) re-stamps
   old saves. The draft start's choices (league, name, options; daily re-dated) are kept in localStorage
   (`matchday.draft.options`, Draft.tsx).
+  Roles (session 37, after playtest): `draftArchetype` (draft.ts) takes the curated archetype if it's one
+  of his listed role's, else what it becomes there (`CROSS`: an inside forward is a playmaker in midfield,
+  a false nine up front), else one his listed positions suggest (`byPositions`), else the old random
+  reading. `MORE_ARCHETYPES` (draft/roles.ts) curates every outfield player rated 79+ the squads files
+  left out (theirs win). Overalls are ours, reviewed against peers by position and era rather than
+  copied from FIFA; CARDS gained ~55 own cards for profiles an archetype reads wrong (Koller, Cissé,
+  Yamal …). Don't re-derive overalls from attributes with one formula per position: a destroyer and a
+  playmaker can't both read right (Xavi came out 86, ball-winners ~5 low).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

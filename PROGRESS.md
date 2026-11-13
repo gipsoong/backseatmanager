@@ -19,6 +19,14 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37, roles and peer review)
+- Ronaldinho read as a box-to-box midfielder: Milan's pool lists him in midfield and his curated
+  role (inside forward) isn't a midfield one, so he got a random reading. 148 player-seasons had
+  that; 60% had no curated role at all. Now: cross-position mapping, 342 curated, positions next.
+- Two pairs of different men shared a name (Rafinha; Mousa vs Moussa Dembélé): split.
+- Overalls reviewed by position and era against peers (owner's pick over formulas): ~25 changes
+  (Yamal 24/25 86, McTominay 24/25 85, Vieira 03/04 90, Werner 19/20 85 …), ~55 new own cards.
+
 ## Done (session 37, after playtest)
 - Prime used only our club-seasons' best, so men whose peak season we lack read low: `PEAKS` (41
   players, e.g. Sánchez 88, Sterling 88, Modrić 91, Koulibaly 89, Foden 88). Young 82 and Milner 80

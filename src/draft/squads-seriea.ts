@@ -443,7 +443,7 @@ export const POOLS: Pool[] = [
     Pasquale Mazzocchi, FB, 72
     Stanislav Lobotka, DM, 84
     André-Frank Zambo Anguissa, CM, 81, Anguissa
-    Scott McTominay, CM, 81
+    Scott McTominay, CM, 85
     Billy Gilmour, CM/DM, 77
     Philip Billing, CM, 74
     Khvicha Kvaratskhelia, W, 87
@@ -652,7 +652,7 @@ export const POOLS: Pool[] = [
     Mario Pašalić, CM, 80
     Aleksey Miranchuk, CM, 77
     Charles De Ketelaere, CM/ST, 80
-    Ademola Lookman, W/ST, 81
+    Ademola Lookman, W/ST, 83
     Gianluca Scamacca, ST, 80
     El Bilal Touré, ST, 74
     Luis Muriel, ST, 77

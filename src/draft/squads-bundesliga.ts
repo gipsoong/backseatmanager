@@ -369,7 +369,7 @@ export const POOLS: Pool[] = [
     Dani Olmo, CM/W, 79
     Emil Forsberg, CM, 81
     Ademola Lookman, W, 72
-    Timo Werner, ST, 87
+    Timo Werner, ST, 85
     Yussuf Poulsen, ST, 78
     Patrik Schick, ST, 78
   `),

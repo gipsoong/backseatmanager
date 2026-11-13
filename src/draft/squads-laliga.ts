@@ -141,10 +141,10 @@ export const POOLS: Pool[] = [
     Aurélien Tchouaméni, DM/CB, 84
     Toni Kroos, CM, 86
     Luka Modrić, CM, 86
-    Federico Valverde, CM/WM, 88
+    Federico Valverde, CM/WM, 87
     Eduardo Camavinga, CM/DM/FB, 83
     Dani Ceballos, CM, 79
-    Jude Bellingham, CM, 86
+    Jude Bellingham, CM, 88
     Arda Güler, CM/W, 77
     Brahim Díaz, CM/W, 80, Brahim
     Vinícius Júnior, W/ST, 89, Vinícius
@@ -266,8 +266,8 @@ export const POOLS: Pool[] = [
     Gavi, CM, 81
     Dani Olmo, CM/W, 85
     Fermín López, CM, 78
-    Lamine Yamal, W, 81
-    Raphinha, W, 87
+    Lamine Yamal, W, 86
+    Raphinha, W, 88
     Ferran Torres, ST/W, 79
     Robert Lewandowski, ST, 88
     Pau Víctor, ST, 69
