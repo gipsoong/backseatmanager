@@ -2,6 +2,7 @@
  * Draft mode's player data: the clubs and their squads (squads.ts), and what we know about
  * players by name: preferred foot, weak foot and archetype.
  */
+import { MORE_ARCHETYPES } from './roles.ts'
 import type { Archetype } from '../engine/index.ts'
 
 import { POOLS as PREMIER_LEAGUE, type Pool } from './squads.ts'
@@ -225,7 +226,7 @@ const PL_ARCHETYPE: Record<string, Archetype> = {
   'Filipe Luís': 'overlapping', 'Kieran Tierney': 'overlapping', 'Ola Aina': 'overlapping',
   'Timothy Castagne': 'overlapping', 'Victor Moses': 'winger',
 }
-export const ARCHETYPE: Record<string, Archetype> = Object.assign({}, ...LEAGUES.map((l) => l.ARCHETYPE), PL_ARCHETYPE)
+export const ARCHETYPE: Record<string, Archetype> = Object.assign({}, MORE_ARCHETYPES, ...LEAGUES.map((l) => l.ARCHETYPE), PL_ARCHETYPE)
 
 /**
  * The flank a wide player made his own, where his foot and style would guess wrong: Messi on the

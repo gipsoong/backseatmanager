@@ -190,7 +190,7 @@ export const POOLS: Pool[] = [
     Ivan Rakitić, CM, 83
     Andrés Iniesta, CM, 89
     Xavi Hernández, CM, 86, Xavi
-    Rafinha, CM/W, 77
+    Rafinha Alcântara, CM/W, 77, Rafinha
     Sergi Roberto, CM/FB, 74
     Pedro, W, 81
     Neymar, W/ST, 86

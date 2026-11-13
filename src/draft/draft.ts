@@ -350,6 +350,49 @@ export function clubsOf(name: string): string[] {
 }
 
 /**
+ * What a known archetype becomes in a position it isn't one of (session 37): a pool lists a man where
+ * he played that season, which isn't always where he's known (Ronaldinho in Milan's midfield, Messi
+ * up front, Jorginho in a midfield three), and a random reading made Ronaldinho a box-to-box runner.
+ */
+const CROSS: Partial<Record<Role, Partial<Record<Archetype, Archetype>>>> = {
+  CB: { anchor: 'stopper', ballWinner: 'stopper', defensiveFullBack: 'stopper', deepPlaymaker: 'ballPlayer', inverted: 'ballPlayer', overlapping: 'ballPlayer', playmaker: 'ballPlayer', boxToBox: 'stopper' },
+  FB: { stopper: 'defensiveFullBack', ballPlayer: 'inverted', winger: 'overlapping', insideForward: 'overlapping', anchor: 'defensiveFullBack', ballWinner: 'defensiveFullBack', deepPlaymaker: 'inverted', playmaker: 'inverted', boxToBox: 'overlapping', targetMan: 'defensiveFullBack', poacher: 'overlapping', falseNine: 'inverted' },
+  DM: { boxToBox: 'ballWinner', playmaker: 'deepPlaymaker', stopper: 'anchor', ballPlayer: 'deepPlaymaker', defensiveFullBack: 'anchor', inverted: 'deepPlaymaker', overlapping: 'ballWinner', insideForward: 'deepPlaymaker', winger: 'deepPlaymaker', falseNine: 'deepPlaymaker' },
+  CM: { deepPlaymaker: 'playmaker', anchor: 'ballWinner', insideForward: 'playmaker', winger: 'playmaker', falseNine: 'playmaker', poacher: 'boxToBox', targetMan: 'boxToBox', overlapping: 'boxToBox', inverted: 'playmaker', defensiveFullBack: 'ballWinner', stopper: 'ballWinner', ballPlayer: 'playmaker' },
+  WM: { playmaker: 'insideForward', falseNine: 'insideForward', poacher: 'insideForward', targetMan: 'winger', boxToBox: 'winger', overlapping: 'winger', inverted: 'insideForward', defensiveFullBack: 'winger', deepPlaymaker: 'insideForward', ballWinner: 'winger', anchor: 'winger' },
+  W: { playmaker: 'insideForward', falseNine: 'insideForward', poacher: 'insideForward', targetMan: 'winger', boxToBox: 'winger', overlapping: 'winger', inverted: 'insideForward', defensiveFullBack: 'winger', deepPlaymaker: 'insideForward', ballWinner: 'winger', anchor: 'winger' },
+  ST: { insideForward: 'falseNine', playmaker: 'falseNine', deepPlaymaker: 'falseNine', winger: 'poacher', boxToBox: 'poacher', stopper: 'targetMan', ballWinner: 'targetMan' },
+}
+
+/** An archetype read from the positions he's listed in, where they say enough; else undefined. */
+function byPositions(role: Role, others: Role[]): Archetype | undefined {
+  const has = (...r: Role[]): boolean => r.some((x) => others.includes(x))
+  switch (role) {
+    case 'FB':
+      return has('W', 'WM') ? 'overlapping' : has('CB') ? 'defensiveFullBack' : has('CM', 'DM') ? 'inverted' : undefined
+    case 'CB':
+      return has('DM', 'CM') ? 'ballPlayer' : undefined
+    case 'DM':
+      return has('CB') ? 'anchor' : undefined
+    case 'CM':
+      return has('W', 'WM', 'ST') ? 'playmaker' : undefined
+    case 'WM':
+    case 'W':
+      return has('ST', 'CM') ? 'insideForward' : has('FB') ? 'winger' : undefined
+    case 'ST':
+      return has('CM') ? 'falseNine' : undefined
+  }
+  return undefined
+}
+
+/** His archetype in `role`: the curated one, or what it becomes there, or one his positions suggest, or `random()`. */
+export function draftArchetype(name: string, role: Role, others: Role[], random: () => Archetype): Archetype {
+  const known = ARCHETYPE[name]
+  if (known && ARCHETYPES[role].includes(known)) return known
+  return (known && CROSS[role]?.[known]) || byPositions(role, others) || random()
+}
+
+/**
  * A real player as the engine sees him, in the season starting `year` (a draft pool's, or a real
  * career's): see `poolPlayer`. `foot` overrides what pools.ts knows of his feet.
  */
@@ -357,9 +400,7 @@ export function cardPlayer(id: string, name: string, positions: string, overall:
   const [role, ...others] = positions.split('/') as Role[]
   const rng = new Rng(hash(name))
   const quality = levelOf(overall)
-  // Players without a curated archetype get one read off a random profile for his position.
-  const known = ARCHETYPE[name]
-  const archetype = known && ARCHETYPES[role].includes(known) ? known : archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef)
+  const archetype = draftArchetype(name, role, others, () => archetypeOf({ role, attrs: makeAttributes(rng, role, quality, makeTraits(rng, role)), traits: makeTraits(rng, role) } as PlayerDef))
   const traits = draftTraits(rng, name, archetype, role)
   // He plays as a made-up player of his position does at the same standing (ROLE_OFFSET: a FIFA
   // card gives a striker ~4 more points of skill than the engine's positions were tuned with, a

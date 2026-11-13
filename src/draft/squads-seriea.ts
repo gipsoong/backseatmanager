@@ -282,7 +282,7 @@ export const POOLS: Pool[] = [
     Clarence Seedorf, CM, 84
     Kevin-Prince Boateng, CM, 79
     Mathieu Flamini, CM/DM, 78
-    Ronaldinho, CM/W, 84
+    Ronaldinho, W/CM, 84
     Antonio Cassano, ST/CM, 83
     Robinho, ST/W, 84
     Alexandre Pato, ST, 84, Pato

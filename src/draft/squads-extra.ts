@@ -85,7 +85,7 @@ const PREMIER_LEAGUE: Pool[] = [
     Dickson Etuhu, DM, 73
     Mahamadou Diarra, DM, 75
     Steve Sidwell, CM, 73
-    Moussa Dembélé, CM/ST, 79
+    Mousa Dembélé, CM/ST, 79
     Damien Duff, WM, 76
     Clint Dempsey, CM/ST, 80
     Bryan Ruiz, CM/W, 78
