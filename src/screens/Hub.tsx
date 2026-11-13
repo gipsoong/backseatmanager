@@ -1,0 +1,685 @@
+/** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
+import { Preview } from "./Preview.tsx";
+import { RunGoals } from "./RunGoals.tsx";
+import { EventCard } from "./EventCard.tsx";
+import { PositionChart } from "./PositionChart.tsx";
+import { useMemo, useState } from "react";
+import type { Formation, Kit, TeamDef } from "../engine/index.ts";
+import type { Tactics } from "./Squad.tsx";
+import { ordinal } from "./format.ts";
+import { draftEyebrow } from "../draft/draft.ts";
+import {
+  type Season,
+  fixturesOn,
+  isOver,
+  matchdayDate,
+  matchdays,
+  squadOf,
+  table,
+  tableMoves,
+  tipsOf,
+  userFixture,
+} from "../season/season.ts";
+import { Squad } from "./Squad.tsx";
+import { Transfers } from "./Transfers.tsx";
+import {
+  type Deal,
+  offersFor,
+  windowName,
+  windowOpen,
+} from "../draft/transfers.ts";
+import { SeasonReview, Stats } from "./Stats.tsx";
+import { TabBar, type TabDef } from "./Tabs.tsx";
+import { stagger } from "./motion.ts";
+import { BoardLine, History, JobOffers, SummerNote, careerLabel } from "./Career.tsx";
+import { jobNews } from "../career/jobs.ts";
+import { surname } from "../viewer/commentary.ts";
+import {
+  CUP_NAME,
+  CUP_PLACES,
+  cupLive,
+  cupTeam,
+  cupWinner,
+} from "../draft/cup.ts";
+import {
+  DOMESTIC_CUP,
+  cupDate,
+  cupOf,
+  cupToday,
+  roundName,
+  roundsOf,
+  userCupTie,
+} from "../career/cup.ts";
+import { DomesticCup } from "./DomesticCup.tsx";
+import { Contracts, undecided } from "./Contracts.tsx";
+import { RED_LINE } from "../career/contracts.ts";
+import { inTheRed } from "../career/money.ts";
+
+const dateFmt = new Intl.DateTimeFormat(undefined, {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+type Tab =
+  | "review"
+  | "table"
+  | "fixtures"
+  | "squad"
+  | "stats"
+  | "transfers"
+  | "history"
+  | "cup"
+  | "contracts";
+
+export function Swatch({ kit }: { kit: Kit }) {
+  return <span className="swatch" style={{ background: kit.shirt }} />;
+}
+
+export function Hub({
+  season,
+  busy,
+  onWatch,
+  onSimulate,
+  onSimulateAhead,
+  onNewSeason,
+  onNextSeason,
+  onLineup,
+  onFormation,
+  onTactics,
+  onDeal,
+  onDecline,
+  onEnterCup,
+  onRenew,
+  onLetGo,
+  onSign,
+  onLoan,
+  onRewatch,
+  onChoose,
+}: {
+  season: Season;
+  busy: boolean;
+  onWatch: () => void;
+  onSimulate: () => void;
+  /** Play on without watching, up to this many matchdays (stopping when a window opens). */
+  onSimulateAhead?: (days: number) => void;
+  onNewSeason: () => void;
+  /** Career mode: on to next season with the same club. */
+  /** On to next season, at `club` if he takes a job there (`sacked`: he was let go). */
+  onNextSeason?: (club?: number, sacked?: boolean) => void;
+  onLineup: (ids: string[] | null) => void;
+  onFormation: (f: Formation) => void;
+  onTactics?: (t: Tactics) => void;
+  onDeal: (deal: Deal) => void;
+  onDecline: (deal: Deal) => void;
+  onEnterCup: () => void;
+  onRenew: (id: string) => void;
+  onLetGo: (id: string, leaving: boolean) => void;
+  onSign: (id: string) => void;
+  onLoan: (id: string) => void;
+  /** A mid-season event's choice made: the season after it (draft/events.ts). */
+  onChoose?: (s: Season) => void;
+  /** Watch one of his kept league matches again (by fixture id). */
+  onRewatch?: (fixtureId: number) => void;
+}) {
+  const [tab, setTab] = useState<Tab>(isOver(season) ? "review" : "table");
+  // The last matchday played: open the review.
+  const [wasOver, setWasOver] = useState(isOver(season));
+  if (isOver(season) !== wasOver) {
+    setWasOver(isOver(season));
+    setTab(isOver(season) ? "review" : "table");
+  }
+  // The matchday shown in Fixtures: the current one, unless the manager has paged away from it
+  // since the last matchday was played.
+  const current = Math.min(season.matchday, matchdays(season));
+  const [paged, setPaged] = useState<{ at: number; md: number } | null>(null);
+  const shown = paged && paged.at === season.matchday ? paged.md : current;
+  const setShown = (md: number): void =>
+    setPaged({
+      at: season.matchday,
+      md: Math.max(1, Math.min(matchdays(season), md)),
+    });
+  const me = season.teams[season.userTeam];
+  const offers = useMemo(() => offersFor(season), [season]);
+  const rows = table(season);
+  const over = isOver(season);
+  const moves = useMemo(() => tableMoves(season), [season]);
+  // The summer's job market, once the league is done (career only).
+  const jobs = useMemo(() => (over && season.career ? jobNews(season) : null), [over, season]);
+  const next = over ? undefined : userFixture(season, season.matchday);
+  // A cup tie midweek comes before the weekend's league match.
+  const cupTie = userCupTie(season);
+  const cup = cupOf(season);
+  const cupRoundOn = !cupTie && cupToday(season).length > 0;
+  const toDecide = season.career ? undecided(season) : 0;
+  const cupOn = cupLive(season);
+  const champion = season.cup ? cupWinner(season.cup) : null;
+  const last =
+    season.matchday > 1 ? userFixture(season, season.matchday - 1) : undefined;
+  const place = rows.findIndex((r) => r.team === season.userTeam) + 1;
+  // Before a ball is kicked: where the pundits have everyone.
+  const tips = useMemo(() => (season.matchday === 1 ? tipsOf(season) : null), [season]);
+
+  return (
+    <div className="hub">
+      <header className="top">
+        <div className="fixture">
+          <p className="eyebrow">
+            {season.mode === "draft"
+              ? draftEyebrow({
+                  league: season.league,
+                  theme: season.draftStyle?.theme,
+                  budget: season.draftStyle?.budget !== undefined,
+                  daily: season.draftStyle?.daily,
+                  prime: season.draftStyle?.prime,
+                })
+              : season.career
+                ? careerLabel(season)
+                : `Matchday · Season ${season.startDate.slice(0, 4)}`}
+          </p>
+          <h1>
+            <Swatch kit={me.kit} /> {me.name}
+          </h1>
+          <p className="meta">
+            {season.matchday > 1 && `${ordinal(place)} of ${season.teams.length} · `}
+            {over
+              ? "League over"
+              : `Matchday ${season.matchday} of ${matchdays(season)}`}
+          </p>
+          <div
+            className="season-progress"
+            role="progressbar"
+            aria-label="Season played"
+            aria-valuemin={0}
+            aria-valuemax={matchdays(season)}
+            aria-valuenow={season.matchday - 1}
+          >
+            <span
+              style={{
+                width: `${(100 * Math.min(season.matchday - 1, matchdays(season))) / matchdays(season)}%`,
+              }}
+            />
+          </div>
+        </div>
+      </header>
+
+      <div className="hub-grid">
+        <section className="card next">
+          {cupTie && cup ? (
+            <>
+              <p className="eyebrow">
+                {DOMESTIC_CUP} · {roundName(cupTie.round, roundsOf(cup))} ·{" "}
+                {dateFmt.format(cupDate(season, cupTie))} ·{" "}
+                {cupTie.home === season.userTeam ? "Home" : "Away"}
+              </p>
+              <h2 className="versus">
+                <TeamName team={season.teams[cupTie.home]} />{" "}
+                <span className="v">v</span>{" "}
+                <TeamName team={season.teams[cupTie.away]} />
+              </h2>
+              <p className="meta">
+                One match: extra time and penalties if it's level.
+                {next &&
+                  ` Then matchday ${next.matchday}, ${next.home === season.userTeam ? "at home to" : "away to"} ${season.teams[next.home === season.userTeam ? next.away : next.home].name}.`}
+              </p>
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onWatch}
+                  disabled={busy}
+                >
+                  Watch the match
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={onSimulate}
+                  disabled={busy}
+                >
+                  {busy ? "Playing…" : "Just the result"}
+                </button>
+              </div>
+            </>
+          ) : next ? (
+            <>
+              <p className="eyebrow">
+                <span className="live-dot" aria-hidden="true" />
+                Next · {dateFmt.format(matchdayDate(season, next.matchday))} ·{" "}
+                {next.home === season.userTeam ? "Home" : "Away"}
+              </p>
+              <h2 className="versus">
+                <TeamName team={season.teams[next.home]} />{" "}
+                <span className="v">v</span>{" "}
+                <TeamName team={season.teams[next.away]} />
+              </h2>
+              <Preview season={season} fixture={next} />
+              {tips && (
+                <p className="meta">
+                  {tips[season.userTeam] === 1
+                    ? "The pundits make you favourites for the title."
+                    : `The pundits tip ${season.teams[tips.indexOf(1)].name} for the title and you to finish ${ordinal(tips[season.userTeam])}.`}
+                </p>
+              )}
+              <BoardLine season={season} over={false} />
+              <RunGoals season={season} />
+              {onChoose && <EventCard season={season} onChoose={onChoose} />}
+              {season.career && inTheRed(season) && (
+                <p className="money-warning">{RED_LINE}</p>
+              )}
+              {cupRoundOn && cup && (
+                <p className="meta">
+                  Midweek, the {DOMESTIC_CUP}'s{" "}
+                  {roundName(cupToday(season)[0].round, roundsOf(cup)).toLowerCase()}{" "}
+                  is played first, without you.
+                </p>
+              )}
+              <SummerNote season={season} />
+              {windowOpen(season) && (
+                <div className="window-note">
+                  <p className="meta">
+                    The {windowName(season)} window is open
+                    {offers.length
+                      ? `, and ${offers.length === 1 ? "a club has made an offer" : `${offers.length} clubs have made offers`} for your players.`
+                      : "."}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn ghost slim"
+                    onClick={() => setTab("transfers")}
+                  >
+                    {offers.length ? "See the offers" : "Make a deal"}
+                  </button>
+                </div>
+              )}
+              <div className="actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onWatch}
+                  disabled={busy}
+                >
+                  Watch the match
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={onSimulate}
+                  disabled={busy}
+                >
+                  {busy ? "Playing…" : "Just the result"}
+                </button>
+              </div>
+              {onSimulateAhead && matchdays(season) - season.matchday >= 2 && (
+                <button
+                  type="button"
+                  className="link sim-ahead"
+                  onClick={() => onSimulateAhead(5)}
+                  disabled={busy}
+                  title="Plays your next five matches without watching, stopping if a transfer window opens"
+                >
+                  Play the next {Math.min(5, matchdays(season) - season.matchday + 1)} matchdays ›
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="eyebrow">
+                {season.cup && cupOn
+                  ? `League over · on to the ${CUP_NAME}`
+                  : "Season over"}
+              </p>
+              <h2 className="versus">
+                {season.teams[rows[0].team].name} are champions
+              </h2>
+              <p className="meta">
+                {me.name} finished {ordinal(place)} with{" "}
+                {rows[place - 1].points} points.
+                {champion !== null &&
+                  ` ${champion === season.userTeam ? `And ${me.name} won` : `${cupTeam(season, champion).name} won`} the ${CUP_NAME}.`}
+                {season.mode === "draft" &&
+                  !season.cup &&
+                  place > CUP_PLACES &&
+                  ` A top-${CUP_PLACES} finish would have played on in the ${CUP_NAME}.`}
+              </p>
+              <BoardLine season={season} over />
+              <RunGoals season={season} />
+              {season.career && toDecide > 0 && (
+                <div className="window-note">
+                  <p className="meta">
+                    {toDecide === 1
+                      ? "A contract runs out this summer, and you haven't decided on it: he'll leave unless you renew him."
+                      : `${toDecide} contracts run out this summer, and you haven't decided on them: they'll leave unless you renew them.`}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn ghost slim"
+                    onClick={() => setTab("contracts")}
+                  >
+                    See contracts
+                  </button>
+                </div>
+              )}
+              <div className="actions">
+                {season.cup && cupOn ? (
+                  <button type="button" className="btn" onClick={onEnterCup}>
+                    On to the {CUP_NAME}
+                  </button>
+                ) : season.cup ? (
+                  <>
+                    <button type="button" className="btn" onClick={onNewSeason}>
+                      New season
+                    </button>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={onEnterCup}
+                    >
+                      Back to the {CUP_NAME}
+                    </button>
+                  </>
+                ) : season.career && onNextSeason ? (
+                  <>
+                    {jobs && (
+                      <JobOffers
+                        season={season}
+                        news={jobs}
+                        busy={busy}
+                        onTake={(club) => onNextSeason(club, jobs.sacked)}
+                      />
+                    )}
+                    {!(jobs?.sacked && jobs.offers.length) && (
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => onNextSeason()}
+                        disabled={busy}
+                      >
+                        {jobs?.offers.length ? `Stay at ${season.teams[season.userTeam].name}` : "Next season"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={onNewSeason}
+                    >
+                      New career
+                    </button>
+                  </>
+                ) : (
+                  <button type="button" className="btn" onClick={onNewSeason}>
+                    New season
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+          {last?.result && (
+            <p className="last">
+              <span className="eyebrow">Last time</span>
+              <span className="last-score">
+                <ResultChip
+                  mine={last.home === season.userTeam ? last.result.score : [last.result.score[1], last.result.score[0]]}
+                />{" "}
+                {season.teams[last.home].name}{" "}
+                <strong>
+                  {last.result.score[0]}–{last.result.score[1]}
+                </strong>{" "}
+                {season.teams[last.away].name}
+              </span>
+              {last.matchday === season.matchday - 1 && moves[season.userTeam] !== 0 && (
+                <span className={`last-move ${moves[season.userTeam] > 0 ? "up" : "down"}`}>
+                  {moves[season.userTeam] > 0 ? "▲ Up" : "▼ Down"} {Math.abs(moves[season.userTeam])} to {ordinal(place)}
+                </span>
+              )}
+              {potm(season, last.result) && (
+                <span>Player of the match: {potm(season, last.result)}</span>
+              )}
+              {onRewatch && season.rewatch?.[`f${last.id}`] && (
+                <button type="button" className="link last-rewatch" onClick={() => onRewatch(last.id)}>
+                  ▶ {last.result.goals.length ? "Watch the goals again" : "Watch it again"}
+                </button>
+              )}
+            </p>
+          )}
+        </section>
+
+        <section className="card">
+          <TabBar
+            label="Season"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              ...(over ? [{ id: "review", label: "Review" } as const] : []),
+              { id: "table", label: "Table" },
+              { id: "fixtures", label: "Fixtures" },
+              ...(season.career?.cup
+                ? [{ id: "cup", label: DOMESTIC_CUP } as const]
+                : []),
+              { id: "squad", label: "Squad" },
+              { id: "stats", label: "Stats" },
+              ...(season.career?.history.length
+                ? [{ id: "history", label: "History" } as const]
+                : []),
+              ...(season.mode === "draft" || season.career
+                ? [
+                    {
+                      id: "transfers",
+                      label: "Deals",
+                      badge: windowOpen(season) ? offers.length : 0,
+                    } as const,
+                  ]
+                : []),
+              ...(season.career
+                ? [
+                    {
+                      id: "contracts",
+                      label: "Contracts",
+                      badge: toDecide,
+                    } as const,
+                  ]
+                : []),
+            ] satisfies TabDef<Tab>[]}
+          />
+          <div className="tab-panel" key={tab} role="tabpanel">
+          {tab === "transfers" && (
+            <Transfers season={season} onDeal={onDeal} onDecline={onDecline} />
+          )}
+          {tab === "squad" && (
+            <Squad
+              season={season}
+              onLineup={onLineup}
+              onFormation={onFormation}
+              onTactics={onTactics}
+            />
+          )}
+          {tab === "stats" && <Stats season={season} />}
+          {tab === "review" && <SeasonReview season={season} />}
+          {tab === "history" && <History season={season} />}
+          {tab === "cup" && <DomesticCup season={season} />}
+          {tab === "contracts" && season.career && (
+            <Contracts
+              season={season}
+              onRenew={onRenew}
+              onLetGo={onLetGo}
+              onSign={onSign}
+              onLoan={onLoan}
+            />
+          )}
+          {tab === "table" && (
+            <table className="league">
+              <thead>
+                <tr>
+                  <th aria-label="Position" />
+                  <th className="team">Team</th>
+                  <th>P</th>
+                  <th className="wide">W</th>
+                  <th className="wide">D</th>
+                  <th className="wide">L</th>
+                  <th>GD</th>
+                  <th>Pts</th>
+                  <th className="wide form-head">Form</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const t = season.teams[r.team];
+                  const gd = r.goalsFor - r.goalsAgainst;
+                  return (
+                    <tr
+                      key={r.team}
+                      className={`row-in${r.team === season.userTeam ? " mine" : ""}`}
+                      style={stagger(i)}
+                    >
+                      <td className="pos">
+                        {i + 1}
+                        {moves[r.team] !== 0 && (
+                          <span
+                            className={`move ${moves[r.team] > 0 ? "up" : "down"}`}
+                            title={`${moves[r.team] > 0 ? "Up" : "Down"} ${Math.abs(moves[r.team])} since last matchday`}
+                          >
+                            {moves[r.team] > 0 ? "▲" : "▼"}
+                          </span>
+                        )}
+                      </td>
+                      <td className="team">
+                        <Swatch kit={t.kit} /> {t.name}
+                      </td>
+                      <td>{r.played}</td>
+                      <td className="wide">{r.won}</td>
+                      <td className="wide">{r.drawn}</td>
+                      <td className="wide">{r.lost}</td>
+                      <td>{gd > 0 ? `+${gd}` : gd}</td>
+                      <td className="pts">{r.points}</td>
+                      <td className="wide form">
+                        {r.form.map((f, k) => (
+                          <span
+                            key={k}
+                            className={`f ${f}`}
+                            title={
+                              f === "W" ? "Won" : f === "D" ? "Drawn" : "Lost"
+                            }
+                          />
+                        ))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {tab === "table" && <PositionChart season={season} />}
+          {tab === "fixtures" && (
+            <div className="fixtures">
+              <div className="md-nav">
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => setShown(shown - 1)}
+                  disabled={shown <= 1}
+                  aria-label="Previous matchday"
+                >
+                  ‹
+                </button>
+                <span>
+                  Matchday {shown} ·{" "}
+                  {dateFmt.format(matchdayDate(season, shown))}
+                  {shown !== current && (
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setPaged(null)}
+                    >
+                      Back to matchday {current}
+                    </button>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => setShown(shown + 1)}
+                  disabled={shown >= matchdays(season)}
+                  aria-label="Next matchday"
+                >
+                  ›
+                </button>
+              </div>
+              <ul key={shown}>
+                {fixturesOn(season, shown).map((f, i) => (
+                  <li
+                    key={f.id}
+                    style={stagger(i)}
+                    className={`row-in${
+                      f.home === season.userTeam || f.away === season.userTeam
+                        ? " mine"
+                        : ""
+                    }`}
+                  >
+                    <span className="home">{season.teams[f.home].name}</span>
+                    <span className="score">
+                      {f.result
+                        ? `${f.result.score[0]}–${f.result.score[1]}`
+                        : "v"}
+                    </span>
+                    <span className="away">{season.teams[f.away].name}</span>
+                    {f.result && onRewatch && season.rewatch?.[`f${f.id}`] && (
+                      <button
+                        type="button"
+                        className="rewatch-btn"
+                        onClick={() => onRewatch(f.id)}
+                        aria-label={f.result.goals.length ? "Watch the goals again" : "Watch the match again"}
+                      >
+                        ▶ {f.result.goals.length ? "Goals" : "Replay"}
+                      </button>
+                    )}
+                    {f.result && f.result.goals.length > 0 && (
+                      <span className="scorers">
+                        {f.result.goals
+                          .map(
+                            (g) =>
+                              `${surname(g.scorer)}${g.ownGoal ? " (og)" : ""} ${g.clock}`,
+                          )
+                          .join(", ")}
+                      </span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/** W, D or L for his side's score, as a small coloured chip. */
+function ResultChip({ mine }: { mine: [number, number] }) {
+  const r = mine[0] > mine[1] ? "W" : mine[0] === mine[1] ? "D" : "L";
+  return (
+    <span className={`res-chip ${r}`} title={r === "W" ? "Won" : r === "D" ? "Drawn" : "Lost"}>
+      {r}
+    </span>
+  );
+}
+
+function TeamName({ team }: { team: TeamDef }) {
+  return (
+    <span className="team-name">
+      <Swatch kit={team.kit} /> {team.name}
+    </span>
+  );
+}
+
+/** The best-rated player in a result, by name (his rating). */
+function potm(
+  season: Season,
+  r: NonNullable<ReturnType<typeof fixturesOn>[number]["result"]>,
+): string | null {
+  const best = [...r.appearances].sort((a, b) => b.rating - a.rating)[0];
+  if (!best) return null;
+  const p = season.teams.flatMap(squadOf).find((q) => q.id === best.id);
+  return p ? `${p.name} (${best.rating.toFixed(1)})` : null;
+}

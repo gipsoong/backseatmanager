@@ -1,0 +1,334 @@
+/** Career mode's pieces on screen: the summer's news, the board's target, past seasons, and a player's change and career. */
+import { AIM_LINE, CUP_TROPHY, aimMet, managerRecord } from '../career/career.ts'
+import type { JobNews } from '../career/jobs.ts'
+import { allTime, leaders } from '../career/records.ts'
+import { realLeague } from '../career/real.ts'
+import { type Season, playerRating, squadOf, table } from '../season/season.ts'
+import { ordinal } from './format.ts'
+import { stagger } from './motion.ts'
+import { Swatch } from './Hub.tsx'
+import { money, valueOf, wageOf } from '../career/money.ts'
+import type { PlayerDef } from '../engine/index.ts'
+
+/** "Value £4.2m · £13k a week · contract to 2028–29", in a career. */
+export function moneyLine(season: Season, p: PlayerDef): string | null {
+  if (!season.career?.finance) return null
+  const who = season.career.people[p.id]
+  const until = who?.contract?.until
+  return `Value ${money(valueOf(season, p))} · £${wageOf(p, who)}k a week${until ? ` · contract to ${until - 1}–${String(until).slice(2)}` : ''}`
+}
+
+/** His overall's change over the summer: "+3", "−2" (nothing in a career's first season or when level). */
+export function Change({ season, id }: { season: Season; id: string }) {
+  const v = season.career?.people[id]?.change
+  if (!v) return null
+  return (
+    <span className={`change ${v > 0 ? 'up' : 'down'}`} title="Change in overall since last season">
+      {v > 0 ? `+${v}` : `−${-v}`}
+    </span>
+  )
+}
+
+/**
+ * The scouts' read of a young player's ceiling (session 37), a range around his hidden potential,
+ * a little off it by a fixed amount per player (scouts aren't sure): "80–86". Only for players
+ * 23 or under with room to grow; null otherwise.
+ */
+export function scoutRange(season: Season, p: PlayerDef): [number, number] | null {
+  const who = season.career?.people[p.id]
+  if (!who || who.age > 23) return null
+  const now = playerRating(p)
+  if (who.potential - now < 2) return null
+  let h = 0
+  for (const ch of p.id) h = (h * 31 + ch.charCodeAt(0)) | 0
+  const off = (Math.abs(h) % 5) - 2
+  const mid = who.potential + off
+  return [Math.max(now, Math.round(mid - 3)), Math.round(mid + 3)]
+}
+
+/** A player's age, if the game knows it. */
+export const ageOf = (season: Season, id: string): number | undefined => season.career?.people[id]?.age
+
+/** "Season 2 · 2027–28". */
+export function careerLabel(season: Season): string {
+  const y = Number(season.startDate.slice(0, 4))
+  const league = realLeague(season.career!.league)
+  return `${league ? `${league.name.replace(/ \d.*$/, '')} · ` : ''}Season ${season.career!.number} · ${y}–${String(y + 1).slice(2)}`
+}
+
+/** The board's target, and once the league is over whether it was met. */
+export function BoardLine({ season, over }: { season: Season; over: boolean }) {
+  const c = season.career
+  if (!c) return null
+  const place = table(season).findIndex((r) => r.team === season.userTeam) + 1
+  const met = aimMet(c.aim, place, season.teams.length)
+  return (
+    <p className="meta board-line">
+      <span className="eyebrow">Board</span> {AIM_LINE[c.aim]}
+      {over && <strong className={met ? 'met' : 'missed'}>{met ? ' · Met' : ' · Missed'}</strong>}
+    </p>
+  )
+}
+
+/** What happened at the club over the summer, shown before the new season's first match. */
+export function SummerNote({ season }: { season: Season }) {
+  const sm = season.career?.summer
+  if (!sm || season.matchday !== 1) return null
+  const squad = squadOf(season.teams[season.userTeam])
+  const academy = squad.filter((p) => sm.academy.includes(p.id))
+  const back = squad.filter((p) => sm.back?.includes(p.id))
+  const list = (xs: string[]): string => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`)
+  const lines = [
+    sm.retired.length > 0 && `${list(sm.retired.map((r) => `${r.name} (${r.age})`))} retired.`,
+    (sm.expired?.length ?? 0) > 0 && `Out of contract, ${list(sm.expired!)} left on a free.`,
+    sm.signed.length > 0 && `With the squad short, the staff signed ${list(sm.signed)}.`,
+    academy.length > 0 &&
+      `Up from the academy: ${list(
+        academy.map((p) => {
+          const r = scoutRange(season, p)
+          return `${p.name} (${season.career!.people[p.id].age}, ${p.role}${r && r[1] >= 80 ? `, the scouts think he could reach ${r[0]}–${r[1]}` : ''})`
+        }),
+      )}.`,
+    sm.released.length > 0 && `Released: ${list(sm.released)}.`,
+    back.length > 0 &&
+      `Back from loan: ${list(back.map((p) => {
+        const d = season.career!.people[p.id].change ?? 0
+        return `${p.name} (${playerRating(p)}, ${d > 0 ? `up ${d}` : d < 0 ? `down ${-d}` : 'no change'})`
+      }))}.`,
+  ].filter(Boolean)
+  const moved = season.career?.moved
+  if (moved) {
+    lines.unshift(
+      `${moved.sacked ? `Let go by ${season.teams[moved.from].name}, you` : `You left ${season.teams[moved.from].name} and`} took over at ${season.teams[season.userTeam].name}. ${AIM_LINE[season.career!.aim]}: that's the board's target here.`,
+    )
+  }
+  if (!lines.length) return null
+  return (
+    <div className="summer-note">
+      <p className="eyebrow">Over the summer</p>
+      {lines.map((l) => (
+        <p key={l as string} className="meta">
+          {l}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+/** The summer's job market at a season's end: the board's verdict and any clubs that want him. */
+export function JobOffers({ season, news, busy, onTake }: { season: Season; news: JobNews; busy: boolean; onTake: (club: number) => void }) {
+  const n = season.teams.length
+  return (
+    <div className={`jobs${news.sacked ? ' sacked' : ''}`}>
+      <p className="eyebrow">{news.sacked ? 'The board has let you go' : 'Job offers'}</p>
+      <p className="meta">
+        {news.sacked
+          ? `Two seasons short of the target, or down when you shouldn't have been. ${news.offers.length ? 'A few clubs still want you:' : ''}`
+          : news.offers.length
+            ? news.overachieved >= 2
+              ? `Your side finished ${news.overachieved} places above where its eleven ranked, and bigger clubs noticed.`
+              : news.offers.length === 1
+                ? 'A club has asked whether you would talk to them.'
+                : `${news.offers.length} clubs have asked whether you would talk to them.`
+            : 'No other club has called this summer.'}
+      </p>
+      {news.offers.length > 0 && (
+        <ul className="job-list">
+          {news.offers.map((o, i) => {
+            const t = season.teams[o.club]
+            return (
+              <li key={o.club} className="rise" style={stagger(i)}>
+                <span className="job-club">
+                  <span>
+                    <Swatch kit={t.kit} /> {t.name}
+                  </span>
+                  <small>
+                    {ordinal(o.rank)}-strongest eleven of {n} · {ordinal(table(season).findIndex((r) => r.team === o.club) + 1)} this season
+                  </small>
+                </span>
+                <button type="button" className="btn ghost slim" disabled={busy} onClick={() => onTake(o.club)}>
+                  Take the job
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** The career's past seasons, most recent first. */
+export function History({ season }: { season: Season }) {
+  const past = [...(season.career?.history ?? [])].reverse()
+  const r = managerRecord(season.career!.history)
+  const trophyLine = [
+    r.titles && `${r.titles} league ${r.titles === 1 ? 'title' : 'titles'}`,
+    r.cups && `${r.cups} ${r.cups === 1 ? 'cup' : 'cups'}`,
+  ].filter(Boolean)
+  return (
+    <div className="history">
+      <section className="manager-record">
+        <p className="eyebrow">Your record</p>
+        <dl className="review-counts">
+          <div>
+            <dt>Seasons</dt>
+            <dd>{r.seasons}</dd>
+          </div>
+          <div>
+            <dt>Trophies</dt>
+            <dd>{r.titles + r.cups}</dd>
+          </div>
+          <div>
+            <dt title="League and cup matches won">Win %</dt>
+            <dd>{r.played ? Math.round((100 * r.won) / r.played) : '–'}</dd>
+          </div>
+          <div>
+            <dt>Board</dt>
+            <dd>
+              {r.met}/{r.seasons}
+            </dd>
+          </div>
+          <div>
+            <dt>Best</dt>
+            <dd>{ordinal(r.best)}</dd>
+          </div>
+        </dl>
+        <p className="meta">
+          {r.seasons} {r.seasons === 1 ? 'season' : 'seasons'}{' '}
+          {new Set(season.career!.history.map((h) => h.club ?? season.userTeam)).size > 1
+            ? `at ${new Set(season.career!.history.map((h) => h.club ?? season.userTeam)).size} clubs`
+            : `at ${season.teams[season.career!.history[0]?.club ?? season.userTeam].name}`}
+          {trophyLine.length ? `: ${trophyLine.join(' and ')}` : ''}.
+          {r.played > 0 && ` Won ${r.won}, drawn ${r.drawn}, lost ${r.lost} in league and cup.`}
+          {` The board's target met ${r.met === 1 ? 'once' : r.met === 2 ? 'twice' : `${r.met} times`}.`}
+        </p>
+      </section>
+      <AllTimeLeaders season={season} />
+      <div className="table-scroll">
+        <table className="league history-table">
+          <thead>
+            <tr>
+              <th className="team">Season</th>
+              <th title="Final position">Pos</th>
+              <th>Pts</th>
+              <th title="The board's target">Board</th>
+              <th title="How far you went in the cup">{CUP_TROPHY}</th>
+              <th className="wide">Champions</th>
+              <th className="wide">Top scorer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {past.map((p, i) => (
+              <tr key={p.number} className={`row-in${p.trophies.length ? ' mine' : ''}`} style={stagger(i)}>
+                <td className="team">
+                  {p.year}–{String(p.year + 1).slice(2)}
+                  {new Set(past.map((h) => h.club ?? season.userTeam)).size > 1 && (
+                    <span className="history-club">
+                      <Swatch kit={season.teams[p.club ?? season.userTeam].kit} /> {season.teams[p.club ?? season.userTeam].name}
+                    </span>
+                  )}
+                  {p.trophies.length > 0 && (
+                    <span className="trophy trophies">
+                      {[p.trophies.includes('League title') && 'Champions', p.trophies.includes(CUP_TROPHY) && 'Cup winners'].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </td>
+                <td>{ordinal(p.place)}</td>
+                <td className="pts">{p.points}</td>
+                <td className={p.met ? 'met' : 'missed'} title={AIM_LINE[p.aim]}>
+                  {p.met ? 'Met' : 'Missed'}
+                </td>
+                <td title={p.cup ? `Won by ${season.teams[p.cup.winner].name}` : undefined}>{p.cup ? cupShort(p.cup.run) : '–'}</td>
+                <td className="wide">
+                  <Swatch kit={season.teams[p.champion].kit} /> {season.teams[p.champion].name}
+                </td>
+                <td className="wide">{p.clubTopScorer ? `${p.clubTopScorer.name} (${p.clubTopScorer.goals})` : '–'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/** His players' all-time leaders under him: goals and appearances, this season included. */
+function AllTimeLeaders({ season }: { season: Season }) {
+  const rows = allTime(season)
+  const lists = [
+    { key: 'goals' as const, title: 'Top scorers' },
+    { key: 'apps' as const, title: 'Most appearances' },
+  ]
+  if (!rows.some((r) => r.apps > 0)) return null
+  return (
+    <section className="all-time" aria-label="Your all-time leaders">
+      <p className="eyebrow">Under you, all time</p>
+      <div className="all-time-lists">
+        {lists.map((l) => (
+          <div key={l.key}>
+            <h3>{l.title}</h3>
+            <ol>
+              {leaders(rows, l.key).map((r, i) => (
+                <li key={r.id} className="row-in" style={stagger(i)}>
+                  <span className="all-time-name">{r.name}</span>
+                  <span className="all-time-n">{r[l.key]}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/** A player's past seasons in this career, for his card. */
+export function CareerLines({ season, id }: { season: Season; id: string }) {
+  const rows = (season.career?.history ?? []).flatMap((p) => (p.lines[id] ? [{ year: p.year, ...p.lines[id] }] : []))
+  if (!rows.length) return null
+  return (
+    <section>
+      <h4>Career</h4>
+      <table className="league match-log">
+        <thead>
+          <tr>
+            <th className="team">Season</th>
+            <th>Age</th>
+            <th title="Overall">Rtg</th>
+            <th title="Appearances">Apps</th>
+            <th title="Goals, assists">G/A</th>
+            <th title="Average match rating">Avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.reverse().map((r) => (
+            <tr key={r.year}>
+              <td className="team">
+                {r.year}–{String(r.year + 1).slice(2)}
+                {r.club !== season.userTeam && <small className="muted"> {season.teams[r.club].shortName}</small>}
+              </td>
+              <td>{r.age}</td>
+              <td>{r.overall}</td>
+              <td>{r.apps}</td>
+              <td>
+                {r.goals}/{r.assists}
+              </td>
+              <td>{r.rating?.toFixed(1) ?? '–'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  )
+}
+
+/** A cup run in a table cell: "Won", "F", "SF", "QF", "L16", "R1". */
+function cupShort(run: string): string {
+  if (run === 'Winners') return 'Won'
+  if (run === 'Final') return 'F'
+  if (run === 'Semi-final') return 'SF'
+  if (run === 'Quarter-final') return 'QF'
+  if (run === 'First round') return 'R1'
+  return run.replace('Last ', 'L')
+}
