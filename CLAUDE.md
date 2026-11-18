@@ -691,4 +691,13 @@ pulling the repo.
   the two elevens (`elevenOverall`), on top of the difficulty shift. A positional point is worth a lot:
   0.4 cost a greedy side ~30 points; 0.15 costs ~10 (sim-season seeds 21, 23, 31, 33, noisy ±8).
 
+- 2025/26 and rating levels (session 37, after playtest 2). `squads-2025.ts` (13 club-seasons of 2025/26, the
+  leading sides of all five leagues, after the summer window) is now the last of `LEAGUES`. Match ratings
+  (`rate`, viewer/players.ts): interceptions count 0.06 (the engine's midfielders make ~3x the real number),
+  `OFFSET` re-levelled and `STYLE_OFFSET` gained playmaker/anchor +0.2, ballWinner -0.1, so every position
+  and midfield role averages ~6.8 over a draft season (box-to-box men had taken 27 of 43 players of the
+  season). Re-rating a saved season from its appearances reads ~0.2 low (they lack some line counters):
+  compare changes against that baseline, not against stored ratings. The team of the season keeps men on
+  their flank (`FLANK_SLACK`, review.ts).
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

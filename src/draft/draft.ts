@@ -129,7 +129,7 @@ export const THEMES: Theme[] = [
   { id: 'era-2000', name: '2000s', blurb: 'Seasons 2000/01 to 2009/10', pool: (p) => startYear(p) <= 2009 },
   { id: 'era-2010', name: '2010–2015', blurb: 'Seasons 2010/11 to 2014/15', pool: (p) => startYear(p) >= 2010 && startYear(p) <= 2014 },
   { id: 'era-2015', name: '2015–2020', blurb: 'Seasons 2015/16 to 2019/20', pool: (p) => startYear(p) >= 2015 && startYear(p) <= 2019 },
-  { id: 'era-2020', name: '2020–now', blurb: 'Seasons 2020/21 to 2024/25', pool: (p) => startYear(p) >= 2020 },
+  { id: 'era-2020', name: '2020–now', blurb: 'Seasons 2020/21 to 2025/26', pool: (p) => startYear(p) >= 2020 },
   { id: 'underdogs', name: 'Underdogs', blurb: "No club-season from a league's usual top clubs", pool: (p) => !TOP_CLUBS.has(p.club) },
   { id: 'no-stars', name: 'No stars', blurb: `Nobody rated above ${NO_STARS_CAP}`, pool: () => true, player: (o) => o <= NO_STARS_CAP },
 ]

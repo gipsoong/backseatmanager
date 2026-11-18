@@ -19,6 +19,17 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37, playtest 2): 2025/26, rating levels, best XI flanks
+
+- 2025/26 club-seasons: Arsenal, Liverpool, Man City, Chelsea, Real Madrid, Barcelona, Atlético, Bayern,
+  Dortmund, Inter, Napoli, Milan, PSG (`squads-2025.ts`). Squads as after the summer 2025 window; our
+  knowledge of 2025/26 is thinner than of earlier seasons, so its overalls deserve a second look.
+- Box-to-box midfielders "overtuned"? Checked over 43 draft seasons first: their goals and assists a 90
+  (~0.4) are realistic, but their match ratings averaged 7.5 against 6.6 for defenders and wingers, and
+  they took 27 of 43 players of the season. A rating bias, not play: re-levelled `rate` (owner's pick),
+  matches unchanged. Engine midfielders still intercept ~3x real; not touched.
+- Team of the season keeps full-backs and wingers on their natural flank.
+
 ## Done (session 37, roles and peer review)
 - Ronaldinho read as a box-to-box midfielder: Milan's pool lists him in midfield and his curated
   role (inside forward) isn't a midfield one, so he got a random reading. 148 player-seasons had

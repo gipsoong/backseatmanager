@@ -293,14 +293,15 @@ const GROUPS = {
  * near 6.75 whatever his position (measured over whole simulated seasons; scripts/diag-ratings.ts
  * shows single matches). A great game still stands out in any position.
  */
-const OFFSET: Record<Role, number> = { GK: -0.09, CB: -0.34, FB: 0.17, DM: 0.01, CM: -0.14, WM: -0.27, W: -0.64, ST: -0.37 }
+const OFFSET: Record<Role, number> = { GK: 0.25, CB: -0.13, FB: 0.44, DM: -0.8, CM: -0.92, WM: 0.05, W: -0.38, ST: -0.8 }
 /**
  * The same within a position, by how he plays it: an inside forward shoots where a winger
  * crosses, so he scores more without helping his side more (measured over 150 matches with the
  * same level of player either way: his side scored and took points no better) and would
- * otherwise rate ~0.6 higher.
+ * otherwise rate ~0.6 higher. In midfield (session 37) a ball-winner's tackles and interceptions
+ * outscored a playmaker's passing by ~0.5 a game; these level the three within ~0.15.
  */
-const STYLE_OFFSET: Partial<Record<Archetype, number>> = { insideForward: -0.35, winger: 0.28 }
+const STYLE_OFFSET: Partial<Record<Archetype, number>> = { insideForward: -0.35, winger: 0.28, playmaker: 0.2, anchor: 0.2, ballWinner: -0.1 }
 
 export const ratingGroup = (role: Role): keyof typeof GROUPS =>
   role === 'GK' ? 'GK' : role === 'CB' || role === 'FB' ? 'DEF' : role === 'DM' ? 'DM' : role === 'CM' ? 'MID' : 'ATT'
@@ -327,7 +328,8 @@ export function rate(l: PlayerLine, role: Role, ctx: { result: number; cleanShee
     l.dribbles * 0.08 -
     l.dribbledPast * 0.2 +
     l.tackles * 0.12 +
-    l.interceptions * 0.1 +
+    // The engine's midfielders make ~3 times the real number of interceptions, so each counts less.
+    l.interceptions * 0.06 +
     l.blocks * 0.12 +
     (keeper ? 0 : l.clearances * 0.03) +
     l.aerials * 0.07 +

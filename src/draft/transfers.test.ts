@@ -19,6 +19,8 @@ function draftSeason(seed: number): Season {
   return { ...createSeason(seed, 0, new Date(Date.UTC(2026, 5, 1)), draftLeague(d, 'Test')), mode: 'draft' }
 }
 
+const SEED_INJURED = 4
+
 describe('the January window', () => {
   const base = draftSeason(3)
   const january = windowMatchdays(base)
@@ -45,6 +47,10 @@ describe('the January window', () => {
   })
 
   it('values an injured player by his quality, less a little for the time he misses', () => {
+    // A league whose best outfield player plays in his own position (seed 3's best now plays out of it).
+    const base = draftSeason(SEED_INJURED)
+    const open: Season = { ...base, matchday: windowMatchdays(base)[0] }
+    const mine = squadOf(open.teams[0])
     // The league's best outfield player, at whichever club has him.
     const club = open.teams.map((t, k) => ({ k, p: squadOf(t).filter((p) => p.role !== 'GK').sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))[0] })).slice(1).sort((a, b) => (b.p.overall ?? 0) - (a.p.overall ?? 0))[0]
     const star = club.p
