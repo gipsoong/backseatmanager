@@ -2,7 +2,7 @@
  * The season in review, beyond the table: who stood out and why, who did the work nobody sees,
  * who beat or fell short of his chances, and the matches worth remembering. Pure.
  */
-import { FORMATIONS, type PlayerDef, type Role } from '../engine/index.ts'
+import { FORMATIONS, naturalSide, sideOf, type PlayerDef, type Role } from '../engine/index.ts'
 import { ratingGroup } from '../viewer/players.ts'
 import { type Fixture, type Season, type SeasonStats, avgRating, playerRating, squadOf, squadRating, table } from './season.ts'
 import { count, goalsPrevented, onTargetRate } from './stats.ts'
@@ -93,6 +93,9 @@ const minuteOf = (clock: string): number => {
   return Number(base) + (Number(extra) || 0)
 }
 
+/** How far below the best for a flank place (average rating) a man at home on that side may be and still get it. */
+const FLANK_SLACK = 0.4
+
 export function review(s: Season): Review {
   const played = Math.max(1, s.matchday - 1)
   const rate = onTargetRate(s)
@@ -110,7 +113,7 @@ export function review(s: Season): Review {
 
   // Team of the season: a 4-3-3 of the best-rated regulars, each in his own position if he can
   // be (a striker up front, wingers wide), otherwise the nearest one.
-  const slots = FORMATIONS['4-3-3'].map((slot) => slot.role)
+  const shape = FORMATIONS['4-3-3']
   const nearest: Record<Role, Role[]> = {
     GK: ['GK'],
     CB: ['CB', 'FB', 'DM'],
@@ -123,8 +126,12 @@ export function review(s: Season): Review {
   }
   const chosen = new Set<string>()
   const teamOfSeason: Standout[] = []
-  for (const role of slots) {
-    const pick = nearest[role].map((r) => byAvg.find((x) => x.player.role === r && !chosen.has(x.player.id))).find(Boolean)
+  for (const slot of shape) {
+    // On a flank, the best man at home on that side (Trent at right-back) if he's within
+    // `FLANK_SLACK` of the best for the place, so two left-backs don't fill both full-back places.
+    const side = sideOf(slot)
+    const pool = nearest[slot.role].map((r) => byAvg.filter((x) => x.player.role === r && !chosen.has(x.player.id))).find((xs) => xs.length) ?? []
+    const pick = (side && pool.find((x) => naturalSide(x.player) === side && x.avg >= pool[0].avg - FLANK_SLACK)) || pool[0]
     if (!pick) break
     chosen.add(pick.player.id)
     teamOfSeason.push(pick)
