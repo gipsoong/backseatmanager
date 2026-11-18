@@ -127,21 +127,21 @@ export const POOLS: Pool[] = [
     Matvey Safonov, GK, 76
     Arnau Tenas, GK, 69
     Marquinhos, CB, 86
-    Willian Pacho, CB, 80
+    Willian Pacho, CB, 84
     Lucas Beraldo, CB/FB, 77
     Lucas Hernández, CB/FB, 84
-    Achraf Hakimi, FB, 86
-    Nuno Mendes, FB, 82
-    Vitinha, CM/DM, 85
-    João Neves, CM/DM, 82
-    Fabián Ruiz, CM, 83
+    Achraf Hakimi, FB, 87
+    Nuno Mendes, FB, 86
+    Vitinha, CM/DM, 88
+    João Neves, CM/DM, 86
+    Fabián Ruiz, CM, 85
     Warren Zaïre-Emery, CM/FB, 80
     Lee Kang-in, CM/W, 78, Lee
     Senny Mayulu, CM, 64
-    Ousmane Dembélé, W/ST, 86
-    Khvicha Kvaratskhelia, W, 86
-    Bradley Barcola, W, 80
-    Désiré Doué, W/CM, 77
+    Ousmane Dembélé, W/ST, 90
+    Khvicha Kvaratskhelia, W, 87
+    Bradley Barcola, W, 83
+    Désiré Doué, W/CM, 84
     Gonçalo Ramos, ST, 81
     Randal Kolo Muani, ST, 81
   `),

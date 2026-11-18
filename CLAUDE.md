@@ -686,5 +686,9 @@ pulling the repo.
   copied from FIFA; CARDS gained ~55 own cards for profiles an archetype reads wrong (Koller, Cissé,
   Yamal …). Don't re-derive overalls from attributes with one formula per position: a destroyer and a
   playmaker can't both read right (Xavi came out 86, ball-winners ~5 low).
+  Giant-killing (session 37, playtest: a stacked side swept the league): `matchTeam` lifts the manager's
+  opponent that day by `LIFT[difficulty]` (easy 0, normal 0.15, hard 0.25) of the overall gap between
+  the two elevens (`elevenOverall`), on top of the difficulty shift. A positional point is worth a lot:
+  0.4 cost a greedy side ~30 points; 0.15 costs ~10 (sim-season seeds 21, 23, 31, 33, noisy ±8).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

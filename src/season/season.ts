@@ -363,11 +363,25 @@ export function matchTeam(s: Season, club: number): TeamDef {
   if (s.mode !== 'draft') return side
   // Difficulty (draft.ts DIFFICULTY_SHIFT, repeated here so season.ts needn't load the draft's data):
   // only a side playing the manager's this matchday, so the rest of the league plays as it would.
-  const shift = s.draftStyle?.difficulty === 'hard' ? 1.5 : s.draftStyle?.difficulty === 'easy' ? -1.5 : 0
-  const facing = shift !== 0 && club !== s.userTeam && fixturesOn(s, s.matchday).some((f) => (f.home === club && f.away === s.userTeam) || (f.away === club && f.home === s.userTeam))
-  const level = facing ? shift : 0
+  const difficulty = s.draftStyle?.difficulty ?? 'normal'
+  const shift = difficulty === 'hard' ? 1.5 : difficulty === 'easy' ? -1.5 : 0
+  const facing = club !== s.userTeam && fixturesOn(s, s.matchday).some((f) => (f.home === club && f.away === s.userTeam) || (f.away === club && f.home === s.userTeam))
+  // Giant-killing (session 37): a side facing a stronger drafted eleven raises its game by part of
+  // the gap, so a stacked side still has to earn the title (it used to sweep the league).
+  const gap = facing ? elevenOverall(s, s.userTeam) - elevenOverall(s, club) : 0
+  const level = facing ? shift + LIFT[difficulty] * Math.max(0, gap) : 0
   const own = club === s.userTeam ? withBoosts(linkedTeam(side), eventBoosts(s), s.matchday) : level ? shiftTeam(side, level) : side
   return teamInForm(own, s.seed, s.matchday)
+}
+
+/** How much of the overall gap to a stronger drafted eleven an opponent makes up on the day, by difficulty. */
+export const LIFT: Record<'easy' | 'normal' | 'hard', number> = { easy: 0, normal: 0.15, hard: 0.25 }
+
+/** The average overall of the eleven a club would put out today. */
+function elevenOverall(s: Season, club: number): number {
+  const squad = squadOf(s.teams[club])
+  const xi = lineupFor(s, club).map((id) => squad.find((p) => p.id === id)!)
+  return xi.reduce((n, p) => n + playerRating(p), 0) / xi.length
 }
 
 /** A side with its mid-season events' boosts for the day (draft/events.ts). */

@@ -51,9 +51,9 @@ export interface Draft {
  */
 export type Difficulty = 'easy' | 'normal' | 'hard'
 export const DIFFICULTIES: { id: Difficulty; name: string; blurb: string }[] = [
-  { id: 'easy', name: 'Easy', blurb: 'Weaker opponents, three rerolls, two stars at most' },
-  { id: 'normal', name: 'Normal', blurb: 'As the clubs were, two rerolls' },
-  { id: 'hard', name: 'Hard', blurb: 'Sharper opponents, one reroll, a fourth star for meeting your aim' },
+  { id: 'easy', name: 'Easy', blurb: 'Weaker opponents who don\'t raise their game, three rerolls, two stars at most' },
+  { id: 'normal', name: 'Normal', blurb: 'Clubs raise their game against a stronger side, two rerolls' },
+  { id: 'hard', name: 'Hard', blurb: 'Sharper opponents who raise their game more, one reroll, a fourth star for meeting your aim' },
 ]
 export const DIFFICULTY_SHIFT: Record<Difficulty, number> = { easy: -1.5, normal: 0, hard: 1.5 }
 const REROLLS_BY: Record<Difficulty, number> = { easy: 3, normal: 2, hard: 1 }

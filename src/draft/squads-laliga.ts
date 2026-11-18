@@ -262,7 +262,7 @@ export const POOLS: Pool[] = [
     Marc Casadó, DM, 77
     Frenkie de Jong, CM/DM, 85
     Marc Bernal, DM, 70
-    Pedri, CM, 87
+    Pedri, CM, 88
     Gavi, CM, 81
     Dani Olmo, CM/W, 85
     Fermín López, CM, 78
