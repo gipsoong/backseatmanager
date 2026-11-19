@@ -249,6 +249,7 @@ export function Draft({
               <input id="club-name" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
               <p className="meta">
                 {summer ? `Season ${summer.dynasty.season} of your dynasty: a new league of 19 ${where}.` : `A 38-match season against 19 ${where}. No transfers: this squad is the squad.`} Finish in the top four to play on in the European Cup.
+                {summer ? '' : ' At the end you can carry the side on into another season.'}
               </p>
               <button type="submit" className="btn">
                 Start the season

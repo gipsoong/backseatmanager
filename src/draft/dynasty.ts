@@ -68,7 +68,7 @@ function origin(id: string): [number, number, number] | null {
 /** Him a year on: his next club-season in the database (within two years), else a little drift. */
 export function aged(p: PlayerDef, rng: Rng, prime = false): PlayerDef {
   const o = origin(p.id)
-  const drift = Math.max(-3, Math.min(2, Math.round(rng.gauss() * 1.5 - 0.6)))
+  const drift = Math.max(-3, Math.min(2, Math.round(rng.gauss() * 1.5 - 0.3)))
   if (!o || prime) return p
   const [pool, i, k] = o
   const year = startYear(pool) + k + 1
