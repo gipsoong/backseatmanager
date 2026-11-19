@@ -158,7 +158,12 @@ export function Draft({
   const release = (at: Place): void => {
     const p = 'xi' in at ? draft.xi[at.xi] : draft.bench[at.bench]
     if (!p || !canRelease || p.role === 'GK') return
-    setDraft({ ...draft, xi: draft.xi.map((q, i) => ('xi' in at && i === at.xi ? null : q)), bench: draft.bench.map((q, i) => ('bench' in at && i === at.bench ? null : q)) })
+    setDraft({
+      ...draft,
+      xi: draft.xi.map((q, i) => ('xi' in at && i === at.xi ? null : q)),
+      bench: draft.bench.map((q, i) => ('bench' in at && i === at.bench ? null : q)),
+      gone: [...(draft.gone ?? []), p.name],
+    })
     setOpen(open + 1)
     setReleased([...released, p.name])
     setReleasing(false)

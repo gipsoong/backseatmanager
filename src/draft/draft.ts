@@ -42,6 +42,8 @@ export interface Draft {
   rules?: RuleId[]
   /** A prime draft: every player, yours and the league's, at his best season's overall (`peakOf`). */
   prime?: boolean
+  /** A dynasty's summer draft: names who just left, not offered back (draft/dynasty.ts). */
+  gone?: string[]
 }
 
 /**
@@ -573,7 +575,7 @@ export function offer(d: Draft): { pool: Pool; players: PlayerDef[]; pools: { po
   const of = (idx: number): PlayerDef[] =>
     POOLS[idx].players
       .map((_, i) => poolPlayer(idx, i, d.prime))
-      .filter((p) => !drafted.has(p.name) && inTheme(theme, p.overall ?? 0) && (twist?.kind !== 'line' || LINE_ROLES[twist.line].includes(p.role)))
+      .filter((p) => !drafted.has(p.name) && !d.gone?.includes(p.name) && inTheme(theme, p.overall ?? 0) && (twist?.kind !== 'line' || LINE_ROLES[twist.line].includes(p.role)))
   const idx = d.rounds[roundOf(d)]
   const pools = [idx, ...(twist?.kind === 'pair' ? [twist.other] : [])].map((i) => ({ pool: POOLS[i], players: of(i) }))
   // (A line round with nobody left in that line, or nobody for the places still open, offers the whole squad.)

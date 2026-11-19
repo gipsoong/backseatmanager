@@ -93,6 +93,8 @@ describe('dynasty', () => {
     // The summer draft offers nobody already in the side.
     const names = new Set(kept.map((p) => p.name))
     expect(offer(draft).players.some((p) => names.has(p.name))).toBe(false)
+    // Nor anyone who just left.
+    expect(draft.gone).toEqual(dynasty.left!.map((l) => l.name))
   })
 
   it('makes the same summer every time', () => {

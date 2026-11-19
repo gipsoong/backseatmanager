@@ -177,6 +177,7 @@ export function summerDraft(s: Season): { draft: Draft; dynasty: Dynasty } {
   }
   if (!draft.twists) delete draft.twists
   const left = kept.filter((p) => leaving.has(p.id)).map((p) => ({ name: p.name, why: leaving.get(p.id)! }))
+  draft.gone = left.map((l) => l.name)
   moved.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from))
   return { draft, dynasty: { season: n, past: [...(s.dynasty?.past ?? []), seasonRecord(s)], left, aged: moved.slice(0, 6), totals: dynastyTotals(s) } }
 }
