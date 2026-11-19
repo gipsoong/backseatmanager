@@ -23,10 +23,6 @@ export interface Boost {
   from: number
   to: number
 }
-export interface Choice {
-  choice: number
-  ids: string[]
-}
 
 const KINDS: EventKind[] = ['bustUp', 'unsettled', 'knock', 'camp']
 /** Matchday windows (of 38) the season's three events fall in. */

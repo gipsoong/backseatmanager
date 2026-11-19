@@ -596,7 +596,7 @@ pulling the repo.
   too: `newcomer` (career.ts) makes a made-up player at overall + ROLE_OFFSET and gives him the overall
   and `cardShift`, so `nextSeason`'s formulas drop their ROLE_OFFSET there (`off`). `shiftTo` moves an
   overall-carrying player's attributes until `cardOverall` has moved as far, and his overall with them.
-  money.ts prices by `standingOf` (made-up players net of ROLE_OFFSET, overall-carriers as they are);
+  money.ts prices by standing (`offsetOf`: made-up players net of ROLE_OFFSET, overall-carriers as they are);
   `wageAt(o, role, standing)`. Made-up careers are byte-identical (`node scripts/fingerprint-career.ts`:
   two fake summers, seeds 1-3, `all 0015f930c30c` since session 37 added `PastSeason.club` and season lines' `name`). `node scripts/check-real.ts [id]`: names spelled
   unlike the squads files, feet and birth years against pools.ts and cards.ts, each club's eleven, block,
@@ -707,5 +707,10 @@ pulling the repo.
   forward passes) broke calibrate or did nothing, and were dropped. Draft leagues score ~3.2 a match on
   today's data before this, ~3.3 after (real 2.7-2.9): a known open issue. A pass won right by the passer
   now counts as a recovery, not a block (a pressing striker had ~7 blocks a match).
+
+- Tools (session 37): `npm run build:artifact` (tools/build-artifact.sh, tools/inline.mjs) builds the
+  published single file `matchday-build.html`; `node tools/audit.cjs [widths]` checks it for horizontal
+  scroll, small targets and console errors. Remaining oxlint warnings are deliberate (hook deps used to
+  bust caches on `version`/`slice`, a keyboard ref set in render, comma expressions).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

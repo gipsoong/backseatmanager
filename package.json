@@ -11,7 +11,8 @@
     "test": "vitest run",
     "sim": "node scripts/sim.ts",
     "calibrate": "node scripts/calibrate.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:artifact": "bash tools/build-artifact.sh"
   },
   "dependencies": {
     "idb": "^8.0.3",

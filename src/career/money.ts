@@ -20,10 +20,9 @@ export interface Finance {
 export { ROLE_OFFSET }
 
 /**
- * His overall as a real player's would read (the FIFA-like scale): a made-up player's net of his
- * position's ROLE_OFFSET, a real one's (and anyone's in a real career) as he carries it.
+ * What to take off his overall to read it as a real player's (the FIFA-like scale): a made-up
+ * player's position's ROLE_OFFSET; nothing for a real one (or anyone in a real career).
  */
-export const standingOf = (p: PlayerDef): number => playerRating(p) - offsetOf(p)
 const offsetOf = (p: PlayerDef): number => (p.overall === undefined ? ROLE_OFFSET[p.role] : 0)
 
 /** The overall his value is priced at: today's, plus some of what he could become while he's young. */
