@@ -8,7 +8,7 @@
  * afresh, as the first season's was.
  */
 import { Rng, type PlayerDef } from '../engine/index.ts'
-import { DRAFT_SUBS, clubsOf, cardPlayer, newDraft, poolPlayer, type Draft, type Difficulty, type RuleId, type ThemeId } from './draft.ts'
+import { DRAFT_SUBS, clubsOf, cardPlayer, newDraft, poolPlayer, priceOf, type Draft, type Difficulty, type RuleId, type ThemeId } from './draft.ts'
 import { POOLS, type League } from './pools.ts'
 import { STAR, unhappyStars } from './morale.ts'
 import { squadOf, table, type Season } from '../season/season.ts'
@@ -131,7 +131,7 @@ export function summerDraft(s: Season): { draft: Draft; dynasty: Dynasty } {
   const rng = new Rng(s.seed * 41 + n * 7 + 3)
   const team = s.teams[s.userTeam]
   const style = s.draftStyle
-  // A fresh draft for the offers (a classic one: a budget run's money was for the first summer).
+  // A fresh draft for the offers (a budget run's money is set below, from its sales).
   const seed = new Rng(s.seed * 53 + n).int(1, 99_999)
   const d = newDraft(seed, team.formation, (s.league as League | undefined) ?? 'Premier League', {
     theme: style?.theme as ThemeId | undefined,
@@ -178,6 +178,8 @@ export function summerDraft(s: Season): { draft: Draft; dynasty: Dynasty } {
   if (!draft.twists) delete draft.twists
   const left = kept.filter((p) => leaving.has(p.id)).map((p) => ({ name: p.name, why: leaving.get(p.id)! }))
   draft.gone = left.map((l) => l.name)
+  // A budget run spends what its leavers were sold for (their prices, as the draft priced them).
+  if (style?.budget !== undefined) draft.money = kept.filter((p) => leaving.has(p.id)).reduce((n, p) => n + priceOf(p.overall ?? 0), 0)
   moved.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from))
   return { draft, dynasty: { season: n, past: [...(s.dynasty?.past ?? []), seasonRecord(s)], left, aged: moved.slice(0, 6), totals: dynastyTotals(s) } }
 }

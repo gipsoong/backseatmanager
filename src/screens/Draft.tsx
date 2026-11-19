@@ -32,6 +32,7 @@ import {
   type Twist,
   poolName,
   priceIn,
+  priceOf,
   reserveFor,
   roundOf,
   spendable,
@@ -163,6 +164,8 @@ export function Draft({
       xi: draft.xi.map((q, i) => ('xi' in at && i === at.xi ? null : q)),
       bench: draft.bench.map((q, i) => ('bench' in at && i === at.bench ? null : q)),
       gone: [...(draft.gone ?? []), p.name],
+      // In a budget run he's sold for his price.
+      ...(draft.money !== undefined ? { money: draft.money + priceOf(p.overall ?? 0) } : {}),
     })
     setOpen(open + 1)
     setReleased([...released, p.name])
@@ -263,7 +266,7 @@ export function Draft({
           ) : (
             <>
             {summer && round === DRAFT_ROUNDS - open && (
-              <SummerNews dynasty={summer.dynasty} open={open} released={released}>
+              <SummerNews dynasty={summer.dynasty} open={open} released={released} money={draft.money}>
                 {canRelease && (
                   <button type="button" className={`btn ${releasing ? '' : 'ghost '}slim`} aria-pressed={releasing} onClick={() => setReleasing(!releasing)}>
                     {releasing ? 'Tap a player in your side to let him go' : `Let another player go (${RELEASE_MAX - released.length} left)`}
@@ -368,14 +371,14 @@ export function Draft({
 /** How many more a summer draft may let go, to draft their places too. */
 const RELEASE_MAX = 2
 
-function SummerNews({ dynasty, open, released, children }: { dynasty: Dynasty; open: number; released: string[]; children?: React.ReactNode }) {
+function SummerNews({ dynasty, open, released, money, children }: { dynasty: Dynasty; open: number; released: string[]; money?: number; children?: React.ReactNode }) {
   const last = dynasty.past[dynasty.past.length - 1]
   return (
     <div className="summer-news rise">
       <p className="eyebrow">The summer</p>
       {last && (
         <p className="meta">
-          Last season: {ordinalOf(last.place)} with {last.points} points{last.cup ? ', and the European Cup' : ''}. {open} {open === 1 ? 'place' : 'places'} to fill, one club-season a pick.
+          Last season: {ordinalOf(last.place)} with {last.points} points{last.cup ? ', and the European Cup' : ''}. {open} {open === 1 ? 'place' : 'places'} to fill, one club-season a pick{money !== undefined ? `, with £${money}m from the sales` : ''}.
         </p>
       )}
       <ul>

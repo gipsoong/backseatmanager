@@ -97,6 +97,12 @@ describe('dynasty', () => {
     expect(draft.gone).toEqual(dynasty.left!.map((l) => l.name))
   })
 
+  it('gives a budget run the leavers\' prices to spend', () => {
+    const { draft, dynasty } = summerDraft({ ...s, draftStyle: { budget: 85 } })
+    expect(draft.money).toBeGreaterThanOrEqual(dynasty.left!.length)
+    expect(summerDraft(s).draft.money).toBeUndefined()
+  })
+
   it('makes the same summer every time', () => {
     expect(JSON.stringify(summerDraft(s))).toBe(JSON.stringify(summerDraft(s)))
   })
