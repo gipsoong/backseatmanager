@@ -10,6 +10,7 @@ import { honours } from '../season/review.ts'
 import { starsOf, starsPossible } from './goals.ts'
 import { cupLive, cupWinner } from './cup.ts'
 import { draftEyebrow } from './draft.ts'
+import { dynastyTotals } from './dynasty.ts'
 
 export interface Achievement {
   id: string
@@ -46,6 +47,10 @@ export interface RunFacts {
   titlesInRow: number
   /** What the run was played in, as the runs record names it (a league or a theme). */
   where: string
+  /** This season's number in its dynasty (1 if it isn't one). */
+  dynastySeason: number
+  /** Most league goals by one man over the dynasty so far. */
+  dynastyGoals: number
 }
 
 export const ACHIEVEMENTS: (Achievement & { test: (f: RunFacts, titlesIn: Set<string>) => boolean })[] = [
@@ -73,6 +78,8 @@ export const ACHIEVEMENTS: (Achievement & { test: (f: RunFacts, titlesIn: Set<st
   { id: 'double', name: 'The double', blurb: 'Win the league and the European Cup in one season', test: (f) => f.cupWon && f.champion },
   { id: 'back-to-back', name: 'Back to back', blurb: 'Keep the title in a dynasty', test: (f) => f.titlesInRow >= 2 },
   { id: 'dynasty', name: 'Dynasty', blurb: 'Win three titles in a row in a dynasty', test: (f) => f.titlesInRow >= 3 },
+  { id: 'long-reign', name: 'Long reign', blurb: 'Finish a fifth season in one dynasty', test: (f) => f.dynastySeason >= 5 },
+  { id: 'club-legend', name: 'Club legend', blurb: 'Have one man score 100 league goals in a dynasty', test: (f) => f.dynastyGoals >= 100 },
   { id: 'grand-tour', name: 'Grand tour', blurb: 'Win titles in three different leagues or themes', test: (f, titles) => new Set([...titles, ...(f.champion ? [f.where] : [])]).size >= 3 },
 ]
 
@@ -131,6 +138,8 @@ export function runFacts(s: Season): RunFacts {
     daily: !!s.draftStyle?.daily,
     titlesInRow: inRow,
     where: whereOf(s),
+    dynastySeason: s.dynasty?.season ?? 1,
+    dynastyGoals: Math.max(0, ...Object.values(dynastyTotals(s)).map((l) => l.goals)),
   }
 }
 

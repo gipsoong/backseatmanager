@@ -724,7 +724,7 @@ pulling the repo.
   `Season.dynasty`; `screens/Dynasty.tsx` history and all-time leaders from `dynastyTotals`, by name): `summerDraft` keeps the drafted twenty (reserves remade), ages each (`aged`: his
   club-season one or two years on in the database, else a drift; ids `p<pool>-<i>y<k>` count the years;
   prime runs don't age), sends away every unhappy star and others up to `LEAVERS` 3 (never a keeper), and
-  returns a Draft with their places open (no twists, one reroll; up to two more may be let go before the first pick) that the Draft screen plays as a "summer
+  returns a Draft with their places open (no twists, one reroll; up to two more may be let go before the first pick; `Draft.gone` keeps the leavers out of its offers) that the Draft screen plays as a "summer
   draft" (`summer` prop, `SummerNews`); App starts the next season the August after. Achievements and the
   legends album (`draft/achievements.ts`, pure; `screens/Trophies.tsx` keeps them in localStorage
   `matchday.draft.trophies`, recorded when the league ends and again when its cup does).

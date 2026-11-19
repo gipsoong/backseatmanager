@@ -8,6 +8,7 @@ import type { Formation, Kit, TeamDef } from "../engine/index.ts";
 import type { Tactics } from "./Squad.tsx";
 import { ordinal } from "./format.ts";
 import { draftEyebrow } from "../draft/draft.ts";
+import { unhappyStars } from "../draft/morale.ts";
 import {
   type Season,
   fixturesOn,
@@ -76,8 +77,14 @@ type Tab =
 /** A finished draft season's way on: carry the side into another season, or start a new draft. */
 export function CarryOn({ season, onCarryOn, onNewSeason }: { season: Season; onCarryOn: () => void; onNewSeason: () => void }) {
   const next = (season.dynasty?.season ?? 1) + 1;
+  const sulking = unhappyStars(season).map((p) => p.name);
   return (
     <>
+      {sulking.length > 0 && (
+        <p className="meta carry-note">
+          {sulking.length === 1 ? `${sulking[0]} is unhappy and will ask to leave` : `${sulking.slice(0, -1).join(", ")} and ${sulking[sulking.length - 1]} are unhappy and will ask to leave`} if you carry on.
+        </p>
+      )}
       <button type="button" className="btn" onClick={onCarryOn} title="Keep your side: a few leave in the summer, everyone is a year older, and you draft their places">
         Carry on to season {next}
       </button>
