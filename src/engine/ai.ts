@@ -1376,8 +1376,11 @@ function attackDepthFor(p: PlayerState): number {
       return Math.min(base + 0.1, Math.max(base, 0.45))
     case 'anchor':
       return Math.min(base, 0.05)
+    // A playmaker plays between the lines, where his shape puts him (session 37: dropping 0.1 deeper,
+    // and never arriving in the box, cost his side ~0.34 xG a match against a box-to-box man of the
+    // same attributes).
     case 'playmaker':
-      return base - 0.1
+      return base
     case 'boxToBox':
       return base + 0.1
     default:
@@ -1593,7 +1596,7 @@ export function shapeTarget(s: MatchState, p: PlayerState, inPossession: boolean
     const strikers = mates.filter((q) => q.slot.role === 'ST').length
     const cms = mates.filter((q) => q.slot.role === 'CM')
     const furthest = cms.reduce((m, q) => (q.slot.depth + q.slot.attackDepth > m.slot.depth + m.slot.attackDepth ? q : m))
-    if (arch === 'boxToBox' || (strikers < 2 && furthest.idx === p.idx && arch !== 'playmaker')) {
+    if (arch === 'boxToBox' || (strikers < 2 && furthest.idx === p.idx)) {
       const line = offsideLine(s, team, s.ball.pos) - 0.5
       target = vec(Math.min(PITCH_LENGTH - 13, line), CENTER.y + Math.sign(p.slot.y - CENTER.y || 1) * 4)
     }

@@ -699,5 +699,13 @@ pulling the repo.
   season). Re-rating a saved season from its appearances reads ~0.2 low (they lack some line counters):
   compare changes against that baseline, not against stored ratings. The team of the season keeps men on
   their flank (`FLANK_SLACK`, review.ts).
+  Playmakers (session 37, audit): a mirror test (one CM's archetype changed, same attributes) showed the
+  playmaker's behaviour alone cost ~0.34 xG a match, as he dropped 0.1 deeper (`attackDepthFor`) and never
+  made the lone-striker arrival. Both removed: behaviour now level (+0.02), the remaining ~0.2 against a
+  box-to-box man is his card (less defending) and traits (work rate). Passing and vision themselves are
+  worth little per point: two tries to make them count (vision-scaled misjudgement noise; vision gating
+  forward passes) broke calibrate or did nothing, and were dropped. Draft leagues score ~3.2 a match on
+  today's data before this, ~3.3 after (real 2.7-2.9): a known open issue. A pass won right by the passer
+  now counts as a recovery, not a block (a pressing striker had ~7 blocks a match).
 
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

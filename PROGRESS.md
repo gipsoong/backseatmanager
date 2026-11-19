@@ -19,6 +19,14 @@ Next: the owner's call (La Liga and Serie A champions still run ~10 points high 
 high, the Bundesliga's goals ~0.4 low, see session 34; changes for "Just the
 result" matches; replays from the hub's results).
 
+## Done (session 37, audit): playmakers, striker blocks
+
+- Audit (owner asked, report first): mirror tests of every role pair at equal overall; only playmaker CMs
+  were clearly off (~0.4 xGD a match worse than box-to-box). Owner chose to make passing count more.
+- The cause was behaviour, not passing: fixed (see CLAUDE.md). Playmaker v box-to-box now ~-0.2 (card and
+  work rate), v ball-winner ~0. Calibrate 80 seeds 1 and 201: 29/31 and 30/31, no violations.
+- Open: draft leagues ~3.3 goals a match (3.2 before; real 2.7-2.9); bottom sides 7-19 points.
+
 ## Done (session 37, playtest 2): 2025/26, rating levels, best XI flanks
 
 - 2025/26 club-seasons: Arsenal, Liverpool, Man City, Chelsea, Real Madrid, Barcelona, Atlético, Bayern,

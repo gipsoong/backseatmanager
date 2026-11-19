@@ -111,11 +111,11 @@ describe('orders', () => {
 
   it("after the manager's first sub, the staff still replace an injured man, but make no other change", () => {
     // A seed where one of team 0 gets injured after the manager's sub.
-    const [x, y] = teams(27)
-    const s = createMatch(x, y, { seed: 27 })
+    const [x, y] = teams(23)
+    const s = createMatch(x, y, { seed: 23 })
     const field = s.players.filter((p) => p.team === 0 && p.onPitch && p.slot.role !== 'GK')
     const sub = s.players.find((p) => p.team === 0 && !p.onPitch && p.def.role !== 'GK')!
-    const { violations, state } = checkMatch(x, y, { seed: 27, orders: [{ tick: 100, order: { kind: 'sub', team: 0, offIdx: field[9].idx, onIdx: sub.idx } }] })
+    const { violations, state } = checkMatch(x, y, { seed: 23, orders: [{ tick: 100, order: { kind: 'sub', team: 0, offIdx: field[9].idx, onIdx: sub.idx } }] })
     expect(violations.slice(0, 10)).toEqual([])
     const mine = state.events.filter((e) => e.type === 'sub' && e.team === 0)
     const injury = mine.find((e) => e.type === 'sub' && e.reason === 'injury')!

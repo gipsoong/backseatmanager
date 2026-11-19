@@ -149,12 +149,12 @@ export function playerLines(match: MatchState, events: MatchEvent[]): PlayerLine
         } else receivedFrom = null
         // Cutting out an opponent's pass on its way is an interception; taking it off the man it was
         // meant for as it reaches him is a duel won (a tackle); stopping it right by the passer is a
-        // blocked pass; collecting one that ran on past him, a clearance, a hoofed ball or a loose one
-        // is a recovery.
+        // blocked pass, counted with recoveries (session 37: as blocks it gave a pressing striker ~7 a
+        // match, where blocks are shots stopped); collecting one that ran on past him, a clearance, a
+        // hoofed ball or a loose one is a recovery.
         if (e.won === 'cut') lines[e.idx].interceptions++
         else if (e.won === 'duel') lines[e.idx].tackles++
-        else if (e.won === 'block') lines[e.idx].blocks++
-        else if (e.won === 'loose') lines[e.idx].recoveries++
+        else if (e.won === 'block' || e.won === 'loose') lines[e.idx].recoveries++
         else if ((e.via === 'control' || e.via === 'interception') && !pending && lastTeam !== null && lastTeam !== team) lines[e.idx].recoveries++
         if (e.via === 'save' && shot) {
           lines[e.idx].saves++
@@ -293,7 +293,7 @@ const GROUPS = {
  * near 6.75 whatever his position (measured over whole simulated seasons; scripts/diag-ratings.ts
  * shows single matches). A great game still stands out in any position.
  */
-const OFFSET: Record<Role, number> = { GK: 0.25, CB: -0.13, FB: 0.44, DM: -0.8, CM: -0.92, WM: 0.05, W: -0.38, ST: -0.8 }
+const OFFSET: Record<Role, number> = { GK: 0.33, CB: -0.05, FB: 0.52, DM: -0.8, CM: -0.92, WM: 0.13, W: -0.3, ST: -0.8 }
 /**
  * The same within a position, by how he plays it: an inside forward shoots where a winger
  * crosses, so he scores more without helping his side more (measured over 150 matches with the
@@ -301,7 +301,7 @@ const OFFSET: Record<Role, number> = { GK: 0.25, CB: -0.13, FB: 0.44, DM: -0.8, 
  * otherwise rate ~0.6 higher. In midfield (session 37) a ball-winner's tackles and interceptions
  * outscored a playmaker's passing by ~0.5 a game; these level the three within ~0.15.
  */
-const STYLE_OFFSET: Partial<Record<Archetype, number>> = { insideForward: -0.35, winger: 0.28, playmaker: 0.2, anchor: 0.2, ballWinner: -0.1 }
+const STYLE_OFFSET: Partial<Record<Archetype, number>> = { insideForward: -0.35, winger: 0.28, playmaker: 0.2, anchor: 0.2, ballWinner: -0.1, boxToBox: -0.1 }
 
 export const ratingGroup = (role: Role): keyof typeof GROUPS =>
   role === 'GK' ? 'GK' : role === 'CB' || role === 'FB' ? 'DEF' : role === 'DM' ? 'DM' : role === 'CM' ? 'MID' : 'ATT'

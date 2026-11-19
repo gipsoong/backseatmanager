@@ -7,7 +7,7 @@ import { GOAL_DEPTH, netAt } from './net.ts'
 import { describeTraits, playerLines, rate } from './players.ts'
 import { PLAYERS_AT, Timeline } from './timeline.ts'
 
-const SEED = 4
+const SEED = 6
 const home = randomTeam(SEED * 2 + 1)
 const away = randomTeam(SEED * 2 + 2)
 const full = new Timeline(home, away, SEED)
