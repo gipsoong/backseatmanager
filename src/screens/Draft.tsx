@@ -340,6 +340,7 @@ export function Draft({
             ) : (
               !done && (
                 <p className="meta draft-hint">
+                  {releasing ? 'Tap a player in your side (not a keeper) to let him go; his place is drafted again. ' : ''}
                   Choose a player from {offer(draft).pools.map((x) => poolName(x.pool)).join(' or ')}, then a place for him.
                   {draft.money !== undefined && (
                     <>
