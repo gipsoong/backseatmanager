@@ -7,6 +7,7 @@ import { aimText, bonusText, goalState, starsOf, starsPossible } from '../draft/
 import { RULES, draftEyebrow } from '../draft/draft.ts'
 import { isOver, matchdays, table, type Season } from '../season/season.ts'
 import { clubRecords } from '../season/stats.ts'
+import { RunTrophies } from './Trophies.tsx'
 
 export interface RunRecord {
   key: string
@@ -46,6 +47,7 @@ function keepRun(s: Season): void {
       draftEyebrow({ league: s.league, theme: s.draftStyle?.theme, budget: s.draftStyle?.budget !== undefined, daily: s.draftStyle?.daily, prime: s.draftStyle?.prime }).replace(/^Draft · /, ''),
       s.draftStyle?.difficulty === 'hard' ? 'Hard' : s.draftStyle?.difficulty === 'easy' ? 'Easy' : '',
       ...(s.draftStyle?.rules ?? []).map((r) => RULES.find((x) => x.id === r)?.name ?? ''),
+      s.dynasty ? `Dynasty season ${s.dynasty.season}` : '',
     ]
       .filter(Boolean)
       .join(' · '),
@@ -117,6 +119,13 @@ export function RunGoals({ season }: { season: Season }) {
           {starsPossible(season) === 4 ? ', and one more for meeting the aim on Hard' : ''}.
         </p>
       )}
+      {season.dynasty && (
+        <p className="meta dynasty-line">
+          Your dynasty:{' '}
+          {season.dynasty.past.map((d, i) => `season ${i + 1} ${ordinal(d.place)}, ${d.points} pts${d.cup ? ', European Cup' : ''}`).join(' · ')}
+        </p>
+      )}
+      <RunTrophies season={season} />
     </div>
   )
 }

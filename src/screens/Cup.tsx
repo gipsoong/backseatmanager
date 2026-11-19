@@ -20,7 +20,8 @@ import {
 import type { CupFixture, CupSide, Season } from "../season/season.ts";
 import { matchdayDate } from "../season/season.ts";
 import { surname } from "../viewer/commentary.ts";
-import { Swatch } from "./Hub.tsx";
+import { CarryOn, Swatch } from "./Hub.tsx";
+import { RunTrophies } from "./Trophies.tsx";
 import { Squad } from "./Squad.tsx";
 import { TabBar } from "./Tabs.tsx";
 import { stagger } from "./motion.ts";
@@ -39,6 +40,7 @@ export function CupHub({
   onSimulate,
   onLeague,
   onNewSeason,
+  onCarryOn,
   onLineup,
   onFormation,
   onTactics,
@@ -49,6 +51,8 @@ export function CupHub({
   onSimulate: () => void;
   onLeague: () => void;
   onNewSeason: () => void;
+  /** Carry the side on into another season (draft/dynasty.ts). */
+  onCarryOn?: () => void;
   onLineup: (ids: string[] | null) => void;
   onFormation: (f: Formation) => void;
   onTactics?: (t: Tactics) => void;
@@ -155,10 +159,15 @@ export function CupHub({
                   ? `${me.name} win the ${CUP_NAME}`
                   : `${cupTeam(season, champion!).name} win the ${CUP_NAME}`}
               </h2>
+              <RunTrophies season={season} />
               <div className="actions">
-                <button type="button" className="btn" onClick={onNewSeason}>
-                  New season
-                </button>
+                {onCarryOn ? (
+                  <CarryOn season={season} onCarryOn={onCarryOn} onNewSeason={onNewSeason} />
+                ) : (
+                  <button type="button" className="btn" onClick={onNewSeason}>
+                    New season
+                  </button>
+                )}
               </div>
             </>
           )}

@@ -1,7 +1,8 @@
 import { Logo } from "./screens/Logo.tsx";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { randomTeam } from "./engine/index.ts";
-import { budgetFor, draftLeague } from "./draft/draft.ts";
+import { randomTeam, type TeamDef } from "./engine/index.ts";
+import { budgetFor, draftLeague, type Draft as DraftState } from "./draft/draft.ts";
+import { summerDraft, type Dynasty } from "./draft/dynasty.ts";
 import { decline, makeDeal, windowOpen } from "./draft/transfers.ts";
 import { Draft } from "./screens/Draft.tsx";
 import { Hub } from "./screens/Hub.tsx";
@@ -67,7 +68,7 @@ type Screen =
   | { kind: "loading" }
   | { kind: "start" }
   | { kind: "pick"; season: Season; league: string }
-  | { kind: "draft"; seed: number }
+  | { kind: "draft"; seed: number; summer?: { draft: DraftState; dynasty: Dynasty; name: string; startDate: string; tactics: Pick<TeamDef, "block" | "mentality"> } }
   | { kind: "hub" }
   /** The league's screen, while the cup is on. */
   | { kind: "league" }
@@ -290,6 +291,11 @@ export default function App() {
   const newSeason = (league = REAL_LEAGUES[0].id): void =>
     setScreen({ kind: "pick", season: careerIn(league), league });
   const newDraft = (): void => setScreen({ kind: "draft", seed: randomSeed() });
+  // Dynasty: the drafted side carried into another season, its leavers' places drafted again.
+  const carryOn = (s: Season): void => {
+    const { draft, dynasty } = summerDraft(s);
+    setScreen({ kind: "draft", seed: draft.seed, summer: { draft, dynasty, name: s.teams[s.userTeam].name, startDate: s.startDate, tactics: { block: s.teams[s.userTeam].block, mentality: s.teams[s.userTeam].mentality } } });
+  };
 
   // Each screen fades up as it arrives (keyed, so a new screen is a new element); the cup and the
   // league are different screens though both are "hub".
@@ -348,12 +354,17 @@ export default function App() {
       )}
       {screen.kind === "draft" && (
         <Draft
+          key={screen.summer ? `summer-${screen.seed}` : `draft-${screen.seed}`}
           seed={screen.seed}
-          onBack={() => setScreen({ kind: "start" })}
+          summer={screen.summer}
+          onBack={() => setScreen({ kind: screen.summer ? "hub" : "start" })}
           onDone={(d, name) => {
+            // A dynasty's next season starts the August after the last one.
+            const when = screen.summer ? new Date(Date.UTC(Number(screen.summer.startDate.slice(0, 4)) + 1, 0, 15)) : new Date();
             void commit({
               // The draft's own seed: a daily draft's league plays the same for everyone.
-              ...createSeason(d.seed, 0, new Date(), draftLeague(d, name)),
+              ...createSeason(d.seed, 0, when, draftLeague(d, name).map((t, i) => (i === 0 && screen.summer ? { ...t, ...screen.summer.tactics } : t))),
+              ...(screen.summer ? { dynasty: screen.summer.dynasty } : {}),
               mode: "draft",
               league: d.league,
               ...(d.theme || d.money !== undefined || d.daily || d.difficulty || d.rules || d.prime
@@ -407,6 +418,7 @@ export default function App() {
             onSimulate={() => void simulateMatchday(season)}
             onLeague={() => setScreen({ kind: "league" })}
             onNewSeason={newDraft}
+            onCarryOn={() => carryOn(season)}
             onLineup={(lineup) => void commit({ ...season, lineup })}
             onTactics={(tactics) =>
               void commit({
@@ -434,6 +446,7 @@ export default function App() {
             onSimulate={() => void simulateMatchday(season)}
             onSimulateAhead={(days) => void simulateAhead(season, days)}
             onNewSeason={season.mode === "draft" ? newDraft : () => newSeason()}
+            onCarryOn={season.mode === "draft" ? () => carryOn(season) : undefined}
             onNextSeason={
               season.career
                 ? (club, sacked) =>

@@ -7,9 +7,11 @@
 import { inForm, shiftTeam, teamInForm } from './form.ts'
 import { type Boost, boostOn, eventBoosts } from '../draft/events.ts'
 import { linkedTeam } from '../draft/links.ts'
+import { moraleOf } from '../draft/morale.ts'
 import { FORMATIONS, type MatchState, type PlayerDef, type Slot, type TeamDef, type TimedOrder, ability, cardOverall, fitFor, leagueTeams } from '../engine/index.ts'
 import { type PlayerLine, playerLines } from '../viewer/players.ts'
 import type { Career } from '../career/career.ts'
+import type { Dynasty } from '../draft/dynasty.ts'
 
 export const LEAGUE_SIZE = 20
 /** Named substitutes per match, as in the Premier League. */
@@ -183,6 +185,8 @@ export interface Season {
   rewatch?: Record<string, Rewatch>
   /** Where the pundits tipped each club to finish, before the first match (`tipsOf`; session 37). */
   tips?: number[]
+  /** A draft run carried on into another season (draft/dynasty.ts; session 38). */
+  dynasty?: Dynasty
 }
 
 /** Everything a match was played from: replaying it gives the very same match. */
@@ -370,7 +374,7 @@ export function matchTeam(s: Season, club: number): TeamDef {
   // the gap, so a stacked side still has to earn the title (it used to sweep the league).
   const gap = facing ? elevenOverall(s, s.userTeam) - elevenOverall(s, club) : 0
   const level = facing ? shift + LIFT[difficulty] * Math.max(0, gap) : 0
-  const own = club === s.userTeam ? withBoosts(linkedTeam(side), eventBoosts(s), s.matchday) : level ? shiftTeam(side, level) : side
+  const own = club === s.userTeam ? withBoosts(linkedTeam(side), eventBoosts(s), s.matchday, moraleOf(s)) : level ? shiftTeam(side, level) : side
   return teamInForm(own, s.seed, s.matchday)
 }
 
@@ -384,10 +388,10 @@ function elevenOverall(s: Season, club: number): number {
   return xi.reduce((n, p) => n + playerRating(p), 0) / xi.length
 }
 
-/** A side with its mid-season events' boosts for the day (draft/events.ts). */
-function withBoosts(t: TeamDef, boosts: Boost[], matchday: number): TeamDef {
-  if (!boosts.length) return t
-  const f = (p: PlayerDef): PlayerDef => inForm(p, boostOn(boosts, p.id, matchday))
+/** A side with its mid-season events' boosts for the day (draft/events.ts) and its morale (draft/morale.ts). */
+function withBoosts(t: TeamDef, boosts: Boost[], matchday: number, morale: Map<string, number>): TeamDef {
+  if (!boosts.length && !morale.size) return t
+  const f = (p: PlayerDef): PlayerDef => inForm(p, boostOn(boosts, p.id, matchday) + (morale.get(p.id) ?? 0))
   return { ...t, players: t.players.map(f), bench: t.bench.map(f) }
 }
 

@@ -45,7 +45,9 @@ import { slotLabel, slotStyle } from './pitchLayout.ts'
 import { shortName as surname, styleLabel } from '../names.ts'
 import { Positions } from './Positions.tsx'
 import { PastRuns } from './RunGoals.tsx'
+import { TrophyRoom, trophies } from './Trophies.tsx'
 import { linksFor, linksOf } from '../draft/links.ts'
+import type { Dynasty } from '../draft/dynasty.ts'
 
 /** Club-seasons this browser was offered lately, so the next draft offers others (kept per browser; optional). */
 const RECENT_KEY = 'matchday.draft.recent'
@@ -91,14 +93,29 @@ function saveOptions(s: Saved): void {
   }
 }
 
-export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: DraftState, name: string) => void; onBack: () => void }) {
-  const [draft, setDraft] = useState<DraftState | null>(null)
+export function Draft({
+  seed,
+  summer,
+  onDone,
+  onBack,
+}: {
+  seed: number
+  /** A dynasty's summer: the side carried on, its leavers' places open. */
+  summer?: { draft: DraftState; dynasty: Dynasty; name: string }
+  onDone: (d: DraftState, name: string) => void
+  onBack: () => void
+}) {
+  const [draft, setDraft] = useState<DraftState | null>(summer?.draft ?? null)
   const [chosen, setChosen] = useState<PlayerDef | null>(null)
   const [saved] = useState(savedOptions)
-  const [name, setName] = useState(saved.name ?? 'Backseat XI')
+  const [name, setName] = useState(summer?.name ?? saved.name ?? 'Backseat XI')
+  // The summer's open places: how many picks it has.
+  const [open] = useState(() => (summer ? DRAFT_ROUNDS - roundOf(summer.draft) : DRAFT_ROUNDS))
   const [league, setLeague] = useState<League>(saved.league ?? 'Premier League')
   const [opts, setOpts] = useState<DraftOptions>(saved.opts ?? {})
-  useEffect(() => saveOptions({ league, name, opts }), [league, name, opts])
+  useEffect(() => {
+    if (!summer) saveOptions({ league, name, opts })
+  }, [summer, league, name, opts])
   // The place filled last, so it can settle in; and the phone's sheet held open to show it.
   const [placed, setPlaced] = useState<string | null>(null)
   const [peek, setPeek] = useState(false)
@@ -125,7 +142,9 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
     )
   const theme = themeOf(draft.theme)
   const where = theme ? `${theme.name} club-seasons from Europe's top five leagues` : `${draft.league ?? 'Premier League'} sides from 2000 to now`
-  const eyebrow = draftEyebrow({ league: draft.league, theme: draft.theme, budget: draft.money !== undefined, daily: draft.daily, prime: draft.prime })
+  const eyebrow = summer
+    ? `Summer draft · Season ${summer.dynasty.season} of your dynasty`
+    : draftEyebrow({ league: draft.league, theme: draft.theme, budget: draft.money !== undefined, daily: draft.daily, prime: draft.prime })
 
   const slots = FORMATIONS[draft.formation]
   const done = isComplete(draft)
@@ -154,7 +173,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
               'Your side is picked'
             ) : (
               <>
-                Round {round + 1} <span className="of">of {DRAFT_ROUNDS}</span>
+                {summer ? 'Pick' : 'Round'} {round + 1 - (DRAFT_ROUNDS - open)} <span className="of">of {open}</span>
               </>
             )}
           </h1>
@@ -177,8 +196,8 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
             Quit
           </button>
         </div>
-        <div className="draft-progress" role="progressbar" aria-label="Players drafted" aria-valuemin={0} aria-valuemax={DRAFT_ROUNDS} aria-valuenow={starters + subs}>
-          <span style={{ width: `${(100 * (starters + subs)) / DRAFT_ROUNDS}%` }} />
+        <div className="draft-progress" role="progressbar" aria-label="Players drafted" aria-valuemin={0} aria-valuemax={open} aria-valuenow={starters + subs - (DRAFT_ROUNDS - open)}>
+          <span style={{ width: `${(100 * (starters + subs - (DRAFT_ROUNDS - open))) / open}%` }} />
         </div>
       </header>
 
@@ -215,12 +234,16 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
               </div>
               <label htmlFor="club-name">Name your side</label>
               <input id="club-name" value={name} maxLength={24} onChange={(e) => setName(e.target.value)} />
-              <p className="meta">A 38-match season against 19 {where}. No transfers: this squad is the squad. Finish in the top four to play on in the European Cup.</p>
+              <p className="meta">
+                {summer ? `Season ${summer.dynasty.season} of your dynasty: a new league of 19 ${where}.` : `A 38-match season against 19 ${where}. No transfers: this squad is the squad.`} Finish in the top four to play on in the European Cup.
+              </p>
               <button type="submit" className="btn">
                 Start the season
               </button>
             </form>
           ) : (
+            <>
+            {summer && round === DRAFT_ROUNDS - open && <SummerNews dynasty={summer.dynasty} open={open} />}
             <Offer
               key={`${round}-${draft.rounds[round]}`}
               draft={draft}
@@ -233,6 +256,7 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
                 setDraft(next)
               }}
             />
+            </>
           )}
         </section>
 
@@ -311,6 +335,35 @@ export function Draft({ seed, onDone, onBack }: { seed: number; onDone: (d: Draf
     </div>
   )
 }
+
+/** A dynasty's summer news, before its first pick: who left, who moved most. */
+function SummerNews({ dynasty, open }: { dynasty: Dynasty; open: number }) {
+  const last = dynasty.past[dynasty.past.length - 1]
+  return (
+    <div className="summer-news rise">
+      <p className="eyebrow">The summer</p>
+      {last && (
+        <p className="meta">
+          Last season: {ordinalOf(last.place)} with {last.points} points{last.cup ? ', and the European Cup' : ''}. {open} {open === 1 ? 'place' : 'places'} to fill, one club-season a pick.
+        </p>
+      )}
+      <ul>
+        {(dynasty.left ?? []).map((l) => (
+          <li key={l.name}>
+            <strong>{l.name}</strong> {l.why}.
+          </li>
+        ))}
+        {(dynasty.aged ?? []).map((a) => (
+          <li key={a.name} className={a.to > a.from ? 'up' : 'down'}>
+            {a.name} {a.to > a.from ? 'grew' : 'slipped'} from {a.from} to {a.to}.
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+const ordinalOf = (n: number): string => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`
 
 /** What each shape asks for, in a line. */
 export const FORMATION_BLURB: Record<Formation, string> = {
@@ -442,6 +495,7 @@ function PickShape({
         ))}
       </div>
       <PastRuns />
+      <TrophyRoom />
       <button type="button" className="btn ghost back-btn" onClick={onBack}>
         Back
       </button>
@@ -486,6 +540,7 @@ function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chose
   const blind = isBlind(draft)
   const priced = draft.money !== undefined
   const noReroll = rerollProblem(draft)
+  const [legends] = useState(() => new Set(trophies().album.map((l) => l.name)))
   const order = (list: PlayerDef[]): PlayerDef[] =>
     [...list].sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role) || (blind ? a.name.localeCompare(b.name) : (b.overall ?? 0) - (a.overall ?? 0)))
   let n = 0
@@ -524,6 +579,7 @@ function Offer({ draft, chosen, onChoose, onReroll }: { draft: DraftState; chose
                     {p.name}
                     <small className="style">
                       {styleLabel(p)}
+                      {legends.has(p.name) && <span className="legend-note"> · in your album</span>}
                       <LinkNote p={p} xi={draft.xi} />
                     </small>
                   </span>

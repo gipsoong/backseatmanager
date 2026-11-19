@@ -713,4 +713,18 @@ pulling the repo.
   scroll, small targets and console errors. Remaining oxlint warnings are deliberate (hook deps used to
   bust caches on `version`/`slice`, a keyboard ref set in render, comma expressions).
 
+- Runs that last (session 38, draft). Morale (`draft/morale.ts`): a star (`STAR` 85+, not a keeper) who
+  hasn't started any of the side's last `BENCH_WEEKS` 3 league matches while fit plays `UNHAPPY` -2 (as form
+  moves him, applied in matchTeam's `withBoosts`), and with `RESTLESS_FROM` 3 unhappy the whole squad -1;
+  from results and conditions, nothing saved; `MoraleNote` on the hub, an "Unhappy" pill in the squad.
+  Star-heavy squads get extra events (events.ts): `egos` (6+ stars, matchday 13-14) and `contract`
+  (`CONTRACT_FROM` 9+, matchday 25), own Rng, so other events are unchanged. Dynasty (`draft/dynasty.ts`,
+  `Season.dynasty`): `summerDraft` keeps the drafted twenty (reserves remade), ages each (`aged`: his
+  club-season one or two years on in the database, else a drift; ids `p<pool>-<i>y<k>` count the years;
+  prime runs don't age), sends away every unhappy star and others up to `LEAVERS` 3 (never a keeper), and
+  returns a Draft with their places open (no twists, one reroll) that the Draft screen plays as a "summer
+  draft" (`summer` prop, `SummerNews`); App starts the next season the August after. Achievements and the
+  legends album (`draft/achievements.ts`, pure; `screens/Trophies.tsx` keeps them in localStorage
+  `matchday.draft.trophies`, recorded when the league ends and again when its cup does).
+
 When adding a gameplay feature: add its position/outcome invariant to `harness.ts` first.

@@ -1,7 +1,7 @@
 /** The season between matches: the next fixture, the table, and results and fixtures by matchday. */
 import { Preview } from "./Preview.tsx";
 import { RunGoals } from "./RunGoals.tsx";
-import { EventCard } from "./EventCard.tsx";
+import { EventCard, MoraleNote } from "./EventCard.tsx";
 import { PositionChart } from "./PositionChart.tsx";
 import { useMemo, useState } from "react";
 import type { Formation, Kit, TeamDef } from "../engine/index.ts";
@@ -73,6 +73,21 @@ type Tab =
   | "cup"
   | "contracts";
 
+/** A finished draft season's way on: carry the side into another season, or start a new draft. */
+export function CarryOn({ season, onCarryOn, onNewSeason }: { season: Season; onCarryOn: () => void; onNewSeason: () => void }) {
+  const next = (season.dynasty?.season ?? 1) + 1;
+  return (
+    <>
+      <button type="button" className="btn" onClick={onCarryOn} title="Keep your side: a few leave in the summer, everyone is a year older, and you draft their places">
+        Carry on to season {next}
+      </button>
+      <button type="button" className="btn ghost" onClick={onNewSeason}>
+        New draft
+      </button>
+    </>
+  );
+}
+
 export function Swatch({ kit }: { kit: Kit }) {
   return <span className="swatch" style={{ background: kit.shirt }} />;
 }
@@ -97,6 +112,7 @@ export function Hub({
   onLoan,
   onRewatch,
   onChoose,
+  onCarryOn,
 }: {
   season: Season;
   busy: boolean;
@@ -122,6 +138,8 @@ export function Hub({
   onChoose?: (s: Season) => void;
   /** Watch one of his kept league matches again (by fixture id). */
   onRewatch?: (fixtureId: number) => void;
+  /** Draft mode: carry the side on into another season (draft/dynasty.ts). */
+  onCarryOn?: () => void;
 }) {
   const [tab, setTab] = useState<Tab>(isOver(season) ? "review" : "table");
   // The last matchday played: open the review.
@@ -173,7 +191,7 @@ export function Hub({
                   budget: season.draftStyle?.budget !== undefined,
                   daily: season.draftStyle?.daily,
                   prime: season.draftStyle?.prime,
-                })
+                }) + (season.dynasty ? ` · Season ${season.dynasty.season}` : "")
               : season.career
                 ? careerLabel(season)
                 : `Matchday · Season ${season.startDate.slice(0, 4)}`}
@@ -265,6 +283,7 @@ export function Hub({
               <BoardLine season={season} over={false} />
               <RunGoals season={season} />
               {onChoose && <EventCard season={season} onChoose={onChoose} />}
+              <MoraleNote season={season} />
               {season.career && inTheRed(season) && (
                 <p className="money-warning">{RED_LINE}</p>
               )}
@@ -368,9 +387,13 @@ export function Hub({
                   </button>
                 ) : season.cup ? (
                   <>
-                    <button type="button" className="btn" onClick={onNewSeason}>
-                      New season
-                    </button>
+                    {onCarryOn ? (
+                      <CarryOn season={season} onCarryOn={onCarryOn} onNewSeason={onNewSeason} />
+                    ) : (
+                      <button type="button" className="btn" onClick={onNewSeason}>
+                        New season
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="btn ghost"
@@ -407,6 +430,8 @@ export function Hub({
                       New career
                     </button>
                   </>
+                ) : onCarryOn ? (
+                  <CarryOn season={season} onCarryOn={onCarryOn} onNewSeason={onNewSeason} />
                 ) : (
                   <button type="button" className="btn" onClick={onNewSeason}>
                     New season

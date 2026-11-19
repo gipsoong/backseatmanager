@@ -8,8 +8,9 @@
  */
 import { Rng, type PlayerDef } from '../engine/index.ts'
 import type { Season } from '../season/season.ts'
+import { STAR, starsIn } from './morale.ts'
 
-export type EventKind = 'bustUp' | 'unsettled' | 'knock' | 'camp'
+export type EventKind = 'bustUp' | 'unsettled' | 'knock' | 'camp' | 'egos' | 'contract'
 export interface SeasonEvent {
   index: number
   kind: EventKind
@@ -34,14 +35,30 @@ const WINDOWS: [number, number][] = [
 /** How long an effect lasts, in matchdays. */
 export const EFFECT_WEEKS = 5
 
+/**
+ * A dressing room of stars (session 38) brings more events, between the three windows: `egos` with
+ * `EGOS_FROM` stars in the squad (matchday 13-14), and `contract` with `CONTRACT_FROM` (matchday 25).
+ */
+export const EGOS_FROM = 6
+export const CONTRACT_FROM = 9
+
 /** The season's events, from its seed (scaled to its length). */
 export function seasonEvents(s: Season): SeasonEvent[] {
   if (s.mode !== 'draft') return []
   const rng = new Rng(s.seed * 13 + 5)
   const kinds = rng.shuffle([...KINDS]).slice(0, WINDOWS.length)
   const scale = (s.teams.length - 1) / 19
-  return WINDOWS.map(([a, b], index) => ({ index, kind: kinds[index], at: Math.max(2, Math.round(rng.int(a, b) * scale)) }))
+  const events: SeasonEvent[] = WINDOWS.map(([a, b], index) => ({ index, kind: kinds[index], at: Math.max(2, Math.round(rng.int(a, b) * scale)) }))
+  const stars = starsIn(s)
+  const extra = new Rng(s.seed * 29 + 11)
+  if (stars >= EGOS_FROM) events.push({ index: 3, kind: 'egos', at: Math.round(extra.int(13, 14) * scale) })
+  if (stars >= CONTRACT_FROM) events.push({ index: 4, kind: 'contract', at: Math.round(25 * scale) })
+  return events
 }
+
+/** The squad's stars, best first (keepers left out). */
+const starsOf = (s: Season): PlayerDef[] =>
+  [...s.teams[s.userTeam].players, ...s.teams[s.userTeam].bench].filter((p) => p.role !== 'GK' && (p.overall ?? 0) >= STAR).sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0))
 
 /** The players an event is about, from the eleven you drafted (best first), as it stands now. */
 export function targetsOf(s: Season, e: SeasonEvent): PlayerDef[] {
@@ -62,6 +79,15 @@ export function targetsOf(s: Season, e: SeasonEvent): PlayerDef[] {
       return [xi[rng.int(0, Math.min(5, xi.length - 1))]]
     case 'camp':
       return []
+    case 'egos': {
+      const [a, ...rest] = starsOf(s)
+      return a ? [a, ...rng.shuffle(rest).slice(0, 2)] : []
+    }
+    case 'contract': {
+      const stars = starsOf(s)
+      const a = stars[rng.int(0, Math.min(4, stars.length - 1))]
+      return [a, ...stars.filter((p) => p !== a).slice(0, 2)]
+    }
   }
 }
 
@@ -108,6 +134,20 @@ export function eventText(s: Season, e: SeasonEvent): EventText {
         options: ['Stay at home', 'Go to the camp'],
         effects: ['Nothing changes.', `The squad +2 for ${w} matches, but everyone's legs are heavier now (−15% fitness).`],
       }
+    case 'egos':
+      return {
+        title: 'Too many egos',
+        text: `The papers say your dressing room has too many stars. ${a.name}, ${b.name} and ${c.name} all want to be the main man.`,
+        options: ['Let them sort it out', `Build the side around ${last(a)}`],
+        effects: [`All three −2 for ${w} matches.`, `${last(a)} +2, but ${last(b)} and ${last(c)} −3 for ${w} matches.`],
+      }
+    case 'contract':
+      return {
+        title: 'A new deal',
+        text: `${a.name} wants a new contract, and the best-paid in the squad. His agent is talking to other clubs.`,
+        options: ['Refuse', 'Give him the deal'],
+        effects: [`${last(a)} −3 for ${w} matches.`, `${last(a)} +1 for the rest of the season, but ${last(b)} and ${last(c)} want to know why: −2 for ${w} matches.`],
+      }
   }
 }
 
@@ -126,19 +166,29 @@ function boostsFor(s: Season, e: SeasonEvent, choice: number): Boost[] {
       const all = [...s.teams[s.userTeam].players, ...s.teams[s.userTeam].bench].map((p) => p.id)
       return choice === 0 ? [] : [span(2, all)]
     }
+    case 'egos':
+      return choice === 0 ? [span(-2, t.map((p) => p.id))] : [span(2, [t[0].id]), span(-3, [t[1].id, t[2].id])]
+    case 'contract':
+      return choice === 0 ? [span(-3, [t[0].id])] : [span(1, [t[0].id], Infinity), span(-2, [t[1].id, t[2].id])]
   }
+}
+
+/** Everyone the event is about is still at the club (and a star's event has its three stars). */
+function ready(s: Season, e: SeasonEvent): boolean {
+  const t = targetsOf(s, e)
+  return t.every(Boolean) && (e.kind !== 'egos' && e.kind !== 'contract' ? true : t.length === 3)
 }
 
 /** The event waiting for a choice before this matchday's match, if any. */
 export function pendingEvent(s: Season): SeasonEvent | undefined {
-  return seasonEvents(s).find((e) => e.at === s.matchday && !s.choices?.[e.index] && targetsOf(s, e).every(Boolean))
+  return seasonEvents(s).find((e) => e.at === s.matchday && !s.choices?.[e.index] && ready(s, e))
 }
 
 /** Every boost in force: chosen events, and events passed by without a choice (the first option). */
 export function eventBoosts(s: Season): Boost[] {
   return seasonEvents(s)
     .filter((e) => s.choices?.[e.index] || e.at < s.matchday)
-    .filter((e) => targetsOf(s, e).every(Boolean))
+    .filter((e) => ready(s, e))
     .flatMap((e) => boostsFor(s, e, s.choices?.[e.index]?.choice ?? 0))
 }
 

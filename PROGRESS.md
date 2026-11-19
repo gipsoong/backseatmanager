@@ -1852,3 +1852,19 @@ coin flip; defenders heading their own team's chipped passes clear), not from tu
 - `npm test` takes ~80s (six full matches through the harness, plus the viewer tests);
   `npm run calibrate -- 80` ~3 min. Tune on one seed set, confirm on another (`-- 80 201`).
 - Commit and push before ending a session — history doesn't carry across devices.
+
+## Session 38: runs that last (achievements, super teams, dynasty)
+
+The owner picked three of five ideas for replay value (achievements and a legends album; super teams hard
+to manage; dynasty). Not picked: challenge runs, tactical identity.
+
+- Morale and ego events (draft/morale.ts, events.ts). sim-season seeds 21, 23, 31, 33 (greedy 4-3-3, PL):
+  points 81/96/93/73 before, 86/94/100/73 after (noise ±8 a season): no measurable cost to a greedy side
+  whose staff rotate by fitness. Greedy sides hold 8-10 stars; stars were unhappy 2-17 of 35 matchdays.
+  It's management texture (rotate your stars, decide the ego events), not a nerf. Fixture congestion was
+  left out: a draft season has no midweek games (the European Cup comes after the league).
+- Dynasty (draft/dynasty.ts): summer draft, aging by the database's next club-season, 3+ leavers. Played
+  end to end in the built page (Playwright: draft, 38 matchdays, carry on, summer draft, season 2).
+- Achievements (25) and the legends album: draft/achievements.ts, screens/Trophies.tsx (localStorage).
+- Next ideas: dynasty history screen; achievements that need the per-player club-season (e.g. a whole
+  2000s back four); a stronger morale effect if playtests show stacked sides still cruise.
