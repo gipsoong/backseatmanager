@@ -12,7 +12,9 @@ import { type ThemeId, budgetFor, draftLeague, draftRating, isComplete, newDraft
 import { greedy } from './greedy-draft.ts'
 import { POOLS, type League } from '../src/draft/pools.ts'
 import { FORMATIONS } from '../src/engine/index.ts'
-import { type Result, type Season, completeMatchday, createSeason, fitnessFor, fixturesOn, matchTeam, resultOf, squadOf, table } from '../src/season/season.ts'
+import { type Result, type Season, autoPick, completeMatchday, createSeason, fitnessFor, fixturesOn, isAvailable, matchTeam, resultOf, squadOf, table } from '../src/season/season.ts'
+import { unhappyStars, wantStart } from '../src/draft/morale.ts'
+import { fitFor } from '../src/engine/index.ts'
 
 const flags = process.argv.slice(2).filter((a) => a.startsWith('--'))
 const args = [process.argv[0], process.argv[1], ...process.argv.slice(2).filter((a) => !a.startsWith('--'))]
@@ -72,7 +74,30 @@ let s: Season = {
 }
 console.error(`our eleven ${draftRating(d)}${d.money !== undefined ? `, £${d.money}m left` : ''}`)
 const t0 = Date.now()
+// `--manage`: the manager keeps his stars happy, starting any who'd be (or are) unhappy in the place
+// he fits best, ahead of the weakest starter there who isn't a star at risk himself.
+const manage = flags.includes('--manage')
+function managed(s: Season): string[] {
+  const squad = squadOf(s.teams[s.userTeam])
+  const ids = autoPick(s, s.userTeam)
+  const risk = [...unhappyStars(s), ...wantStart(s)].filter((p) => isAvailable(s, p) && !ids.includes(p.id))
+  const atRisk = new Set([...unhappyStars(s), ...wantStart(s)].map((p) => p.id))
+  const slotsOf = FORMATIONS[s.teams[s.userTeam].formation]
+  for (const star of risk) {
+    let best = -1
+    let worst = Infinity
+    ids.forEach((id, i) => {
+      const p = squad.find((q) => q.id === id)!
+      if (atRisk.has(id) || slotsOf[i].role === 'GK' || fitFor(star, slotsOf[i]) < 0.9) return
+      const v = (p.overall ?? 0) >= 85 ? 1000 + (p.overall ?? 0) : (p.overall ?? 0)
+      if (v < worst) (worst = v), (best = i)
+    })
+    if (best >= 0) ids[best] = star.id
+  }
+  return ids
+}
 while (s.matchday <= upTo) {
+  if (manage) s = { ...s, lineup: managed(s) }
   const results = new Map<number, Result>()
   const fitness = fitnessFor(s)
   for (const f of fixturesOn(s, s.matchday)) results.set(f.id, resultOf(runMatch(matchTeam(s, f.home), matchTeam(s, f.away), { seed: f.seed, fitness })))

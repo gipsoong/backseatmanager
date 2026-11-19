@@ -8,6 +8,7 @@ import { RULES, draftEyebrow } from '../draft/draft.ts'
 import { isOver, matchdays, table, type Season } from '../season/season.ts'
 import { clubRecords } from '../season/stats.ts'
 import { RunTrophies } from './Trophies.tsx'
+import { DynastyCard } from './Dynasty.tsx'
 
 export interface RunRecord {
   key: string
@@ -119,12 +120,7 @@ export function RunGoals({ season }: { season: Season }) {
           {starsPossible(season) === 4 ? ', and one more for meeting the aim on Hard' : ''}.
         </p>
       )}
-      {season.dynasty && (
-        <p className="meta dynasty-line">
-          Your dynasty:{' '}
-          {season.dynasty.past.map((d, i) => `season ${i + 1} ${ordinal(d.place)}, ${d.points} pts${d.cup ? ', European Cup' : ''}`).join(' · ')}
-        </p>
-      )}
+      <DynastyCard season={season} />
       <RunTrophies season={season} />
     </div>
   )

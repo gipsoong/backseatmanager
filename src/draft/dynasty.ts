@@ -11,7 +11,7 @@ import { Rng, type PlayerDef } from '../engine/index.ts'
 import { DRAFT_SUBS, clubsOf, cardPlayer, newDraft, poolPlayer, type Draft, type Difficulty, type RuleId, type ThemeId } from './draft.ts'
 import { POOLS, type League } from './pools.ts'
 import { STAR, unhappyStars } from './morale.ts'
-import { table, type Season } from '../season/season.ts'
+import { squadOf, table, type Season } from '../season/season.ts'
 import { starsOf, starsPossible } from './goals.ts'
 import { cupWinner } from './cup.ts'
 
@@ -28,6 +28,15 @@ export interface DynastySeason {
   of: number
   /** Won the European Cup. */
   cup?: boolean
+  /** The side's top league scorer. */
+  scorer?: { name: string; goals: number }
+}
+
+/** A man's numbers over a dynasty's league seasons, by name (his id changes as he ages). */
+export interface DynastyLine {
+  apps: number
+  goals: number
+  assists: number
 }
 
 /** What a dynasty season carries (Season.dynasty). */
@@ -39,6 +48,21 @@ export interface Dynasty {
   left?: { name: string; why: string }[]
   /** Who moved most last summer: overall before and after. */
   aged?: { name: string; from: number; to: number }[]
+  /** Everyone's league numbers in the dynasty's finished seasons, by name. */
+  totals?: Record<string, DynastyLine>
+}
+
+/** The dynasty's numbers so far: its finished seasons and this one (for the manager's men). */
+export function dynastyTotals(s: Season): Record<string, DynastyLine> {
+  const out: Record<string, DynastyLine> = {}
+  for (const [name, l] of Object.entries(s.dynasty?.totals ?? {})) out[name] = { ...l }
+  for (const p of squadOf(s.teams[s.userTeam])) {
+    const st = s.stats[p.id]
+    if (!st?.apps) continue
+    const was = out[p.name] ?? { apps: 0, goals: 0, assists: 0 }
+    out[p.name] = { apps: was.apps + st.apps, goals: was.goals + st.goals, assists: was.assists + st.assists }
+  }
+  return out
 }
 
 const startYear = (poolIdx: number): number => Number(POOLS[poolIdx].season.slice(0, 4))
@@ -87,6 +111,9 @@ const BUYERS = ['Real Madrid', 'Barcelona', 'Bayern Munich', 'Manchester City', 
 export function seasonRecord(s: Season): DynastySeason {
   const rows = table(s)
   const place = rows.findIndex((r) => r.team === s.userTeam) + 1
+  const scorer = squadOf(s.teams[s.userTeam])
+    .map((p) => ({ name: p.name, goals: s.stats[p.id]?.goals ?? 0 }))
+    .sort((a, b) => b.goals - a.goals)[0]
   return {
     name: s.teams[s.userTeam].name,
     place,
@@ -94,6 +121,7 @@ export function seasonRecord(s: Season): DynastySeason {
     stars: starsOf(s),
     of: starsPossible(s),
     ...(s.cup && cupWinner(s.cup) === s.userTeam ? { cup: true } : {}),
+    ...(scorer && scorer.goals ? { scorer } : {}),
   }
 }
 
@@ -150,5 +178,5 @@ export function summerDraft(s: Season): { draft: Draft; dynasty: Dynasty } {
   if (!draft.twists) delete draft.twists
   const left = kept.filter((p) => leaving.has(p.id)).map((p) => ({ name: p.name, why: leaving.get(p.id)! }))
   moved.sort((a, b) => Math.abs(b.to - b.from) - Math.abs(a.to - a.from))
-  return { draft, dynasty: { season: n, past: [...(s.dynasty?.past ?? []), seasonRecord(s)], left, aged: moved.slice(0, 6) } }
+  return { draft, dynasty: { season: n, past: [...(s.dynasty?.past ?? []), seasonRecord(s)], left, aged: moved.slice(0, 6), totals: dynastyTotals(s) } }
 }

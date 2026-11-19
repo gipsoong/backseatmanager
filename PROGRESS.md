@@ -1863,6 +1863,10 @@ to manage; dynasty). Not picked: challenge runs, tactical identity.
   whose staff rotate by fitness. Greedy sides hold 8-10 stars; stars were unhappy 2-17 of 35 matchdays.
   It's management texture (rotate your stars, decide the ego events), not a nerf. Fixture congestion was
   left out: a draft season has no midweek games (the European Cup comes after the league).
+- Morale retuned (later): a star wants 3 starts in 5; 2+ unhappy -1 squad-wide, 4+ -2. Seeds 21/23/31/33:
+  no morale 81/96/93/73; ignored 84/96/102/63; managed (`--manage`) 78/99/95/63. The cost shows only when
+  two or more stars sulk at once (seed 33, 10 stars, -10 ignored), under the ±8 noise otherwise. Tried
+  -2/-3 squad-wide: ignored seeds 21/33 fell to 70 and 37 points (15th), far too harsh, reverted.
 - Dynasty (draft/dynasty.ts): summer draft, aging by the database's next club-season, 3+ leavers. Played
   end to end in the built page (Playwright: draft, 38 matchdays, carry on, summer draft, season 2).
 - Achievements (25) and the legends album: draft/achievements.ts, screens/Trophies.tsx (localStorage).

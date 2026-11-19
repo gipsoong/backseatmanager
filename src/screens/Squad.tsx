@@ -4,7 +4,7 @@
  */
 import { formOf } from '../season/form.ts'
 import { FormPill } from './FormPill.tsx'
-import { BENCH_WEEKS, UNHAPPY, unhappyStars } from '../draft/morale.ts'
+import { BENCH_WEEKS, STARTS_WANTED, UNHAPPY, unhappyStars, wantStart } from '../draft/morale.ts'
 import { useState } from 'react'
 import { type Block, FORMATIONS, type Mentality, type TeamDef, FORMATION_NAMES, fitFor, type Formation, type PlayerDef } from '../engine/index.ts'
 import { shortName, styleLabel } from '../names.ts'
@@ -302,12 +302,18 @@ export function Squad({
 export function FormNote({ season, id }: { season: Season; id: string }) {
   if (season.mode !== 'draft') return null
   const sulking = unhappyStars(season).some((p) => p.id === id)
+  const restive = !sulking && wantStart(season).some((p) => p.id === id)
   return (
     <>
       <FormPill form={formOf(season.seed, id, season.matchday)} />
       {sulking && (
-        <span className="form-pill unhappy" title={`Hasn't started in ${BENCH_WEEKS} matches: ${UNHAPPY} until he starts again`}>
+        <span className="form-pill unhappy" title={`Started fewer than ${STARTS_WANTED} of the last ${BENCH_WEEKS} matches: ${UNHAPPY} when he plays, until he's starting again`}>
           Unhappy
+        </span>
+      )}
+      {restive && (
+        <span className="form-pill wants" title={`Will be unhappy unless he starts this week (${STARTS_WANTED} starts in every ${BENCH_WEEKS})`}>
+          Wants a start
         </span>
       )}
     </>
