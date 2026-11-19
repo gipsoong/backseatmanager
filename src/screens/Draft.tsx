@@ -110,7 +110,10 @@ export function Draft({
   const [saved] = useState(savedOptions)
   const [name, setName] = useState(summer?.name ?? saved.name ?? 'Backseat XI')
   // The summer's open places: how many picks it has.
-  const [open] = useState(() => (summer ? DRAFT_ROUNDS - roundOf(summer.draft) : DRAFT_ROUNDS))
+  const [open, setOpen] = useState(() => (summer ? DRAFT_ROUNDS - roundOf(summer.draft) : DRAFT_ROUNDS))
+  // A summer draft, before its first pick: the manager may let up to RELEASE_MAX more go.
+  const [releasing, setReleasing] = useState(false)
+  const [released, setReleased] = useState<string[]>([])
   const [league, setLeague] = useState<League>(saved.league ?? 'Premier League')
   const [opts, setOpts] = useState<DraftOptions>(saved.opts ?? {})
   useEffect(() => {
@@ -151,7 +154,17 @@ export function Draft({
   const round = roundOf(draft)
   const starters = draft.xi.filter(Boolean).length
   const subs = draft.bench.filter(Boolean).length
+  const canRelease = !!summer && round === DRAFT_ROUNDS - open && released.length < RELEASE_MAX
+  const release = (at: Place): void => {
+    const p = 'xi' in at ? draft.xi[at.xi] : draft.bench[at.bench]
+    if (!p || !canRelease || p.role === 'GK') return
+    setDraft({ ...draft, xi: draft.xi.map((q, i) => ('xi' in at && i === at.xi ? null : q)), bench: draft.bench.map((q, i) => ('bench' in at && i === at.bench ? null : q)) })
+    setOpen(open + 1)
+    setReleased([...released, p.name])
+    setReleasing(false)
+  }
   const put = (at: Place): void => {
+    if (releasing) return release(at)
     if (!chosen) return
     setDraft(place(draft, chosen, at))
     setChosen(null)
@@ -161,7 +174,7 @@ export function Draft({
     window.clearTimeout(closing.current)
     closing.current = window.setTimeout(() => setPeek(false), 650)
   }
-  const sheetUp = !!chosen || peek
+  const sheetUp = !!chosen || peek || releasing
 
   return (
     <div className="draft">
@@ -243,7 +256,15 @@ export function Draft({
             </form>
           ) : (
             <>
-            {summer && round === DRAFT_ROUNDS - open && <SummerNews dynasty={summer.dynasty} open={open} />}
+            {summer && round === DRAFT_ROUNDS - open && (
+              <SummerNews dynasty={summer.dynasty} open={open} released={released}>
+                {canRelease && (
+                  <button type="button" className={`btn ${releasing ? '' : 'ghost '}slim`} aria-pressed={releasing} onClick={() => setReleasing(!releasing)}>
+                    {releasing ? 'Tap a player in your side to let him go' : `Let another player go (${RELEASE_MAX - released.length} left)`}
+                  </button>
+                )}
+              </SummerNews>
+            )}
             <Offer
               key={`${round}-${draft.rounds[round]}`}
               draft={draft}
@@ -260,10 +281,10 @@ export function Draft({
           )}
         </section>
 
-        <section className={`card draft-side${sheetUp ? ' up' : ''}`} aria-label="Your side">
-          <button type="button" className="sheet-handle" aria-expanded={sheetUp} onClick={() => (chosen ? setChosen(null) : setPeek(!peek))}>
+        <section className={`card draft-side${sheetUp ? ' up' : ''}${releasing ? ' releasing' : ''}`} aria-label="Your side">
+          <button type="button" className="sheet-handle" aria-expanded={sheetUp} onClick={() => (releasing ? setReleasing(false) : chosen ? setChosen(null) : setPeek(!peek))}>
             <span className="grip" aria-hidden="true" />
-            <span className="sheet-title">{chosen ? `Place ${surname(chosen.name)}` : 'Your side'}</span>
+            <span className="sheet-title">{releasing ? 'Tap a player to let him go' : chosen ? `Place ${surname(chosen.name)}` : 'Your side'}</span>
             <span className="sheet-count">
               {starters}/11 · {subs}/{draft.bench.length} subs<span className="sheet-links"> · {linksOf(draft.xi).length} links</span>
             </span>
@@ -281,7 +302,7 @@ export function Draft({
                     type="button"
                     className={`slot${p ? ' filled' : ''}${fit ? ' open' : ''}${fit !== null && fit < 1 ? ' off' : ''}${placed === `xi-${i}` && p ? ' placed' : ''}`}
                     style={slotStyle(slot)}
-                    disabled={!fit}
+                    disabled={releasing ? !p || p.role === 'GK' : !fit}
                     onClick={() => put({ xi: i })}
                     title={p ? `${p.name} (${p.overall})` : fit ? `${Math.round(fit * 100)}% fit` : undefined}
                   >
@@ -298,7 +319,7 @@ export function Draft({
                   key={`${i}-${p?.id ?? ''}`}
                   type="button"
                   className={`slot${p ? ' filled' : ''}${chosen && !p ? ' open' : ''}${placed === `bench-${i}` && p ? ' placed' : ''}`}
-                  disabled={!chosen || !!p}
+                  disabled={releasing ? !p || p.role === 'GK' : !chosen || !!p}
                   onClick={() => put({ bench: i })}
                 >
                   <span className="pos">{p ? p.overall : 'SUB'}</span>
@@ -330,14 +351,17 @@ export function Draft({
             )}
           </div>
         </section>
-        {sheetUp && <div className="sheet-scrim" onClick={() => (chosen ? setChosen(null) : setPeek(false))} aria-hidden="true" />}
+        {sheetUp && <div className="sheet-scrim" onClick={() => (releasing ? setReleasing(false) : chosen ? setChosen(null) : setPeek(false))} aria-hidden="true" />}
       </div>
     </div>
   )
 }
 
 /** A dynasty's summer news, before its first pick: who left, who moved most. */
-function SummerNews({ dynasty, open }: { dynasty: Dynasty; open: number }) {
+/** How many more a summer draft may let go, to draft their places too. */
+const RELEASE_MAX = 2
+
+function SummerNews({ dynasty, open, released, children }: { dynasty: Dynasty; open: number; released: string[]; children?: React.ReactNode }) {
   const last = dynasty.past[dynasty.past.length - 1]
   return (
     <div className="summer-news rise">
@@ -358,7 +382,13 @@ function SummerNews({ dynasty, open }: { dynasty: Dynasty; open: number }) {
             {a.name} {a.to > a.from ? 'grew' : 'slipped'} from {a.from} to {a.to}.
           </li>
         ))}
+        {released.map((n) => (
+          <li key={n}>
+            <strong>{n}</strong> was let go.
+          </li>
+        ))}
       </ul>
+      {children}
     </div>
   )
 }

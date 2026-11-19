@@ -4940,6 +4940,12 @@ p.meta,
   color: var(--muted);
 }
 
+.releasing .slot.filled:not(:disabled) {
+  outline: 2px dashed var(--flavour-hot);
+  outline-offset: 1px;
+  cursor: pointer;
+}
+
 /* Unhappy stars (session 38). */
 .morale-note {
   margin: 12px 0;
