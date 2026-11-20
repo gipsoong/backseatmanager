@@ -714,9 +714,10 @@ pulling the repo.
   bust caches on `version`/`slice`, a keyboard ref set in render, comma expressions).
 
 - Runs that last (session 38, draft). Morale (`draft/morale.ts`): a star (`STAR` 85+, not a keeper) with
-  fewer than `STARTS_WANTED` 3 starts in the side's last `BENCH_WEEKS` 5 league matches while fit plays
-  `UNHAPPY` -2 (as form moves him, applied in matchTeam's `withBoosts`); 2+ unhappy: the whole squad -1, 4+:
-  -2 (`restlessness`); `wantStart` warns a week ahead. From results and conditions, nothing saved;
+  no start (`STARTS_WANTED` 1) in the side's last `BENCH_WEEKS` 6 league matches while fit plays `UNHAPPY` -1
+  (as form moves him, applied in matchTeam's `withBoosts`); 3+ unhappy: the whole squad -1 (`restlessness`);
+  `wantStart` warns a week ahead. Lenient on purpose: the owner finds a fuss over starts a career thing, not a
+  draft one (the first tuning, 3 starts in 5, -2, squad -1 from two, was too nagging). From results and conditions, nothing saved;
   `MoraleNote` on the hub, "Unhappy" / "Wants a start" pills in the squad. `sim-season ... --manage` plays a
   manager who starts stars at risk. A squad -2/-3 was far too harsh (a greedy side finished 15th).
   Star-heavy squads get extra events (events.ts): `egos` (6+ stars, matchday 13-14) and `contract`

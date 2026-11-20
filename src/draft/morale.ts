@@ -12,13 +12,16 @@ import type { Season } from '../season/season.ts'
 
 /** The overall that makes a star (draft.ts STAR_LINE, repeated so season.ts needn't load the draft's data). */
 export const STAR = 85
-export const BENCH_WEEKS = 5
-export const STARTS_WANTED = 3
-export const UNHAPPY = -2
-export const RESTLESS_FROM = 2
+// Lenient in draft mode (the owner, after playtest: a fuss over starts suits a career more than a
+// draft): only a star left out of six matches running sulks, a point, and only three at once
+// unsettle the squad. (Session 38's first tuning, 3 starts in 5, -2, 2+ = squad -1, felt nagging.)
+export const BENCH_WEEKS = 6
+export const STARTS_WANTED = 1
+export const UNHAPPY = -1
+export const RESTLESS_FROM = 3
 export const RESTLESS = -1
-export const RESTLESS_MORE = 4
-export const RESTLESS_WORSE = -2
+export const RESTLESS_MORE = 99
+export const RESTLESS_WORSE = -1
 
 const squad = (s: Season): PlayerDef[] => [...s.teams[s.userTeam].players, ...s.teams[s.userTeam].bench]
 

@@ -1,7 +1,7 @@
 /** A mid-season event on the hub (draft seasons, draft/events.ts): two choices, before the match. */
 import { choose, eventText, pendingEvent } from '../draft/events.ts'
 import { isAvailable, type Season } from '../season/season.ts'
-import { BENCH_WEEKS, RESTLESS, RESTLESS_FROM, STARTS_WANTED, UNHAPPY, restlessness, unhappyStars, wantStart } from '../draft/morale.ts'
+import { BENCH_WEEKS, RESTLESS, RESTLESS_FROM, UNHAPPY, restlessness, unhappyStars, wantStart } from '../draft/morale.ts'
 import { shortName as surname } from '../names.ts'
 
 export function EventCard({ season, onChoose }: { season: Season; onChoose: (s: Season) => void }) {
@@ -41,7 +41,7 @@ export function MoraleNote({ season }: { season: Season }) {
       <div className="morale-note rise">
         <p className="eyebrow">Dressing room</p>
         <p className="meta">
-          {warn.trim()} A star wants {STARTS_WANTED} starts in every {BENCH_WEEKS} matches; an unhappy one plays {UNHAPPY}, and {RESTLESS_FROM} unhappy unsettle the whole squad.
+          {warn.trim()} A star left out of {BENCH_WEEKS} matches running plays {UNHAPPY} until he starts again, and {RESTLESS_FROM} unhappy at once unsettle the whole squad.
         </p>
       </div>
     )
@@ -51,7 +51,7 @@ export function MoraleNote({ season }: { season: Season }) {
     <div className="morale-note rise">
       <p className="eyebrow">Dressing room</p>
       <p className="meta">
-        {list} {one ? 'has' : 'have'} started fewer than {STARTS_WANTED} of the last {BENCH_WEEKS} matches and {one ? 'is' : 'are'} unhappy: {UNHAPPY} when {one ? 'he plays' : 'they play'}.
+        {list} {one ? "hasn't" : "haven't"} started in {BENCH_WEEKS} matches and {one ? 'is' : 'are'} unhappy: {UNHAPPY} when {one ? 'he plays' : 'they play'}.
         {restless
           ? ` With ${sad.length} stars sulking the whole squad plays ${restless}.`
           : ` If ${RESTLESS_FROM} stars sulk at once, the whole squad plays ${RESTLESS}.`}{' '}

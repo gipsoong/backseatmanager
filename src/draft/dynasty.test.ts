@@ -42,9 +42,9 @@ function withBenchStar(s: Season): [Season, PlayerDef] {
 describe('morale', () => {
   const [base, star] = withBenchStar(draftSeason(5))
 
-  it('a star left out of the last five matches is unhappy, and plays worse', () => {
-    expect(unhappyStars(played(base, 4))).not.toContainEqual(star)
-    const s = played(base, 5)
+  it('a star left out of six matches running is unhappy, and plays worse', () => {
+    expect(unhappyStars(played(base, 5))).not.toContainEqual(star)
+    const s = played(base, 6)
     expect(unhappyStars(s).map((p) => p.id)).toContain(star.id)
     expect(moraleOf(s).get(star.id)).toBeLessThanOrEqual(UNHAPPY)
     const find = (x: Season): PlayerDef => {
@@ -59,7 +59,7 @@ describe('morale', () => {
   })
 
   it('nobody under the star line sulks, and an injured star does not', () => {
-    const s = played(base, 5)
+    const s = played(base, 6)
     for (const p of unhappyStars(s)) expect(p.overall).toBeGreaterThanOrEqual(STAR)
     const hurt = { ...s, condition: { ...s.condition, [star.id]: { fitness: 1, injuredUntil: 3 } } }
     expect(unhappyStars(hurt).map((p) => p.id)).not.toContain(star.id)
@@ -78,7 +78,7 @@ describe('morale', () => {
 })
 
 describe('dynasty', () => {
-  const s = { ...played(draftSeason(7), 5), matchday: 39 }
+  const s = { ...played(draftSeason(7), 6), matchday: 39 }
 
   it('keeps the drafted side, a year older, with places open for its leavers', () => {
     const { draft, dynasty } = summerDraft(s)
